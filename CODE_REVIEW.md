@@ -41,3 +41,14 @@ Scope: starter archive review, with emphasis on CI reliability, Windows-only bui
 - **P0 (fixed):** Tauri's Windows resource build requires `src-tauri/icons/icon.ico`. The file was absent, so `tauri-build` stopped before compiling the app. Added a valid multi-resolution Windows ICO and a matching PNG, and declared both in `bundle.icon` in `src-tauri/tauri.conf.json`.
 - **P2 (fixed):** Narrowed artifact upload paths to the Windows NSIS `.exe` and MSI `.msi` installer outputs so the workflow only publishes Windows installer artifacts.
 - **Verification:** The icon files and configuration were checked locally, but a full GitHub-hosted Windows build has not yet been run after this fix.
+
+
+## Production-hardening follow-up
+
+- **P1 (implemented):** Windows-only CI prepares and uploads `Cobweb.exe` as a standalone x64 executable and publishes the NSIS installer separately.
+- **P1 (implemented):** Workflow drafts persist in local WebView storage and workflow JSON export creates a downloadable versioned JSON file.
+- **P2 (implemented):** UI scale set to 125%; default window size increased; reduced-motion preference honored.
+- **P0 (still open):** Actual automation steps are not yet executed through Chrome DevTools Protocol. The runner is still a prototype and must not be represented as production-ready.
+- **P1 (still open):** Recorder, real browser preview, and performance telemetry are placeholders/sample data.
+- **P1 (still open):** `npm install` remains because a committed lockfile is absent. Add and review `package-lock.json`, then switch CI to `npm ci`.
+- **Verification:** Source/configuration edits were inspected, but a full Windows CI build and runtime test have not been executed in this environment.

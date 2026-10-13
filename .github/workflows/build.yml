@@ -1,4 +1,4 @@
-name: Build Cobweb
+name: Build Cobweb (Windows)
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build on Windows
+    name: Build portable Windows EXE
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -22,26 +22,45 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          # No npm cache until package-lock.json is committed. setup-node cache
-          # requires a lockfile and otherwise fails before dependencies install.
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
 
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build frontend
+      - name: Type-check and build frontend
         run: npm run build
 
-      - name: Build Windows desktop app
-        run: npm run tauri -- build
+      - name: Build Windows app and NSIS installer
+        run: npm run tauri -- build --bundles nsis
 
-      - name: Upload Windows installers
+      - name: Prepare portable executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = 'src-tauri/target/release/cobweb.exe'
+          if (!(Test-Path $source)) {
+            throw "Portable executable was not produced: $source"
+          }
+          New-Item -ItemType Directory -Force -Path 'dist-portable' | Out-Null
+          Copy-Item $source 'dist-portable/Cobweb.exe' -Force
+          Get-Item 'dist-portable/Cobweb.exe' | Select-Object Name, Length
+
+      - name: Upload portable executable
         uses: actions/upload-artifact@v4
         with:
-          name: cobweb-windows
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+          name: Cobweb-Portable-Windows-x64
+          path: dist-portable/Cobweb.exe
           if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload optional NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cobweb-Installer-Windows-x64
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn

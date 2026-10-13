@@ -90,3 +90,26 @@ npm run tauri -- build
 - Treat JavaScript evaluation, downloads, file uploads, cookies, and arbitrary navigation as powerful actions.
 - Validate URLs and selectors and clearly display the target origin.
 - Do not export cookies, tokens, or credentials with workflow JSON by default.
+
+
+## Windows portable build
+
+GitHub Actions builds a standalone `Cobweb.exe` and publishes it as the
+`Cobweb-Portable-Windows-x64` artifact. Download that artifact and run
+`Cobweb.exe` on a supported 64-bit Windows machine. It does not require an
+installer, but **WebView2 Runtime is still a Windows runtime dependency**;
+most supported Windows 10/11 systems already have it. The optional NSIS
+installer is published separately as `Cobweb-Installer-Windows-x64`.
+
+The application UI is scaled to 125% for readability.
+
+## Current production-readiness limits
+
+The app includes a workflow editor, local draft persistence, JSON export,
+profile/data/logic screens, and a Rust command that launches a local
+Chromium-family browser. The automation runner does **not yet execute the
+configured click/type/assertion steps through CDP**; the recorder and browser
+preview are placeholders, and performance metrics are sample data. Do not use
+these screens as proof of successful unattended automation until those
+integrations and automated tests are implemented. Local drafts are WebView
+storage, not a synced or backed-up database.
