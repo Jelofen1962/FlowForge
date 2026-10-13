@@ -232,7 +232,26 @@ fn inspect_json_payload(input: String) -> Result<JsonInspection, String> {
 }
 
 fn validate_http_url(raw: &str) -> Result<Url, String> {
-    let parsed = Url::parse(raw.trim()).map_err(|_| "Enter a valid absolute URL.".to_string())?;
+    let input = raw.trim();
+
+    // The WHATWG URL parser may normalize extra slashes after `https:` and
+    // interpret the next path segment as a host. Require an explicit,
+    // non-empty authority before parsing so `https:///missing-host` fails.
+    let (raw_scheme, after_separator) = input
+        .split_once("://")
+        .ok_or_else(|| "Enter a valid absolute HTTP or HTTPS URL.".to_string())?;
+    if !matches!(raw_scheme.to_ascii_lowercase().as_str(), "http" | "https") {
+        return Err("URL must use HTTP or HTTPS.".into());
+    }
+    let authority = after_separator
+        .split(|ch| matches!(ch, '/' | '?' | '#'))
+        .next()
+        .unwrap_or_default();
+    if authority.is_empty() || authority.chars().any(char::is_whitespace) {
+        return Err("URL must include a valid hostname.".into());
+    }
+
+    let parsed = Url::parse(input).map_err(|_| "Enter a valid absolute URL.".to_string())?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("URL must use HTTP or HTTPS.".into());
     }
