@@ -38,7 +38,7 @@ The current UI parses and queries its in-memory dataset. Streaming ingestion, pe
 - Performance page (sample timings until real instrumentation is connected).
 - Browser optimization controls and visible/headless controls.
 - Keyboard shortcut reference.
-- Cross-platform GitHub Actions workflow for Tauri builds.
+- Windows-only GitHub Actions workflow for Tauri builds.
 
 ## Known implementation boundaries
 
@@ -73,7 +73,7 @@ npm run tauri -- build
 
 ## GitHub Actions
 
-`.github/workflows/build.yml` builds on Ubuntu, Windows, and macOS for pushes to `main`, pull requests, and manual runs. It uploads available platform bundles as workflow artifacts. Release signing and versioned GitHub Releases can be added after the first verified builds.
+`.github/workflows/build.yml` builds on `windows-latest` only for pushes to `main`, pull requests, and manual runs. It uploads the Windows bundles as a workflow artifact. The workflow intentionally does not enable `setup-node` npm caching until a `package-lock.json` is committed, because npm caching requires a dependency lockfile. It currently uses `npm install`; committing a lockfile and switching to `npm ci` is recommended for reproducible builds. Release signing and versioned GitHub Releases can be added after the first verified builds.
 
 ## Suggested next milestones
 

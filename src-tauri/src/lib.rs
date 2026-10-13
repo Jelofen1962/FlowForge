@@ -28,7 +28,7 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, state
     let mut last_error = String::from("No supported Chromium browser found in PATH or standard location.");
     for bin in candidates {
         let mut cmd = Command::new(bin);
-        cmd.arg("--remote-debugging-port=9222").arg(format!("--user-data-dir={profile_path}"));
+        cmd.arg("--remote-debugging-address=127.0.0.1").arg("--remote-debugging-port=9222").arg(format!("--user-data-dir={profile_path}"));
         if headless { cmd.arg("--headless=new"); }
         cmd.arg(format!("--disk-cache-dir={}", profile_dir.join("http-cache").to_string_lossy()));
         cmd.arg("--disable-background-networking").arg(url.clone()).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
