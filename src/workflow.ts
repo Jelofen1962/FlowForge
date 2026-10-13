@@ -26,6 +26,7 @@ export function validateHttpUrl(value: string): string | null {
     const url = new URL(value.trim());
     if (!['http:', 'https:'].includes(url.protocol)) return 'URL must use HTTP or HTTPS.';
     if (!url.hostname || url.hostname.includes(' ')) return 'Enter a valid hostname.';
+    if (url.username || url.password) return 'URLs containing embedded credentials are not allowed.';
     return null;
   } catch { return 'Enter a valid URL, including https://.'; }
 }
@@ -67,4 +68,35 @@ export function filterRecords(records: unknown[], path: string, operator: string
       default: return false;
     }
   });
+}
+
+
+/** Resolve {{path.to.value}} tokens against a row/context without evaluating code. */
+export function bindWorkflowVariables(template: string, context: unknown): string {
+  return template.replace(/\{\{\s*([a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*|\[\d+\])*)\s*\}\}/g, (_match, path: string) => {
+    const value = getPath(context, path);
+    if (value === undefined || value === null) return '';
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  });
+}
+
+export type WaitStrategy = 'visible' | 'attached' | 'hidden' | 'none';
+export function resolveStepTimeout(stepTimeout: unknown, defaultTimeout: number): number {
+  const fallback = Number.isFinite(defaultTimeout) && defaultTimeout > 0 ? Math.floor(defaultTimeout) : 10000;
+  const override = typeof stepTimeout === 'number' ? stepTimeout : Number(stepTimeout);
+  return Number.isFinite(override) && override > 0 ? Math.min(120000, Math.floor(override)) : Math.min(120000, fallback);
+}
+
+export function validateWorkflowSteps(steps: unknown): string[] {
+  if (!Array.isArray(steps)) return ['Steps must be an array.'];
+  const errors: string[] = [];
+  const ids = new Set<number>();
+  steps.forEach((step, index) => {
+    if (!isWorkflowStep(step)) { errors.push(`Step ${index + 1} is malformed.`); return; }
+    if (ids.has(step.id)) errors.push(`Step ID ${step.id} is duplicated.`);
+    ids.add(step.id);
+    if (step.type.length > 64) errors.push(`Step ${index + 1} has an invalid type.`);
+    if (step.title.length > 500 || step.detail.length > 10000) errors.push(`Step ${index + 1} exceeds the supported text length.`);
+  });
+  return errors;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterRecords, getPath, isWorkflowStep, nextStepId, parseJsonOrNdjson, readWorkflowDraft, safeFilename, validateHttpUrl } from '../workflow';
+import { filterRecords, getPath, isWorkflowStep, nextStepId, parseJsonOrNdjson, readWorkflowDraft, safeFilename, validateHttpUrl, bindWorkflowVariables, resolveStepTimeout, validateWorkflowSteps } from '../workflow';
 
 const steps = [{ id: 2, type: 'click', title: 'Click', detail: 'button.ok', enabled: true, breakpoint: false }];
 describe('workflow validation and persistence', () => {
@@ -23,6 +23,7 @@ describe('workflow validation and persistence', () => {
     expect(validateHttpUrl('https://example.com')).toBeNull();
     expect(validateHttpUrl('javascript:alert(1)')).toContain('HTTP or HTTPS');
     expect(validateHttpUrl('not a url')).toContain('valid URL');
+    expect(validateHttpUrl('https://user:pass@example.com')).toContain('credentials');
   });
 });
 describe('JSON/NDJSON engine', () => {
@@ -49,5 +50,26 @@ describe('JSON/NDJSON engine', () => {
     expect(filterRecords(rows, 'user.name', 'regex', '^B')).toHaveLength(1);
     expect(filterRecords(rows, 'user.name', 'in', '["Alice"]')).toHaveLength(1);
     expect(filterRecords(rows, 'user.age', '???', '20')).toHaveLength(0);
+  });
+});
+
+
+describe('production workflow guards', () => {
+  it('binds nested row variables without evaluating expressions', () => {
+    expect(bindWorkflowVariables('Hello {{ user.name }} / {{orders[0].id}} / {{missing}}', {
+      user: { name: 'Ada' }, orders: [{ id: 42 }]
+    })).toBe('Hello Ada / 42 / ');
+    expect(bindWorkflowVariables('{{x}}', { x: { ok: true } })).toBe('{"ok":true}');
+  });
+  it('applies a valid per-step timeout before the default and clamps unsafe values', () => {
+    expect(resolveStepTimeout(2500, 10000)).toBe(2500);
+    expect(resolveStepTimeout(undefined, 10000)).toBe(10000);
+    expect(resolveStepTimeout(999999, 10000)).toBe(120000);
+    expect(resolveStepTimeout(-1, 0)).toBe(10000);
+  });
+  it('detects malformed steps and duplicate IDs', () => {
+    expect(validateWorkflowSteps(steps)).toEqual([]);
+    expect(validateWorkflowSteps([...steps, { ...steps[0] }])).toContain('Step ID 2 is duplicated.');
+    expect(validateWorkflowSteps('bad')).toEqual(['Steps must be an array.']);
   });
 });

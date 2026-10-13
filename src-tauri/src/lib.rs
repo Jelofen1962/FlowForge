@@ -1,10 +1,32 @@
 use serde::Serialize;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::net::TcpListener;
+use url::Url;
+use regex::Regex;
 use tauri::State;
 
 #[derive(Default)]
-struct BrowserState { child: Mutex<Option<Child>> }
+struct BrowserState { children: Mutex<Vec<Child>> }
+
+impl Drop for BrowserState {
+    fn drop(&mut self) {
+        if let Ok(children) = self.children.get_mut() {
+            for child in children.iter_mut() { let _ = child.kill(); let _ = child.wait(); }
+        }
+    }
+}
+
+fn choose_devtools_port(requested: u16) -> Result<u16, String> {
+    if !(1024..=65535).contains(&requested) { return Err("DevTools port must be between 1024 and 65535".into()); }
+    for candidate in std::iter::once(requested).chain((requested.saturating_add(1)..=u16::MAX).chain(1024..requested)) {
+        if let Ok(listener) = TcpListener::bind(("127.0.0.1", candidate)) {
+            drop(listener);
+            return Ok(candidate);
+        }
+    }
+    Err("No available local DevTools port was found.".into())
+}
 
 #[derive(Serialize)]
 struct BrowserLaunch { launched: bool, message: String }
@@ -13,9 +35,7 @@ struct BrowserLaunch { launched: bool, message: String }
 // should attach to its DevTools Protocol endpoint for DOM selection and automation commands.
 #[tauri::command]
 fn launch_browser(url: String, headless: bool, profile_id: Option<String>, browser_engine: Option<String>, devtools_port: Option<u16>, state: State<BrowserState>) -> Result<BrowserLaunch, String> {
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err("URL must start with http:// or https://".into());
-    }
+    validate_http_url(&url)?;
     let raw_profile = profile_id.unwrap_or_else(|| "default".to_string());
     let safe_profile: String = raw_profile.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(64).collect();
     let safe_profile = if safe_profile.is_empty() { "default".to_string() } else { safe_profile };
@@ -23,8 +43,7 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, brows
     std::fs::create_dir_all(&profile_dir).map_err(|e| format!("Could not create browser profile directory: {e}"))?;
     let profile_path = profile_dir.to_string_lossy().to_string();
     let engine = browser_engine.unwrap_or_else(|| "edge".to_string()).to_ascii_lowercase();
-    let port = devtools_port.unwrap_or(9222);
-    if !(1024..=65535).contains(&port) { return Err("DevTools port must be between 1024 and 65535".into()); }
+    let port = choose_devtools_port(devtools_port.unwrap_or(9222))?;
     let candidates: Vec<String> = if cfg!(target_os = "windows") {
         let mut paths = Vec::new();
         let edge_names = [
@@ -75,8 +94,9 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, brows
         cmd.arg("--disable-background-networking").arg(url.clone()).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
         match cmd.spawn() {
             Ok(child) => {
-                let mut guard = state.child.lock().map_err(|_| "Browser state lock failed".to_string())?;
-                *guard = Some(child);
+                let mut guard = state.children.lock().map_err(|_| "Browser state lock failed".to_string())?;
+                guard.retain_mut(|existing| match existing.try_wait() { Ok(Some(_)) => false, _ => true });
+                guard.push(child);
                 return Ok(BrowserLaunch { launched: true, message: format!("Started {bin} with profile '{safe_profile}' and DevTools on port {port}.") });
             },
             Err(e) => last_error = format!("Could not launch {bin}: {e}"),
@@ -87,10 +107,15 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, brows
 
 #[tauri::command]
 fn browser_status(state: State<BrowserState>) -> Result<bool, String> {
-    let mut guard = state.child.lock().map_err(|_| "Browser state lock failed".to_string())?;
-    if let Some(child) = guard.as_mut() {
-        match child.try_wait() { Ok(Some(_)) => { *guard = None; Ok(false) }, Ok(None) => Ok(true), Err(e) => Err(e.to_string()) }
-    } else { Ok(false) }
+    let mut guard = state.children.lock().map_err(|_| "Browser state lock failed".to_string())?;
+    let mut first_error = None;
+    guard.retain_mut(|child| match child.try_wait() {
+        Ok(Some(_)) => false,
+        Ok(None) => true,
+        Err(error) => { first_error = Some(error.to_string()); true }
+    });
+    if let Some(error) = first_error { return Err(error); }
+    Ok(!guard.is_empty())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -206,13 +231,40 @@ fn inspect_json_payload(input: String) -> Result<JsonInspection, String> {
     Ok(JsonInspection { records: records.len(), paths, structural_patterns: patterns.len() })
 }
 
+fn validate_http_url(raw: &str) -> Result<Url, String> {
+    let parsed = Url::parse(raw.trim()).map_err(|_| "Enter a valid absolute URL.".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("URL must use HTTP or HTTPS.".into());
+    }
+    if parsed.host_str().map_or(true, |host| host.trim().is_empty()) {
+        return Err("URL must include a valid hostname.".into());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Credentials embedded in URLs are not allowed.".into());
+    }
+    Ok(parsed)
+}
+
+fn value_as_coerced_string(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Null => "null".into(),
+        _ => value.to_string(),
+    }
+}
+
 fn json_filter_matches(record: &Value, filter: &JsonFilter) -> bool {
     let actual = path_value(record, &filter.path);
     let expected = filter.value.as_ref().unwrap_or(&Value::Null);
     match filter.operator.as_str() {
         "exists" => actual.map_or(false, |v| !v.is_null()),
-        "==" => actual == Some(expected),
-        "!=" | "$ne" => actual != Some(expected),
+        "==" | "$eq" => actual.map_or(false, |a| a == expected || value_as_coerced_string(a) == value_as_coerced_string(expected)),
+        "!=" | "$ne" => actual.map_or(true, |a| !(a == expected || value_as_coerced_string(a) == value_as_coerced_string(expected))),
+        "regex" | "$regex" => actual.map_or(false, |a| {
+            let pattern = match expected.as_str() { Some(p) => p, None => return false };
+            if pattern.len() > 4096 { return false; }
+            Regex::new(pattern).map(|re| re.is_match(&value_as_coerced_string(a))).unwrap_or(false)
+        }),
         ">" | "$gt" => actual.and_then(Value::as_f64).zip(expected.as_f64()).map_or(false, |(a,b)| a>b),
         ">=" | "$gte" => actual.and_then(Value::as_f64).zip(expected.as_f64()).map_or(false, |(a,b)| a>=b),
         "<" | "$lt" => actual.and_then(Value::as_f64).zip(expected.as_f64()).map_or(false, |(a,b)| a<b),
@@ -248,6 +300,25 @@ mod tests {
         assert_eq!(parse_json_records(r#"{"a":1}"#).unwrap().len(), 1);
         assert_eq!(parse_json_records("{\"a\":1}\n{\"a\":2}").unwrap().len(), 2);
         assert!(parse_json_records("{\"a\":1}\ninvalid").is_err());
+    }
+
+    #[test]
+    fn validates_urls_with_scheme_host_and_no_embedded_credentials() {
+        assert!(validate_http_url("https://example.com/path").is_ok());
+        assert!(validate_http_url("javascript:alert(1)").is_err());
+        assert!(validate_http_url("https:///missing-host").is_err());
+        assert!(validate_http_url("https://user:pass@example.com").is_err());
+    }
+
+    #[test]
+    fn query_supports_regex_and_string_coerced_equality() {
+        let record: Value = serde_json::from_str(r#"{"code":123,"name":"Cobweb Runner"}"#).unwrap();
+        let equal = JsonFilter { path: "code".into(), operator: "==".into(), value: Some(Value::String("123".into())) };
+        let regex = JsonFilter { path: "name".into(), operator: "regex".into(), value: Some(Value::String("^Cobweb.*Runner$".into())) };
+        let invalid_regex = JsonFilter { path: "name".into(), operator: "regex".into(), value: Some(Value::String("[".into())) };
+        assert!(json_filter_matches(&record, &equal));
+        assert!(json_filter_matches(&record, &regex));
+        assert!(!json_filter_matches(&record, &invalid_regex));
     }
 
     #[test]

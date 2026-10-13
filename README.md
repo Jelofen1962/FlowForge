@@ -142,3 +142,18 @@ verified.
 ### npm install 404 workaround
 
 The project pins transitive Rollup to `4.34.8` with npm `overrides` to avoid the unavailable `rollup-4.64.6.tgz` reported by the Windows runner. CI also asks npm to prefer fresh registry metadata. Confirm the install in Actions, then commit the generated `package-lock.json` for fully reproducible dependency installs.
+
+## Hardening changes in this revision
+
+- Rust launch URLs are parsed with the `url` crate and restricted to absolute HTTP(S) URLs without embedded credentials.
+- Browser process tracking supports multiple launched instances and attempts to terminate tracked children when native state is dropped.
+- DevTools port selection probes for a free loopback port, starting at the requested port and falling back when it is occupied. The probe/spawn sequence still has the normal small port-allocation race.
+- Native JSON queries support regular-expression matching and string-coerced equality; malformed regex patterns fail closed.
+- Workflow utilities now provide safe `{{path.to.value}}` variable substitution, timeout precedence/clamping, duplicate-ID and shape validation, with unit tests.
+- GitHub Actions caches npm downloads and Cargo build artifacts, and runs frontend tests, Rust tests, the frontend production build, and the Tauri bundle build.
+
+## Important remaining production gates
+
+This revision improves validation, lifecycle management, native query parity, workflow guard utilities, and CI. It does **not** yet complete every requested CDP feature. In particular, the UI runner still uses timer-based progression; a full CDP WebSocket command dispatcher and event stream must be connected before clicks, DOM assertions, breakpoints, recorder overlays, screencast preview, storage policies, network interception, logic blocks, and live performance telemetry can be called production-ready. Streaming file ingestion and persistent full-text indexes also remain unimplemented. Code signing requires a configured signing certificate and protected CI secrets. No release should be represented as fully verified until CI has passed on the target platform.
+
+The current environment did not have a usable dependency installation or Rust toolchain, and registry access timed out. Consequently, tests/builds could not be executed locally during this pass. The CI workflow is configured to run them on GitHub Actions. A `package-lock.json` could not be generated without registry metadata; npm download caching is enabled without pretending `npm ci` is available yet.
