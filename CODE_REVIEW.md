@@ -34,3 +34,10 @@ Scope: starter archive review, with emphasis on CI reliability, Windows-only bui
 - Workflow YAML and paths reviewed statically.
 - `npm install --package-lock-only --ignore-scripts --no-audit --no-fund` did not complete within the available time, so no lockfile was generated.
 - Full TypeScript/Tauri build and runtime tests remain unverified in this environment.
+
+
+## Follow-up build failure: missing Windows icon (2026-10-13)
+
+- **P0 (fixed):** Tauri's Windows resource build requires `src-tauri/icons/icon.ico`. The file was absent, so `tauri-build` stopped before compiling the app. Added a valid multi-resolution Windows ICO and a matching PNG, and declared both in `bundle.icon` in `src-tauri/tauri.conf.json`.
+- **P2 (fixed):** Narrowed artifact upload paths to the Windows NSIS `.exe` and MSI `.msi` installer outputs so the workflow only publishes Windows installer artifacts.
+- **Verification:** The icon files and configuration were checked locally, but a full GitHub-hosted Windows build has not yet been run after this fix.
