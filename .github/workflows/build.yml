@@ -30,7 +30,7 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Install JavaScript dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --prefer-online
 
       - name: Run frontend unit tests
         run: npm test
