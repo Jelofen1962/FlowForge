@@ -113,3 +113,27 @@ preview are placeholders, and performance metrics are sample data. Do not use
 these screens as proof of successful unattended automation until those
 integrations and automated tests are implemented. Local drafts are WebView
 storage, not a synced or backed-up database.
+
+
+## Automated tests
+
+- `npm test`: Vitest unit tests for workflow validation, draft parsing, filename sanitation, URL validation, JSON/NDJSON parsing, nested field paths, filtering, and dropdown interactions.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: Rust unit tests for the native JSON parser, nested-path resolver, and query filtering.
+- GitHub Actions runs both test commands before frontend and Tauri builds.
+
+
+## UI interaction and persistence pass
+
+The workspace, engine, help, account, group, and per-step menus use a shared
+accessible dropdown component. Menus close with Escape or an outside click.
+The workflow editor includes duplicate/enable/disable/delete step actions,
+group-level enable/disable actions, and real website creation with local
+persistence. Workflow URL and runtime preferences are persisted with the draft.
+The interface includes restrained transitions, hover feedback, focus rings,
+and reduced-motion support.
+
+Run `npm test` for frontend unit/component tests. CI also runs native Rust
+unit tests before building. The local environment used for this revision did
+not complete npm dependency installation, and Rust tooling was not available,
+so these suites must be confirmed in GitHub Actions before calling the release
+verified.

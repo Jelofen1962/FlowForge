@@ -32,6 +32,12 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Run frontend unit tests
+        run: npm test
+
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Type-check and build frontend
         run: npm run build
 

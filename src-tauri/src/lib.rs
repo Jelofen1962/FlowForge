@@ -195,3 +195,66 @@ fn query_json_payload(input: String, filters: Vec<JsonFilter>, fields: Vec<Strin
         Value::Object(out)
     }).collect())
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_json_array_object_and_ndjson() {
+        assert_eq!(parse_json_records(r#"[{"a":1},{"a":2}]"#).unwrap().len(), 2);
+        assert_eq!(parse_json_records(r#"{"a":1}"#).unwrap().len(), 1);
+        assert_eq!(parse_json_records("{\"a\":1}\n{\"a\":2}").unwrap().len(), 2);
+        assert!(parse_json_records("{\"a\":1}\ninvalid").is_err());
+    }
+
+    #[test]
+    fn resolves_nested_and_array_paths() {
+        let value: Value = serde_json::from_str(r#"{"user":{"name":"Alice"},"items":[{"price":12}]}"#).unwrap();
+        assert_eq!(path_value(&value, "user.name").and_then(Value::as_str), Some("Alice"));
+        assert_eq!(path_value(&value, "items[0].price").and_then(Value::as_i64), Some(12));
+        assert!(path_value(&value, "user.missing").is_none());
+    }
+
+    #[test]
+    fn filters_support_numeric_comparison_exists_contains_and_in() {
+        let records: Vec<Value> = serde_json::from_str(
+            r#"[{"age":29,"name":"Alice","tags":["a","b"]},{"age":19,"name":"Bob","tags":["b"]}]"#
+        ).unwrap();
+        let filter = |path: &str, operator: &str, value: Option<Value>| JsonFilter {
+            path: path.to_string(), operator: operator.to_string(), value
+        };
+        let count = |f: &JsonFilter| records.iter().filter(|r| json_filter_matches(r, f)).count();
+        assert_eq!(count(&filter("age", ">", Some(Value::from(20)))), 1);
+        assert_eq!(count(&filter("name", "exists", None)), 2);
+        assert_eq!(count(&filter("tags", "contains", Some(Value::from("a")))), 1);
+        assert_eq!(count(&filter("name", "in", Some(serde_json::json!(["Alice"])))), 1);
+    }
+
+    #[test]
+    fn inspect_reports_paths_and_numeric_ranges() {
+        let report = inspect_json_payload(r#"[{"user":{"age":20}},{"user":{"age":30}}]"#.into()).unwrap();
+        assert_eq!(report.records, 2);
+        let age = report.paths.get("user.age").unwrap();
+        assert_eq!(age.min, Some(20.0));
+        assert_eq!(age.max, Some(30.0));
+        assert_eq!(age.present, 2);
+    }
+
+    #[test]
+    fn query_projects_fields_and_applies_offset_and_limit() {
+        let input = r#"[{"id":1,"name":"A"},{"id":2,"name":"B"},{"id":3,"name":"C"}]"#.to_string();
+        let result = query_json_payload(input, vec![], vec!["name".into()], Some(1), Some(1)).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].get("name").and_then(Value::as_str), Some("B"));
+        assert!(result[0].get("id").is_none());
+    }
+
+    #[test]
+    fn unknown_filter_operator_fails_closed() {
+        let record = serde_json::json!({"a":1});
+        let filter = JsonFilter { path: "a".into(), operator: "execute".into(), value: Some(Value::from(1)) };
+        assert!(!json_filter_matches(&record, &filter));
+    }
+}

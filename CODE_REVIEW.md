@@ -52,3 +52,28 @@ Scope: starter archive review, with emphasis on CI reliability, Windows-only bui
 - **P1 (still open):** Recorder, real browser preview, and performance telemetry are placeholders/sample data.
 - **P1 (still open):** `npm install` remains because a committed lockfile is absent. Add and review `package-lock.json`, then switch CI to `npm ci`.
 - **Verification:** Source/configuration edits were inspected, but a full Windows CI build and runtime test have not been executed in this environment.
+
+
+## UI reliability and test-suite pass
+
+- Added a reusable keyboard-accessible dropdown menu with outside-click and Escape dismissal, disabled actions, and callback-driven menu items.
+- Wired workspace, engine, help, account, and per-step menus to actions. Added Settings and Keyboard Shortcuts pages rather than leaving those navigation items blank.
+- Added gentle menu/panel transitions, button feedback, hover motion, focus rings, and reduced-motion support.
+- Extracted workflow validation, draft parsing, safe filenames, URL validation, JSON/NDJSON parsing, nested path lookup, and query filters into `src/workflow.ts`.
+- Added Vitest unit tests for the shared workflow/data utilities and dropdown behavior.
+- Added Rust unit tests for JSON/NDJSON parsing, nested/array paths, query operators, and unknown-operator fail-closed behavior.
+- GitHub Actions now runs `npm test` and `cargo test` before building the app.
+- **Coverage limitation:** this is broad unit coverage of shared pure logic and the menu component, not a claim that every UI screen, Tauri command, browser interaction, and OS edge case has full automated coverage. The actual CDP automation runner remains a separate production blocker.
+
+
+## Test and interaction reliability follow-up
+
+- **Fixed:** Menu controls now render a reusable dropdown with real actions, Escape dismissal, outside-click dismissal, keyboard semantics, and visible hover/focus states.
+- **Fixed:** Workflow title, steps, starting URL, headless mode, and live-debugging preference are persisted in local WebView storage.
+- **Fixed:** Websites added through the dialog are saved locally and appear in the website list; website menus select, copy, or remove custom targets.
+- **Fixed:** Step menu actions duplicate, enable/disable, and delete steps. Group menu can collapse/expand and enable/disable all steps.
+- **Added:** Frontend tests cover draft validation, filename safety, URL validation, JSON/NDJSON parsing, nested paths, query operators, dropdown behavior, menu navigation, site persistence, step duplication, and draft updates.
+- **Added:** Rust tests cover JSON inspection, nested paths, query projection/pagination, parser errors, filtering, and fail-closed handling of unknown operators.
+- **CI:** Frontend and Rust test commands run before the Windows bundle build.
+- **Not verified locally:** npm dependency installation timed out; Rust tooling is not installed in the available environment. GitHub Actions must confirm type checking, test pass status, and the final Windows build.
+- **Still a P0 product gap:** Browser automation steps themselves are not yet executed through CDP; the runner/preview remain prototype behavior. UI tests do not establish that browser automation is production-ready.

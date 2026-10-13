@@ -1,13 +1,8 @@
 import { useMemo, useState } from 'react';
+import { parseJsonOrNdjson as readJson, getPath as pathGet, filterRecords } from './workflow';
 import { Activity, Braces, Check, ChevronDown, CircleHelp, Clock3, Copy, Database, Download, FileJson, GitBranch, Globe2, HardDrive, Layers3, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload, UserRound, X, Zap } from 'lucide-react';
 
 const cx = (...s: (string|false|undefined)[]) => s.filter(Boolean).join(' ');
-const readJson = (s:string):any[] => {
-  const t=s.trim(); if(!t) return [];
-  try { const v=JSON.parse(t); return Array.isArray(v)?v:[v]; }
-  catch { return t.split(/\r?\n/).filter(Boolean).map((line)=>JSON.parse(line)); }
-};
-const pathGet=(o:any,path:string):any=>{try{return path.replace(/\[(\d+)\]/g,'.$1').split('.').filter(Boolean).reduce((v,k)=>v==null?undefined:v[k],o)}catch{return undefined}};
 const flat=(o:any,p='',out:Record<string,any>={})=>{if(o&&typeof o==='object'){if(Array.isArray(o)){if(!o.length)out[p||'$']='array';o.forEach((v,i)=>flat(v,`${p}[${i}]`,out));}else{const keys=Object.keys(o);if(!keys.length)out[p||'$']='object';keys.forEach(k=>flat(o[k],p?`${p}.${k}`:k,out));}}else out[p||'$']=o===null?'null':Array.isArray(o)?'array':typeof o;return out};
 const csvCell=(v:any)=>{const s=v==null?'':typeof v==='object'?JSON.stringify(v):String(v);return `"${s.replace(/"/g,'""')}"`};
 function saveFile(name:string,content:string,type:string){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();window.setTimeout(()=>URL.revokeObjectURL(a.href),1000)}

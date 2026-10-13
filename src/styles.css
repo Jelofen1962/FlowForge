@@ -14,3 +14,47 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Interaction polish: consistent dropdowns, accessible focus, and restrained motion. */
+.dropdown-root { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }
+.dropdown-trigger { gap: 8px; }
+.dropdown-root > .dropdown-trigger[aria-expanded="true"] { background: #29292f; color: #fafafa; }
+.workspace-menu { display: flex; width: 100%; margin-bottom: 26px; }
+.workspace-menu > .dropdown-trigger { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 9px; padding: 9px 8px; text-align: left; background: #141416; border: 1px solid #29292e; border-radius: 9px; }
+.workspace-menu .workspace-label { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.workspace-menu .workspace-label b { font-size: 11px; font-weight: 600; }
+.workspace-menu .workspace-label small { font-size: 10px; color: #777780; }
+.top-actions > .dropdown-root .dropdown-trigger { min-height: 29px; }
+.top-actions > .dropdown-root:has(.connection) .dropdown-trigger { display: flex; align-items: center; gap: 7px; border: 1px solid #28282d; background: #111113; border-radius: 6px; padding: 6px 8px; color: #b8b8c0; font-size: 10px; }
+.top-actions > .dropdown-root:has(.avatar-small) .dropdown-trigger { padding: 0; width: 29px; height: 29px; }
+.menu-popover { position: absolute; z-index: 1000; top: calc(100% + 7px); right: 0; min-width: 205px; padding: 5px; background: #18181b; border: 1px solid #36363d; border-radius: 10px; box-shadow: 0 16px 45px #0008; animation: menu-in 140ms cubic-bezier(.2,.8,.2,1) both; transform-origin: top right; }
+.menu-popover button { display: flex; width: 100%; min-height: 35px; align-items: center; gap: 9px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: #d4d4d8; text-align: left; font-size: 12px; }
+.menu-popover button span { flex: 1; }
+.menu-popover button:hover:not(:disabled) { background: #2a2a30; color: #fafafa; }
+.menu-popover button:focus-visible { outline: 2px solid #a1a1aa; outline-offset: -2px; }
+.menu-popover button:disabled { opacity: .45; cursor: not-allowed; }
+.menu-popover .menu-danger { color: #fca5a5; }
+.menu-heading { padding: 9px 10px 7px; font-size: 11px; color: #a1a1aa; border-bottom: 1px solid #303036; margin-bottom: 4px; }
+.step-dropdown { align-self: center; }
+.step-dropdown .dropdown-trigger { width: 29px; height: 29px; }
+.step-row { position: relative; }
+.step-dropdown .menu-popover { top: 32px; }
+button, .panel, .site-card, .metric-card, .profile-card, .nav-item, .step-row, input, select, textarea {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.button:active, .icon-btn:active, .nav-item:active, .menu-popover button:active { transform: translateY(1px); }
+.panel, .metric-card, .site-card { animation: panel-in 220ms ease both; }
+.nav-item:hover, .site-card:hover, .profile-card:hover { transform: translateY(-1px); }
+input:focus, select:focus, textarea:focus { border-color: #777780; box-shadow: 0 0 0 3px #a1a1aa18; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes panel-in { from { opacity: .7; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+.engine-menu .dropdown-trigger { display:flex; align-items:center; gap:7px; border:1px solid #28282d; background:#111113; border-radius:6px; padding:6px 8px; color:#b8b8c0; font-size:10px; }
+.engine-menu .dropdown-trigger i { display:inline-block; width:6px; height:6px; border-radius:50%; background:#72c49b; box-shadow:0 0 7px #72c49b22; }
+.group-dropdown { margin-left:auto; }
+.group-dropdown .dropdown-trigger { width:25px; height:25px; }
+.group-dropdown .menu-popover { top:30px; }
