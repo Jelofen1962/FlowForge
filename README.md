@@ -137,3 +137,8 @@ unit tests before building. The local environment used for this revision did
 not complete npm dependency installation, and Rust tooling was not available,
 so these suites must be confirmed in GitHub Actions before calling the release
 verified.
+
+
+### npm install 404 workaround
+
+The project pins transitive Rollup to `4.34.8` with npm `overrides` to avoid the unavailable `rollup-4.64.6.tgz` reported by the Windows runner. CI also asks npm to prefer fresh registry metadata. Confirm the install in Actions, then commit the generated `package-lock.json` for fully reproducible dependency installs.

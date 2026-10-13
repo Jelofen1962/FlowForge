@@ -77,3 +77,10 @@ Scope: starter archive review, with emphasis on CI reliability, Windows-only bui
 - **CI:** Frontend and Rust test commands run before the Windows bundle build.
 - **Not verified locally:** npm dependency installation timed out; Rust tooling is not installed in the available environment. GitHub Actions must confirm type checking, test pass status, and the final Windows build.
 - **Still a P0 product gap:** Browser automation steps themselves are not yet executed through CDP; the runner/preview remain prototype behavior. UI tests do not establish that browser automation is production-ready.
+
+
+## npm registry 404 follow-up (2026-10-13)
+
+- **Fix:** added an npm override pinning transitive `rollup` to `4.34.8`, avoiding the unavailable `rollup-4.64.6.tgz` tarball reported by the Windows runner.
+- **Fix:** dependency installation uses `--prefer-online` so npm favors fresh registry metadata over stale local cache metadata.
+- **Note:** a successful install/build still needs to be confirmed by GitHub Actions. A committed `package-lock.json` should be generated with a successful `npm install` and committed in the repository to make dependency resolution reproducible.
