@@ -12,7 +12,7 @@ struct BrowserLaunch { launched: bool, message: String }
 // Starter implementation: opens a dedicated Chromium/Chrome process. The next integration layer
 // should attach to its DevTools Protocol endpoint for DOM selection and automation commands.
 #[tauri::command]
-fn launch_browser(url: String, headless: bool, profile_id: Option<String>, state: State<BrowserState>) -> Result<BrowserLaunch, String> {
+fn launch_browser(url: String, headless: bool, profile_id: Option<String>, browser_engine: Option<String>, devtools_port: Option<u16>, state: State<BrowserState>) -> Result<BrowserLaunch, String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("URL must start with http:// or https://".into());
     }
@@ -22,13 +22,54 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, state
     let profile_dir = std::env::current_dir().map_err(|e| e.to_string())?.join(".cobweb").join("browser-profiles").join(&safe_profile);
     std::fs::create_dir_all(&profile_dir).map_err(|e| format!("Could not create browser profile directory: {e}"))?;
     let profile_path = profile_dir.to_string_lossy().to_string();
-    let candidates = if cfg!(target_os = "windows") { vec!["chrome", "msedge", "chromium"] }
-        else if cfg!(target_os = "macos") { vec!["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "chromium", "google-chrome"] }
-        else { vec!["google-chrome", "chromium", "chromium-browser", "google-chrome-stable"] };
+    let engine = browser_engine.unwrap_or_else(|| "edge".to_string()).to_ascii_lowercase();
+    let port = devtools_port.unwrap_or(9222);
+    if !(1024..=65535).contains(&port) { return Err("DevTools port must be between 1024 and 65535".into()); }
+    let candidates: Vec<String> = if cfg!(target_os = "windows") {
+        let mut paths = Vec::new();
+        let edge_names = [
+            std::env::var("ProgramFiles(x86)").ok().map(|p| format!(r"{p}\Microsoft\Edge\Application\msedge.exe")),
+            std::env::var("ProgramFiles").ok().map(|p| format!(r"{p}\Microsoft\Edge\Application\msedge.exe")),
+            std::env::var("LOCALAPPDATA").ok().map(|p| format!(r"{p}\Microsoft\Edge\Application\msedge.exe")),
+        ];
+        let chromium_names = [
+            std::env::var("LOCALAPPDATA").ok().map(|p| format!(r"{p}\Chromium\Application\chrome.exe")),
+            std::env::var("ProgramFiles").ok().map(|p| format!(r"{p}\Chromium\Application\chrome.exe")),
+        ];
+        let chrome_names = [
+            std::env::var("ProgramFiles").ok().map(|p| format!(r"{p}\Google\Chrome\Application\chrome.exe")),
+            std::env::var("ProgramFiles(x86)").ok().map(|p| format!(r"{p}\Google\Chrome\Application\chrome.exe")),
+            std::env::var("LOCALAPPDATA").ok().map(|p| format!(r"{p}\Google\Chrome\Application\chrome.exe")),
+        ];
+        let add_existing = |target: &mut Vec<String>, items: &[Option<String>]| {
+            for item in items.iter().flatten() { if std::path::Path::new(item).is_file() { target.push(item.clone()); } }
+        };
+        match engine.as_str() {
+            "edge" => { add_existing(&mut paths, &edge_names); paths.push("msedge".into()); paths.push("microsoft-edge".into()); }
+            "chrome" => { add_existing(&mut paths, &chrome_names); paths.push("chrome".into()); }
+            "chromium" => { add_existing(&mut paths, &chromium_names); paths.push("chromium".into()); paths.push("chromium-browser".into()); }
+            _ => return Err(format!("Unsupported browser engine '{engine}'. Choose edge, chrome, or chromium.")),
+        }
+        paths
+    } else if cfg!(target_os = "macos") {
+        match engine.as_str() {
+            "edge" => vec!["/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge".into(), "microsoft-edge".into()],
+            "chrome" => vec!["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome".into(), "google-chrome".into()],
+            "chromium" => vec!["chromium".into(), "chromium-browser".into()],
+            _ => return Err(format!("Unsupported browser engine '{engine}'.")),
+        }
+    } else {
+        match engine.as_str() {
+            "edge" => vec!["microsoft-edge".into(), "microsoft-edge-stable".into(), "msedge".into()],
+            "chrome" => vec!["google-chrome".into(), "google-chrome-stable".into()],
+            "chromium" => vec!["chromium".into(), "chromium-browser".into()],
+            _ => return Err(format!("Unsupported browser engine '{engine}'.")),
+        }
+    };
     let mut last_error = String::from("No supported Chromium browser found in PATH or standard location.");
     for bin in candidates {
-        let mut cmd = Command::new(bin);
-        cmd.arg("--remote-debugging-address=127.0.0.1").arg("--remote-debugging-port=9222").arg(format!("--user-data-dir={profile_path}"));
+        let mut cmd = Command::new(&bin);
+        cmd.arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--user-data-dir={profile_path}"));
         if headless { cmd.arg("--headless=new"); }
         cmd.arg(format!("--disk-cache-dir={}", profile_dir.join("http-cache").to_string_lossy()));
         cmd.arg("--disable-background-networking").arg(url.clone()).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
@@ -36,7 +77,7 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, state
             Ok(child) => {
                 let mut guard = state.child.lock().map_err(|_| "Browser state lock failed".to_string())?;
                 *guard = Some(child);
-                return Ok(BrowserLaunch { launched: true, message: format!("Started {bin} with profile '{safe_profile}' and DevTools on port 9222.") });
+                return Ok(BrowserLaunch { launched: true, message: format!("Started {bin} with profile '{safe_profile}' and DevTools on port {port}.") });
             },
             Err(e) => last_error = format!("Could not launch {bin}: {e}"),
         }

@@ -12,6 +12,18 @@ describe('Cobweb main application shell', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
   });
+  it('defaults to Edge and persists browser preferences', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
+    expect(screen.getByRole('combobox', { name: 'Browser engine' })).toHaveValue('edge');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Browser engine' }), { target: { value: 'chromium' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'DevTools Protocol port' }), { target: { value: '9333' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    const saved = JSON.parse(localStorage.getItem('cobweb.preferences.v1') || '{}');
+    expect(saved.browserEngine).toBe('chromium');
+    expect(saved.devtoolsPort).toBe(9333);
+  });
   it('adds a website and persists the website list', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /Websites/ }));
