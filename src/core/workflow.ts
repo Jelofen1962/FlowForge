@@ -15,6 +15,19 @@ export interface Locator {
   value: string;
 }
 
+
+export interface StepCondition {
+  source: "variable" | "lastText" | "url" | "stepStatus";
+  key?: string;
+  operator: "equals" | "notEquals" | "contains" | "notContains" | "matches" | "greaterThan" | "lessThan" | "truthy" | "falsy";
+  expected?: string;
+}
+
+export interface StepRetry {
+  attempts: number;
+  delayMs: number;
+}
+
 export interface WorkflowStep {
   id: string;
   name: string;
@@ -30,6 +43,9 @@ export interface WorkflowStep {
   onError?: OnErrorPolicy;
   clearFirst?: boolean;
   groupId?: string;
+  condition?: StepCondition;
+  retry?: StepRetry;
+  loop?: { mode: "count" | "while"; count?: number; condition?: StepCondition; maxIterations?: number };
 }
 
 export interface WorkflowGroup {

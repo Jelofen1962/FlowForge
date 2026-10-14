@@ -125,3 +125,15 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 - Unit tests cover recorder message validation and XPath/CSS locator mapping.
 
 **Known limits:** This phase provides the engine bridge and selector model, but a full visual browser control panel and automatic appending of selected elements to the React workflow UI require a live renderer integration. Navigation initiated outside FlowForge may need reinjection; browser extension-grade recording across all page transitions is not claimed.
+
+
+## Phase 5: Control Flow, Debugging & Execution Reliability
+
+- Added a bounded condition evaluator for variables, last assertion text, current URL, and prior step status.
+- Added condition operators for equality, containment, regular expressions, numeric comparisons, and truthiness.
+- Added validated bounded counted-loop and retry helper APIs.
+- Added execution-history record types with timestamps and duration.
+- Engine skips a step when its configured condition evaluates false and emits a structured skip event.
+- Added unit tests for condition evaluation, loop/retry bounds, retries, and execution timing.
+
+**Not yet complete:** The counted-loop and retry helpers are unit-testable building blocks, but retry is not yet wired around every Selenium action and loops are not yet represented as nested workflow blocks. Pause/resume and single-step controls remain future work. Full CI verification is required.

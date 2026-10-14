@@ -103,6 +103,43 @@ function parseKeySequence(raw, Key) {
   });
 }
 
+
+function evaluateRuntimeCondition(condition, context) {
+  let actual;
+  switch (condition.source) {
+    case "variable":
+      if (!Object.prototype.hasOwnProperty.call(context.variables, condition.key || "")) throw new Error(`Condition refers to unknown variable "${condition.key || ""}".`);
+      actual = String(context.variables[condition.key]);
+      break;
+    case "lastText": actual = context.lastText; break;
+    case "url": actual = context.url; break;
+    case "stepStatus":
+      if (!Object.prototype.hasOwnProperty.call(context.stepStatus, condition.key || "")) throw new Error(`Condition refers to unknown step id "${condition.key || ""}".`);
+      actual = context.stepStatus[condition.key];
+      break;
+    default: throw new Error("Unsupported condition source.");
+  }
+  const expected = String(condition.expected ?? "");
+  switch (condition.operator) {
+    case "equals": return actual === expected;
+    case "notEquals": return actual !== expected;
+    case "contains": return String(actual).includes(expected);
+    case "notContains": return !String(actual).includes(expected);
+    case "matches":
+      if (expected.length > 500) throw new Error("Regular expression exceeds 500 characters.");
+      try { return new RegExp(expected).test(String(actual)); } catch { throw new Error("Invalid condition regular expression."); }
+    case "greaterThan":
+    case "lessThan": {
+      const a = Number(actual), b = Number(expected);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error("Numeric condition requires numeric values.");
+      return condition.operator === "greaterThan" ? a > b : a < b;
+    }
+    case "truthy": return String(actual).length > 0 && actual !== "false" && actual !== "0";
+    case "falsy": return String(actual).length === 0 || actual === "false" || actual === "0";
+    default: throw new Error("Unsupported condition operator.");
+  }
+}
+
 function normalizeError(error) {
   if (error instanceof Error) return { message: error.message, name: error.name };
   return { message: String(error), name: "Error" };
@@ -127,6 +164,7 @@ async function runWorkflow(rawPayload, deps = {}) {
   let driver;
   let stopRequested = false;
   let recording = false;
+  const runtimeContext = { variables: Object.fromEntries((payload.variables || []).map(v => [v.name, String(v.value ?? "")])), lastText: "", url: payload.startUrl || "", stepStatus: {} };
   let recorderMode = payload.mode === "recorder";
   let lastRecorderMessage = null;
   let quitPromise;
@@ -249,6 +287,20 @@ async function runWorkflow(rawPayload, deps = {}) {
         emit("step", { index, status: "skipped", name: stepName, reason: "disabled" });
         continue;
       }
+      if (step.condition) {
+        try {
+          if (!evaluateRuntimeCondition(step.condition, runtimeContext)) {
+            runtimeContext.stepStatus[step.id || String(index)] = "skipped";
+            emit("step", { index, status: "skipped", name: stepName, reason: "condition-false" });
+            continue;
+          }
+        } catch (conditionError) {
+          emit("step", { index, status: "error", name: stepName, error: normalizeError(conditionError).message });
+          if (step.onError !== "continue") throw conditionError;
+          runtimeContext.stepStatus[step.id || String(index)] = "error";
+          continue;
+        }
+      }
       emit("step", { index, status: "running", name: stepName, type: step.type });
       const timeout = asBoundedNumber(step.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, "Step timeout");
       const by = step.target ? buildLocator(By, {
@@ -273,6 +325,7 @@ async function runWorkflow(rawPayload, deps = {}) {
             const url = substituteVariables(step.url, variables);
             if (!isHttpUrl(url)) throw new Error("Navigation URL must use http or https.");
             await driver.get(url);
+            runtimeContext.url = url;
             break;
           }
           case "click":
@@ -320,6 +373,7 @@ async function runWorkflow(rawPayload, deps = {}) {
           case "assertText": {
             const element = await visible();
             const actual = await element.getText();
+            runtimeContext.lastText = actual;
             const expected = substituteVariables(step.expected ?? "", variables);
             if (!actual.includes(expected)) {
               throw new Error(`Text assertion failed. Expected to contain "${expected}", actual text was "${actual}".`);
@@ -357,9 +411,12 @@ async function runWorkflow(rawPayload, deps = {}) {
           default:
             throw new Error(`Unsupported step type: ${step.type}`);
         }
+        runtimeContext.stepStatus[step.id || String(index)] = "success";
+        try { runtimeContext.url = await driver.getCurrentUrl(); } catch {}
         emit("step", { index, status: "success", name: stepName });
       } catch (error) {
         const normalized = normalizeError(error);
+        runtimeContext.stepStatus[step.id || String(index)] = "error";
         emit("step", { index, status: "error", name: stepName, error: normalized.message, errorName: normalized.name });
         if (step.onError !== "continue") throw error;
       }

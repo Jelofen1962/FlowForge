@@ -86,3 +86,21 @@ Run `npm test` to run unit tests. These tests cover engine validation and helper
 The Selenium-controlled browser receives `engine/recorder-bridge.js` when recorder mode is started. Hovering an element highlights it with a red 40%-opacity overlay; clicking selects one target and emits a `FLOWFORGE_RECORDER_V1` message with CSS and XPath locators. The bridge cleans up its overlay after selection.
 
 The engine control channel supports `recorder:start`, `recorder:stop`, and `navigate` commands. Renderer code should validate incoming selection messages with `parseRecorderMessage` from `src/core/recorder.ts` before converting the target to a workflow locator. This phase establishes the real-browser bridge and selector contract; it does not yet claim complete record-all-actions capture or automatic UI insertion.
+
+
+## Phase 5: Control Flow and Debugging foundations
+
+Workflow steps may now include a `condition` object. Example:
+
+```json
+{
+  "source": "variable",
+  "key": "accountStatus",
+  "operator": "equals",
+  "expected": "active"
+}
+```
+
+Supported sources are `variable`, `lastText`, `url`, and `stepStatus`. Operators include `equals`, `notEquals`, `contains`, `notContains`, `matches`, `greaterThan`, `lessThan`, `truthy`, and `falsy`. Conditions that evaluate false skip the step and emit a structured `skipped` event. Unknown variables/step IDs and malformed regular expressions fail explicitly.
+
+The control-flow module also exposes bounded `runCountedLoop` and `withRetry` helpers plus execution records. These are foundational APIs: loops are not yet represented as nested blocks in the editor, and retries are not yet automatically applied around all Selenium actions.
