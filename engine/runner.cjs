@@ -5,6 +5,7 @@
 "use strict";
 
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -185,6 +186,22 @@ function evaluateRuntimeCondition(condition, context) {
   }
 }
 
+function resolveDriverPath(browserName, env = process.env, existsSync = fsSync.existsSync, platform = process.platform) {
+  const isEdge = browserName === "edge";
+  const envKey = isEdge ? "FLOWFORGE_EDGEDRIVER_PATH" : "FLOWFORGE_CHROMEDRIVER_PATH";
+  const candidates = [];
+  if (env && typeof env[envKey] === "string" && env[envKey].trim()) candidates.push(env[envKey].trim());
+  if (platform === "win32") {
+    candidates.push(isEdge
+      ? "C:\\WebDriver\\msedgedriver\\msedgedriver.exe"
+      : "C:\\WebDriver\\chromedriver\\chromedriver.exe");
+  }
+  for (const candidate of candidates) {
+    try { if (existsSync(candidate)) return candidate; } catch { /* Ignore inaccessible paths and try the next candidate. */ }
+  }
+  return null;
+}
+
 function normalizeError(error) {
   if (error instanceof Error) return { message: error.message, name: error.name };
   return { message: String(error), name: "Error" };
@@ -238,6 +255,15 @@ async function runWorkflow(rawPayload, deps = {}) {
       if (optimizations.pageLoadStrategy !== "normal") builder.setCapability("pageLoadStrategy", optimizations.pageLoadStrategy);
       if (browserName === "edge") builder.setEdgeOptions(options);
       else builder.setChromeOptions(options);
+
+      // Prefer a manually installed driver when present. This avoids Selenium Manager's
+      // download path on machines where driver downloads are blocked (for example HTTP 403).
+      const manualDriverPath = resolveDriverPath(browserName);
+      if (manualDriverPath) {
+        if (browserName === "edge") builder.setEdgeService(new edge.ServiceBuilder(manualDriverPath));
+        else builder.setChromeService(new chrome.ServiceBuilder(manualDriverPath));
+        emit("notice", { level: "info", message: `Using manually installed ${browserName === "edge" ? "EdgeDriver" : "ChromeDriver"}: ${manualDriverPath}` });
+      }
       driver = await builder.build();
     }
 
@@ -564,5 +590,5 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MAX_WAIT_MS, isHttpUrl,
   asBoundedNumber, validatePayload, substituteVariables, buildLocator,
-  parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, runWorkflow
+  parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, resolveDriverPath, runWorkflow
 };

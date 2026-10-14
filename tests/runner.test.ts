@@ -10,6 +10,7 @@ const runner = require("../engine/runner.cjs") as {
   runWithRetry: (action: () => Promise<unknown>, options?: { attempts?: number; delayMs?: number }, onRetry?: (info: Record<string, unknown>) => void) => Promise<unknown>;
   normalizeOptimizations: (value?: Record<string, unknown>) => { disableImages:boolean; disableCss:boolean; disableFonts:boolean; disableMedia:boolean; pageLoadStrategy:string };
   buildBlockedUrlPatterns: (value?: Record<string, unknown>) => string[];
+  resolveDriverPath: (browserName: string, env?: Record<string, string>, existsSync?: (path: string) => boolean, platform?: string) => string | null;
 };
 
 const Key = {
@@ -20,6 +21,13 @@ const Key = {
 };
 
 describe("Selenium runner validation", () => {
+  it("prefers the configured or default Windows ChromeDriver path when it exists", () => {
+    const expected = "C:\\WebDriver\\chromedriver\\chromedriver.exe";
+    expect(runner.resolveDriverPath("chrome", {}, path => path === expected, "win32")).toBe(expected);
+    expect(runner.resolveDriverPath("chrome", { FLOWFORGE_CHROMEDRIVER_PATH: "D:\\drivers\\chrome.exe" }, path => path.startsWith("D:"), "win32")).toBe("D:\\drivers\\chrome.exe");
+    expect(runner.resolveDriverPath("chrome", {}, () => false, "win32")).toBeNull();
+  });
+
   it("accepts only absolute HTTP and HTTPS URLs", () => {
     expect(runner.isHttpUrl("https://example.com")).toBe(true);
     expect(runner.isHttpUrl("http://localhost:3000/a")).toBe(true);

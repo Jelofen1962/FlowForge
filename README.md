@@ -152,3 +152,9 @@ The source package includes the ten planned delivery phases as a set of first-pa
 ## Automatic Windows releases
 
 Push to `main` or `master` to trigger the Automatic Windows Release workflow. After release checks, tests, and the Windows installer build pass, it automatically publishes a versioned GitHub Release with generated notes and SHA-256 checksums. The patch version increments from the latest stable version. Configure repository Actions permissions to allow workflows to create releases (`contents: write`). See [docs/RELEASING.md](docs/RELEASING.md) for details.
+
+
+### Manual browser-driver detection (Windows)
+
+FlowForge checks for a local ChromeDriver at `C:\WebDriver\chromedriver\chromedriver.exe` before asking Selenium Manager to resolve a driver. For Microsoft Edge, it checks `C:\WebDriver\msedgedriver\msedgedriver.exe`. You can override these paths with `FLOWFORGE_CHROMEDRIVER_PATH` or `FLOWFORGE_EDGEDRIVER_PATH`. The driver should match the installed browser version. If no local driver is found, FlowForge falls back to Selenium Manager.
+
