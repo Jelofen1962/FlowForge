@@ -75,7 +75,7 @@ function normalizeOptimizations(value = {}) {
 function buildBlockedUrlPatterns(optimizations = {}) {
   const patterns = [];
   if (optimizations.disableCss) patterns.push("*.css", "*.css?*");
-  if (optimizations.disableFonts) patterns.push("*.woff", "*.woff?*", "*.woff2", "*.woff2?*", "*.ttf", "*.ttf?*", "*.otf", "*.otf?*");
+  if (optimizations.disableFonts) patterns.push("*.woff", "*.woff?*", "*.woff2", "*.woff2?*", "*.ttf", "*.ttf?*", "*.otf", "*.otf?*", "*.ttc*");
   if (optimizations.disableMedia) patterns.push("*.mp4", "*.mp4?*", "*.webm", "*.webm?*", "*.mp3", "*.mp3?*", "*.wav", "*.wav?*", "*.ogg", "*.ogg?*");
   if (optimizations.disableImages) patterns.push("*.png", "*.png?*", "*.jpg", "*.jpg?*", "*.jpeg", "*.jpeg?*", "*.gif", "*.gif?*", "*.webp", "*.webp?*", "*.avif", "*.avif?*", "*.ico", "*.ico?*");
   return [...new Set(patterns)];
