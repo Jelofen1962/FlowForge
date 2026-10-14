@@ -57,16 +57,16 @@ python -m pytest --junitxml=test-results/junit.xml --cov=cobweb --cov-report=ter
 
 ## GitHub Actions
 
-`.github/workflows/ci.yml` runs on pushes to `main`, `master`, and `develop`, pull requests, and manual dispatch. It runs the complete test suite on Ubuntu and Windows, performs critical lint and compile checks, builds the wheel and source distribution, validates package metadata, and uploads test reports, coverage reports, and distribution exports as downloadable Actions artifacts.
+`.github/workflows/ci.yml` runs on pushes to `main`, `master`, and `develop`, pull requests, and manual dispatch. It runs only on Windows, executes the complete test suite, performs critical lint and compile checks, builds the Python wheel/source distribution and a Windows `CobWeb.exe`, validates package metadata, and uploads test reports, coverage reports, and Windows exports as downloadable Actions artifacts.
 
-`.github/workflows/release.yml` builds release exports on version tags such as `v0.1.0` and attaches the wheel, source distribution, and source snapshot ZIP to a GitHub Release. A manual run uploads exports as an Actions artifact.
+`.github/workflows/release.yml` runs verification and builds Windows release exports on version tags such as `v0.1.0`, attaching `CobWeb.exe`, the wheel, source distribution, and source snapshot ZIP to a GitHub Release. A manual run uploads exports as an Actions artifact.
 
 ### Downloading exports
 
 Open the repository's **Actions** tab, select a successful workflow run, and download its artifacts:
 
 - `test-reports-*`: JUnit XML, coverage XML, and HTML coverage report.
-- `cobweb-python-distributions`: installable wheel and source distribution, plus a source snapshot ZIP.
+- `cobweb-windows-exports`: `CobWeb.exe`, installable wheel, source distribution, and source snapshot ZIP.
 
 ## Current scope
 

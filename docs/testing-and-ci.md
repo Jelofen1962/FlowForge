@@ -14,7 +14,7 @@ Browser tests must not depend on a live third-party website or a real user accou
 ## CI workflow
 
 `.github/workflows/ci.yml` runs for pushes to `main`, `master`, and `develop`, pull requests, and
-manual dispatch. It verifies the suite on Ubuntu and Windows, installs Playwright Chromium, runs
+manual dispatch. It verifies the suite on Windows only, installs Playwright Chromium, runs
 critical lint rules and Python compilation, and builds Python distributions after checks succeed.
 
 The test job exports JUnit XML, coverage XML, and HTML coverage as an Actions artifact. The build
@@ -35,3 +35,8 @@ GitHub Release. A manual run uploads the exports as an Actions artifact rather t
   these dependencies; local environments without them may report a skip.
 - Coverage is reported but is not yet enforced with a minimum threshold. Set a threshold only after
   the feature surface and baseline coverage stabilize.
+
+
+## Windows-only exports
+
+Both CI and tagged releases run on `windows-latest`. Successful checks build `CobWeb.exe` with PyInstaller, a Python wheel, a source distribution, and a repository source ZIP. Playwright Chromium is installed in the workflow for browser tests; the executable currently represents the desktop shell and does not bundle Chromium.
