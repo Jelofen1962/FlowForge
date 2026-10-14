@@ -1,4 +1,5 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::net::TcpListener;
@@ -29,7 +30,7 @@ fn choose_devtools_port(requested: u16) -> Result<u16, String> {
 }
 
 #[derive(Serialize)]
-struct BrowserLaunch { launched: bool, message: String }
+struct BrowserLaunch { launched: bool, message: String, port: u16 }
 
 // Starter implementation: opens a dedicated Chromium/Chrome process. The next integration layer
 // should attach to its DevTools Protocol endpoint for DOM selection and automation commands.
@@ -97,12 +98,52 @@ fn launch_browser(url: String, headless: bool, profile_id: Option<String>, brows
                 let mut guard = state.children.lock().map_err(|_| "Browser state lock failed".to_string())?;
                 guard.retain_mut(|existing| match existing.try_wait() { Ok(Some(_)) => false, _ => true });
                 guard.push(child);
-                return Ok(BrowserLaunch { launched: true, message: format!("Started {bin} with profile '{safe_profile}' and DevTools on port {port}.") });
+                return Ok(BrowserLaunch { launched: true, message: format!("Started {bin} with profile '{safe_profile}' and DevTools on port {port}."), port });
             },
             Err(e) => last_error = format!("Could not launch {bin}: {e}"),
         }
     }
     Err(last_error)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowRunRequest {
+    starting_url: String,
+    steps: Vec<serde_json::Value>,
+    port: Option<u16>,
+    timeout: Option<u64>,
+}
+
+#[tauri::command]
+fn execute_workflow(request: WorkflowRunRequest) -> Result<serde_json::Value, String> {
+    validate_http_url(&request.starting_url)?;
+    if request.steps.len() > 500 { return Err("Workflow exceeds the 500-step execution limit.".into()); }
+    let runner = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().ok_or("Could not resolve project directory")?.join("scripts").join("run-workflow.mjs");
+    if !runner.is_file() { return Err(format!("Workflow runner not found at {}. Reinstall or restore the scripts directory.", runner.display())); }
+    let mut child = Command::new("node")
+        .arg(runner)
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+        .spawn().map_err(|e| format!("Could not start the Node workflow runner. Install Node.js and project dependencies first: {e}"))?;
+    let payload = serde_json::json!({
+        "startingUrl": request.starting_url,
+        "steps": request.steps,
+        "port": request.port.unwrap_or(9222),
+        "timeout": request.timeout.unwrap_or(10000).clamp(100, 120000)
+    });
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(payload.to_string().as_bytes()).map_err(|e| format!("Could not send workflow to runner: {e}"))?;
+    }
+    let output = child.wait_with_output().map_err(|e| format!("Workflow runner failed: {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let result: serde_json::Value = serde_json::from_str(stdout.trim()).map_err(|_| {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        format!("Workflow runner returned invalid output. {}", stderr.trim())
+    })?;
+    if !output.status.success() && result.get("error").is_none() {
+        return Err(format!("Workflow runner exited with status {}", output.status));
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -122,7 +163,7 @@ fn browser_status(state: State<BrowserState>) -> Result<bool, String> {
 pub fn run() {
     tauri::Builder::default()
         .manage(BrowserState::default())
-        .invoke_handler(tauri::generate_handler![launch_browser, browser_status, inspect_json_payload, query_json_payload])
+        .invoke_handler(tauri::generate_handler![launch_browser, execute_workflow, browser_status, inspect_json_payload, query_json_payload])
         .run(tauri::generate_context!())
         .expect("error while running Cobweb");
 }

@@ -174,3 +174,7 @@ Phase 3 adds a validated YAML workflow format alongside the existing JSON format
 ### Runtime boundary remains explicit
 
 The Phase 3 configuration/import/export and test workflows are implemented, but browser action execution is not yet a complete CDP automation engine. The current runner still uses preview progression and does not execute click/type/assertion steps in the launched browser. The UI should not be treated as unattended automation until CDP command dispatch, event handling, pause/continue/stop, selector operations, and real run telemetry are implemented and tested.
+
+## Phase 4 browser runner
+
+See [PHASE4.md](./PHASE4.md) for the desktop execution architecture, supported actions, step-detail syntax, requirements, and current limitations. Run `npm run check:runner` to validate the companion runner's JavaScript syntax.
