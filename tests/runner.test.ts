@@ -8,6 +8,8 @@ const runner = require("../engine/runner.cjs") as {
   substituteVariables: (value: string, variables?: Record<string, unknown>) => string;
   parseKeySequence: (value: string, Key: Record<string, string>) => string[];
   runWithRetry: (action: () => Promise<unknown>, options?: { attempts?: number; delayMs?: number }, onRetry?: (info: Record<string, unknown>) => void) => Promise<unknown>;
+  normalizeOptimizations: (value?: Record<string, unknown>) => { disableImages:boolean; disableCss:boolean; disableFonts:boolean; disableMedia:boolean; pageLoadStrategy:string };
+  buildBlockedUrlPatterns: (value?: Record<string, unknown>) => string[];
 };
 
 const Key = {
@@ -77,5 +79,23 @@ describe("Selenium runner validation", () => {
     expect(runner.parseKeySequence("CTRL+A", Key)).toEqual(["CTRL", "A"]);
     expect(runner.parseKeySequence("SHIFT+ENTER", Key)).toEqual(["SHIFT", "ENTER"]);
     expect(() => runner.parseKeySequence("NOT_A_KEY", Key)).toThrow(/Unsupported key/);
+  });
+});
+
+
+describe("browser optimization configuration", () => {
+  it("normalizes optimization flags and defaults to normal page loading", () => {
+    expect(runner.normalizeOptimizations()).toEqual({ disableImages:false, disableCss:false, disableFonts:false, disableMedia:false, pageLoadStrategy:"normal" });
+    expect(runner.normalizeOptimizations({ disableFonts:true, pageLoadStrategy:"eager" }).disableFonts).toBe(true);
+  });
+  it("rejects invalid optimization values", () => {
+    expect(() => runner.normalizeOptimizations({ pageLoadStrategy:"instant" })).toThrow(/page load strategy/i);
+    expect(() => runner.normalizeOptimizations({ disableImages:"yes" })).toThrow(/boolean/i);
+  });
+  it("builds resource blocking patterns only for enabled categories", () => {
+    expect(runner.buildBlockedUrlPatterns({ disableFonts:true })).toContain("*.woff2");
+    expect(runner.buildBlockedUrlPatterns({ disableMedia:true })).toContain("*.mp4");
+    expect(runner.buildBlockedUrlPatterns({ disableCss:true })).toContain("*.css");
+    expect(runner.buildBlockedUrlPatterns({})).toEqual([]);
   });
 });

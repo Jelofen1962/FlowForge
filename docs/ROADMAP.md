@@ -162,3 +162,16 @@ Session snapshots are intentionally plain JSON in this phase and can contain aut
 - [ ] Validate transient failure recovery with live Chrome/Edge on Windows.
 
 **Known limits:** Run history is stored in renderer local storage and is not an encrypted audit log. Retry replays the whole action, so actions with side effects (such as submitting a form or placing an order) should only be retried when safe to repeat. Pause/resume, rerun-failed-step, and full diagnostics export are not included in this phase.
+
+
+## Phase 8 of 10: Optimization Engine
+
+- [x] Add validated resource controls for images, CSS, web fonts, and common audio/video files.
+- [x] Apply Chromium DevTools URL blocking before the initial navigation when supported.
+- [x] Add WebDriver page-load strategies: normal, eager, and none (normal remains the default).
+- [x] Emit per-step duration and run/page performance metrics, including navigation timing, resource count, and reported transfer bytes.
+- [x] Add unit coverage for optimization normalization and blocked-resource patterns.
+- [ ] Verify resource blocking and page-load strategy against real Chrome and Edge on Windows.
+- [ ] Run full Vitest, TypeScript, production build, and installer jobs in dependency-installed CI.
+
+**Known limits:** Resource blocking uses Chromium DevTools URL patterns and may not be available with every driver. Transfer byte counts can be incomplete due to caching and cross-origin timing restrictions. `eager` and especially `none` can return before a page is fully ready, so workflows may need explicit wait steps.

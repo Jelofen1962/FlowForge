@@ -50,6 +50,31 @@ function asBoundedNumber(value, fallback, max, label) {
   return Math.min(Math.floor(number), max);
 }
 
+function normalizeOptimizations(value = {}) {
+  const raw = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const strategy = raw.pageLoadStrategy || "normal";
+  if (!["normal", "eager", "none"].includes(strategy)) throw new Error("Page load strategy must be normal, eager, or none.");
+  for (const key of ["disableImages", "disableCss", "disableFonts", "disableMedia"]) {
+    if (raw[key] !== undefined && typeof raw[key] !== "boolean") throw new Error(`${key} must be a boolean.`);
+  }
+  return {
+    disableImages: raw.disableImages === true,
+    disableCss: raw.disableCss === true,
+    disableFonts: raw.disableFonts === true,
+    disableMedia: raw.disableMedia === true,
+    pageLoadStrategy: strategy
+  };
+}
+
+function buildBlockedUrlPatterns(optimizations = {}) {
+  const patterns = [];
+  if (optimizations.disableCss) patterns.push("*.css", "*.css?*");
+  if (optimizations.disableFonts) patterns.push("*.woff", "*.woff?*", "*.woff2", "*.woff2?*", "*.ttf", "*.ttf?*", "*.otf", "*.otf?*");
+  if (optimizations.disableMedia) patterns.push("*.mp4", "*.mp4?*", "*.webm", "*.webm?*", "*.mp3", "*.mp3?*", "*.wav", "*.wav?*", "*.ogg", "*.ogg?*");
+  if (optimizations.disableImages) patterns.push("*.png", "*.png?*", "*.jpg", "*.jpg?*", "*.jpeg", "*.jpeg?*", "*.gif", "*.gif?*", "*.webp", "*.webp?*", "*.avif", "*.avif?*", "*.ico", "*.ico?*");
+  return [...new Set(patterns)];
+}
+
 function validatePayload(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("Engine payload must be an object.");
@@ -77,7 +102,7 @@ function validatePayload(payload) {
     if (step.type === "navigate" && !isHttpUrl(step.url)) throw new Error(`Step ${i + 1} needs a valid http(s) URL.`);
     if (step.type === "key" && (typeof step.key !== "string" || !step.key.trim())) throw new Error(`Step ${i + 1} needs a key or shortcut.`);
   }
-  return { ...payload, browser };
+  return { ...payload, browser, optimizations: normalizeOptimizations(payload.optimizations) };
 }
 
 function substituteVariables(value, variables = {}) {
@@ -179,7 +204,8 @@ async function runWorkflow(rawPayload, deps = {}) {
   const driverFactory = deps.driverFactory;
   const browserName = payload.browser;
   const profile = payload.profile || {};
-  const optimizations = payload.optimizations || {};
+  const optimizations = payload.optimizations;
+  const runStarted = Date.now();
   const variables = Object.fromEntries((payload.variables || []).map(v => [v.name, v.value]));
   let driver;
   let stopRequested = false;
@@ -209,12 +235,31 @@ async function runWorkflow(rawPayload, deps = {}) {
         options.setUserPreferences({ "profile.managed_default_content_settings.images": 2 });
       }
       const builder = new Builder().forBrowser(browserName === "edge" ? "MicrosoftEdge" : "chrome");
+      if (optimizations.pageLoadStrategy !== "normal") builder.setCapability("pageLoadStrategy", optimizations.pageLoadStrategy);
       if (browserName === "edge") builder.setEdgeOptions(options);
       else builder.setChromeOptions(options);
       driver = await builder.build();
     }
 
     if (typeof process !== "undefined") process.once("SIGTERM", stop);
+    const blockedPatterns = buildBlockedUrlPatterns(optimizations);
+    if (blockedPatterns.length && typeof driver.sendDevToolsCommand === "function") {
+      try {
+        await driver.sendDevToolsCommand("Network.enable", {});
+        await driver.sendDevToolsCommand("Network.setBlockedURLs", { urls: blockedPatterns });
+        emit("optimization", { blockedResourceTypes: [
+          ...(optimizations.disableImages ? ["images"] : []),
+          ...(optimizations.disableCss ? ["css"] : []),
+          ...(optimizations.disableFonts ? ["fonts"] : []),
+          ...(optimizations.disableMedia ? ["media"] : [])
+        ], blockedPatternCount: blockedPatterns.length });
+      } catch (error) {
+        emit("notice", { level: "warning", message: `Resource blocking is unavailable in this browser session: ${normalizeError(error).message}` });
+      }
+    } else if (blockedPatterns.length) {
+      emit("notice", { level: "warning", message: "Resource blocking is unavailable for this driver; requested blocking settings were not applied." });
+    }
+    if (optimizations.disableCss) emit("notice", { level: "warning", message: "CSS requests are blocked for this run; page layout and controls may break." });
     if (payload.startUrl) await driver.get(substituteVariables(payload.startUrl, variables));
 
     // Optional persistent stdin control channel for live recorder commands.
@@ -319,16 +364,6 @@ async function runWorkflow(rawPayload, deps = {}) {
       return;
     }
 
-    if (optimizations.disableCss) {
-      try {
-        await driver.sendDevToolsCommand("Network.enable", {});
-        await driver.sendDevToolsCommand("Network.setBlockedURLs", { urls: ["*.css", "*.css?*"] });
-        emit("notice", { level: "warning", message: "CSS requests are blocked for this run; page layout and controls may break." });
-      } catch (error) {
-        emit("notice", { level: "warning", message: `CSS blocking is unavailable in this browser session: ${normalizeError(error).message}` });
-      }
-    }
-
     for (let index = 0; index < payload.steps.length; index++) {
       if (stopRequested) break;
       const step = payload.steps[index];
@@ -351,6 +386,7 @@ async function runWorkflow(rawPayload, deps = {}) {
           continue;
         }
       }
+      const stepStarted = Date.now();
       emit("step", { index, status: "running", name: stepName, type: step.type });
       const timeout = asBoundedNumber(step.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, "Step timeout");
       const by = step.target ? buildLocator(By, {
@@ -474,13 +510,30 @@ async function runWorkflow(rawPayload, deps = {}) {
       if (actionError) {
         const normalized = normalizeError(actionError);
         runtimeContext.stepStatus[step.id || String(index)] = "error";
-        emit("step", { index, status: "error", name: stepName, error: normalized.message, errorName: normalized.name, attempts: maxAttempts });
+        emit("step", { index, status: "error", name: stepName, error: normalized.message, errorName: normalized.name, attempts: maxAttempts, durationMs: Date.now() - stepStarted });
         if (step.onError !== "continue") throw actionError;
       } else {
         runtimeContext.stepStatus[step.id || String(index)] = "success";
         try { runtimeContext.url = await driver.getCurrentUrl(); } catch {}
-        emit("step", { index, status: "success", name: stepName, attempts: maxAttempts });
+        emit("step", { index, status: "success", name: stepName, attempts: maxAttempts, durationMs: Date.now() - stepStarted });
       }
+    }
+    try {
+      const metrics = await driver.executeScript(`
+        const nav = performance.getEntriesByType('navigation')[0];
+        const resources = performance.getEntriesByType('resource');
+        return {
+          url: location.href,
+          resourceCount: resources.length,
+          transferBytes: resources.reduce((sum, item) => sum + (Number(item.transferSize) || 0), 0),
+          navigationDurationMs: nav ? Math.round(nav.duration) : null,
+          domContentLoadedMs: nav && nav.domContentLoadedEventEnd ? Math.round(nav.domContentLoadedEventEnd) : null,
+          loadEventMs: nav && nav.loadEventEnd ? Math.round(nav.loadEventEnd) : null
+        };
+      `);
+      emit("performance", { totalDurationMs: Date.now() - runStarted, ...metrics });
+    } catch (metricsError) {
+      emit("performance", { totalDurationMs: Date.now() - runStarted, metricsUnavailable: normalizeError(metricsError).message });
     }
     if (stopRequested) emit("done", { success: false, stopped: true });
     else emit("done", { success: true });
@@ -511,5 +564,5 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MAX_WAIT_MS, isHttpUrl,
   asBoundedNumber, validatePayload, substituteVariables, buildLocator,
-  parseKeySequence, normalizeError, runWithRetry, runWorkflow
+  parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, runWorkflow
 };

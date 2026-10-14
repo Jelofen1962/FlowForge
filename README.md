@@ -118,3 +118,10 @@ Open **Profiles** and start a browser session (the recorder keeps a session open
 Steps can be configured for 1–10 total attempts with a delay between retries. The runner emits structured retry events and retains the selected `stop` or `continue` error policy. The **Run history** panel stores the latest 50 local run summaries, including status, elapsed time, and succeeded/failed/skipped step counts.
 
 Retry repeats the complete action. Use it only for actions that are safe to repeat, since clicks and form submissions can have side effects. Run history is local renderer storage, not an encrypted or tamper-proof audit log. Pause/resume, rerun-failed-step, and full browser integration validation remain future work.
+
+
+## Phase 8: Optimization Engine
+
+The **Optimizations** controls can disable images, stylesheets, web fonts, and common audio/video files. Chromium DevTools URL blocking is configured before the first navigation when supported. The page-load strategy can be `normal` (default), `eager` (return after DOM readiness), or `none` (do not wait for a page-load event). Add explicit wait steps when using faster strategies.
+
+The runner emits per-step elapsed time and a final performance summary with total run duration, latest navigation timing, resource count, and reported transfer bytes. These metrics are diagnostic estimates, not a complete network trace; cache and cross-origin policies can make transfer-size values incomplete. Full browser and Windows CI validation remains required.
