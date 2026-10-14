@@ -1,4 +1,4 @@
-name: CobWeb frontend tests
+name: CobWeb frontend CI
 
 on:
   push:
@@ -8,9 +8,9 @@ on:
       - "index.html"
       - "package.json"
       - "package-lock.json"
-      - "playwright.config.ts"
       - "vite.config.ts"
       - "tsconfig.json"
+      - "playwright.config.ts"
       - ".github/workflows/frontend-tests.yml"
   pull_request:
     paths:
@@ -19,9 +19,9 @@ on:
       - "index.html"
       - "package.json"
       - "package-lock.json"
-      - "playwright.config.ts"
       - "vite.config.ts"
       - "tsconfig.json"
+      - "playwright.config.ts"
       - ".github/workflows/frontend-tests.yml"
   workflow_dispatch:
 
@@ -30,8 +30,10 @@ permissions:
 
 jobs:
   frontend:
-    name: Build and test frontend
+    name: Install, test, and build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,36 +42,73 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Cache is intentionally omitted until package-lock.json is committed.
+          # Deliberately no npm cache: the workflow must also work before
+          # package-lock.json has been committed.
 
-      - name: Verify frontend manifest
+      - name: Verify repository layout
         shell: bash
         run: |
-          test -f package.json || {
-            echo "::error::package.json was not found in the repository root. This workflow assumes package.json is at the root and frontend source is in ./src."
+          if [ ! -f package.json ]; then
+            echo "::error::Expected package.json at the repository root; source files may live in ./src."
+            exit 1
+          fi
+          test -f src/App.tsx || {
+            echo "::error::Expected src/App.tsx. Confirm the frontend source folder."
             exit 1
           }
 
-      - name: Install dependencies
+      - name: Configure CI-only test commands
+        shell: bash
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            echo "::warning::package-lock.json is missing. Using npm install for this run. Commit package-lock.json for reproducible CI."
-            npm install
-          fi
+          # These edits exist only on the GitHub runner. Nothing is committed
+          # back to the repository, so no local file edits are required.
+          npm pkg set "scripts.test=vitest run --config vitest.config.ci.ts"
+          npm pkg set "scripts.test:e2e=playwright test"
+
+          cat > vitest.config.ci.ts <<'EOF'
+          import { defineConfig } from "vitest/config";
+          import react from "@vitejs/plugin-react";
+
+          export default defineConfig({
+            plugins: [react()],
+            test: {
+              include: ["src/**/*.test.{ts,tsx}"],
+              environment: "jsdom",
+              setupFiles: ["./src/test/ci-setup.ts"],
+              css: true,
+              clearMocks: true,
+              restoreMocks: true
+            }
+          });
+          EOF
+
+          cat > src/test/ci-setup.ts <<'EOF'
+          import "@testing-library/jest-dom/vitest";
+          import { cleanup } from "@testing-library/react";
+          import { afterEach } from "vitest";
+
+          afterEach(() => {
+            cleanup();
+          });
+          EOF
+
+      - name: Install Playwright and YAML dependencies
+        run: npm install --save-dev @playwright/test yaml
+
+      - name: Install project dependencies
+        run: npm install
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Run frontend unit tests
+        run: npm run test
+
+      - name: Run frontend end-to-end tests
+        run: npm run test:e2e
+
       - name: Build frontend
         run: npm run build
-
-      - name: Run frontend unit tests
-        run: npm run test --if-present
-
-      - name: Run Playwright frontend tests
-        run: npm run test:e2e
 
       - name: Upload Playwright report
         if: always()

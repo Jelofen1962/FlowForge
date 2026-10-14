@@ -1,29 +1,28 @@
-# GitHub Actions lockfile fix
+# Fix for frontend test failures
 
-This workflow assumes the repository layout is:
+This patch fixes the two causes shown in the CI log:
 
-```text
-.
-├── package.json
-├── package-lock.json   # should be committed
-├── index.html
-├── src/
-├── tests/
-├── playwright.config.ts
-└── .github/workflows/frontend-tests.yml
-```
+1. Vitest was discovering `tests/frontend.spec.ts`, which is a Playwright spec. Vitest now only discovers `src/**/*.test.{ts,tsx}`.
+2. React Testing Library renders were leaking between tests. The setup file explicitly calls `cleanup()` after each test, preventing duplicate buttons, switches, and textboxes.
 
-It removes `cache: npm`, which is the immediate cause of setup-node failing when no lockfile exists. Dependency installation temporarily uses `npm install` if the lockfile is absent, and `npm ci` once a lockfile is committed.
+## Apply
+Copy `vite.config.ts` to the repository root and `src/test/setup.ts` into the matching path, replacing the current files.
 
-Recommended one-time local setup from the repository root:
+Merge `package.test-additions.json` into your existing `package.json` (do not replace the whole package file). From the repository root run:
 
 ```bash
-npm install
 npm install --save-dev @playwright/test yaml
-npx playwright install chromium
-git add package.json package-lock.json .github/workflows/frontend-tests.yml
-git commit -m "Fix frontend GitHub Actions dependency setup"
-git push
+npm install
+npm run test
+npm run test:e2e
+npm run build
 ```
 
-If `package.json` is actually inside `src/` (not merely the source code), this workflow must instead set `working-directory: ./src` on npm commands and point setup-node's `cache-dependency-path` to `src/package-lock.json`. Most Vite apps keep `package.json` at the repository root and source files under `src/`.
+Commit the updated `package.json` and `package-lock.json` so GitHub Actions can install the same dependencies.
+
+## CI commands
+Run Vitest and Playwright separately:
+- `npm run test` runs React unit tests under `src/`.
+- `npm run test:e2e` runs browser tests under `tests/`.
+
+If any individual test still fails after cleanup, inspect its new assertion output. The duplicate-element errors in the supplied log should be resolved by cleanup.

@@ -1,25 +1,22 @@
-# CobWeb frontend YAML scenarios and Playwright tests
+# CobWeb GitHub Actions frontend CI
 
-## What's included
-- `tests/scenarios.yaml`: readable, ID-labelled test plan for QA review.
-- `tests/frontend.spec.ts`: executable Playwright tests for the Phase 2 React UI.
-- `playwright.config.ts`: browser/test-runner setup.
-- `.github/workflows/frontend-tests.yml`: CI workflow.
-- `package.test-additions.json`: dependency and npm-script additions to merge into the existing package.json.
+Replace `.github/workflows/frontend-tests.yml` in your repository with the included workflow.
 
-## Install
-Merge the entries from `package.test-additions.json` into the existing `package.json`, preserving existing scripts/dependencies. Then run:
+The workflow assumes:
+- `package.json` is at the repository root.
+- React frontend source is in `./src`.
+- Playwright browser tests are in `./tests/frontend.spec.ts`.
+- Existing package dependencies include React, Vite, TypeScript, Vitest, and React Testing Library.
 
-```bash
-npm install
-npx playwright install chromium
-npm run test:e2e
-```
+It runs these commands on GitHub's runner, not on your computer:
+1. `npm install --save-dev @playwright/test yaml`
+2. `npm install`
+3. `npm run test`
+4. `npm run test:e2e`
+5. `npm run build`
 
-For CI, commit the resulting `package-lock.json`. GitHub Actions runs `npm ci`, so a matching lockfile is required.
+To prevent the earlier issues without local edits, the workflow temporarily creates a Vitest config and test setup file on the runner. Vitest only discovers `src/**/*.test.tsx` / `.test.ts`, explicitly cleans up React renders, and does not try to import Playwright specs. It also creates the `test` and `test:e2e` npm scripts on the runner.
 
-## Run the YAML scenarios
-The YAML is the human-readable specification; the executable Playwright suite is TypeScript and mirrors its cases. It is not automatically interpreted as test code in this package. If you want YAML to drive execution dynamically, add a YAML scenario loader and a generic step runner as a separate enhancement.
+The `npm pkg set` edits and temporary files exist only in the ephemeral GitHub Actions checkout. The workflow does not commit or push them back to your repository.
 
-## Important integration note
-The frontend scaffold's browser discovery and workflow execution currently depend on Tauri command signatures. In browser preview, the adapter intentionally rejects workflow execution. The browser discovery test expects a successful mocked/preview response as the scaffold currently implements it; if the app is running in Tauri, the backend command names and return shapes must match `src/backend.ts`. Align those names with `src-tauri/src/commands.rs` before treating desktop integration tests as authoritative.
+Note: the repository's `package.json` must already include `vite`, `typescript`, `vitest`, `@vitejs/plugin-react`, `react`, `react-dom`, `@testing-library/react`, and `@testing-library/jest-dom`. If not, add the missing dependencies in the workflow's install step or your package manifest.

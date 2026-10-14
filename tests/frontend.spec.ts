@@ -31,7 +31,7 @@ test("UI-003 workflow name can be changed", async ({ page }) => {
 
 test("UI-004 add and configure a step", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Type text/ }).click();
+  await page.locator(".palette-item").filter({ hasText: "Type text" }).click();
   await page.getByLabel("Step name").fill("Enter search term");
   await expect(page.getByText("Enter search term")).toBeVisible();
   await expect(page.getByLabel("Step name")).toHaveValue("Enter search term");
@@ -45,6 +45,8 @@ test("UI-005 step type can be changed", async ({ page }) => {
 });
 
 test("UI-006 selected step can be disabled and enabled", async ({ page }) => {
+  const { backend } = await import("../src/backend");
+  void backend;
   await page.goto("/");
   const toggle = page.getByRole("switch", { name: "Enable step" });
   await expect(toggle).toHaveAttribute("aria-checked", "true");
@@ -57,16 +59,16 @@ test("UI-006 selected step can be disabled and enabled", async ({ page }) => {
 test("UI-007 step library search filters results", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("textbox", { name: "Search steps" }).fill("extract");
-  await expect(page.getByRole("button", { name: /Extract data/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Navigate/ })).toHaveCount(0);
+  await expect(page.locator(".palette-item").filter({ hasText: "Extract data" })).toBeVisible();
+  await expect(page.locator(".palette-item").filter({ hasText: "Navigate" })).toHaveCount(0);
 });
 
-test("UI-008 selected step can be moved up and down", async ({ page }) => {
+test("UI-008 selected step can be moved up", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Wait for page/ }).click();
   await page.getByRole("button", { name: "Move up" }).click();
-  const stepNames = await visibleStepNames(page);
-  expect(stepNames.indexOf("Wait for page")).toBeLessThan(stepNames.indexOf("Open product page"));
+  const names = await page.locator(".flow-node .node-content > strong").allTextContents();
+  expect(names.indexOf("Wait for page")).toBeLessThan(names.indexOf("Open product page"));
 });
 
 test("UI-009 selected step can be deleted", async ({ page }) => {
@@ -101,7 +103,7 @@ test("UI-012 browser discovery gives feedback", async ({ page }) => {
 test("UI-013 workflow run failure is surfaced in browser preview", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Run workflow/ }).click();
-  await expect(page.getByText(/desktop backend/i)).toBeVisible();
+  await expect(page.getByText(/desktop build to control a local browser/i)).toBeVisible();
   await expect(page.getByText("Needs attention")).toBeVisible();
 });
 
@@ -140,13 +142,3 @@ test("UI-018 no uncaught page errors on initial load", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Product price monitor" })).toBeVisible();
   expect(errors).toEqual([]);
 });
-
-async function visibleStepNames(page: Page): Promise<string[]> {
-  const names = ["Open product page", "Wait for page", "Extract product details", "Open next result"];
-  const result: string[] = [];
-  for (const name of names) {
-    const locator = page.getByText(name, { exact: true });
-    if (await locator.count()) result.push(name);
-  }
-  return result;
-}
