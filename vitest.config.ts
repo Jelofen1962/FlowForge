@@ -8,7 +8,10 @@ export default defineConfig({
     setupFiles: ['./src/test-setup.ts'],
     clearMocks: true,
     restoreMocks: true,
-    // Playwright specs must be run by `npm run test:e2e`, not Vitest.
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    // Keep Vitest focused on frontend unit tests. The Node runner integration
+    // suite is executed separately by `npm run test:runner`, and Playwright
+    // specs belong to `npm run test:e2e`.
+    include: ['src/**/*.test.{ts,tsx}'],
+    exclude: [...configDefaults.exclude, 'e2e/**', 'tests/**'],
   },
 });

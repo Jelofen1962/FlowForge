@@ -181,4 +181,4 @@ See [PHASE4.md](./PHASE4.md) for the desktop execution architecture, supported a
 
 ### Browser runner integration tests
 
-Run `npm run check:runner` for runner syntax checks and `npm run test:runner` for the browser-backed runner integration tests. Set `COBWEB_TEST_BROWSER` to the full path of a Chromium, Chrome, or Edge executable to enable those tests. The tests use a local HTML fixture and do not depend on a public website.
+Run `npm run check:runner` for runner syntax checks and `npm run test:runner` for the browser-backed runner integration tests. These Node tests are intentionally excluded from Vitest; `npm run test` only runs frontend unit tests. Set `COBWEB_TEST_BROWSER` to the full path of a Chromium, Chrome, or Edge executable to enable those tests. The tests use a local HTML fixture and do not depend on a public website.
