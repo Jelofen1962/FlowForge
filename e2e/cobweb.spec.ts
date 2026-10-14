@@ -15,10 +15,10 @@ test('website can be added and persists after reload', async ({ page }) => {
   await page.locator('#site-name').fill('Phase Three Test');
   await page.locator('#site-url').fill('https://example.com');
   await page.getByRole('button', { name: /Add website/ }).last().click();
-  await expect(page.getByText('Phase Three Test')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Phase Three Test.*example\.com/ })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: /Websites/ }).first().click();
-  await expect(page.getByText('Phase Three Test')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Phase Three Test.*example\.com/ })).toBeVisible();
 });
 
 test('workflow editor exposes export and step creation', async ({ page }) => {
@@ -27,5 +27,5 @@ test('workflow editor exposes export and step creation', async ({ page }) => {
   await page.getByRole('button', { name: 'Add step' }).first().click();
   await expect(page.getByPlaceholder('Find an interaction…')).toBeVisible();
   await page.getByRole('button', { name: /Wait \/ delay/ }).click();
-  await expect(page.getByText('Wait / delay')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wait / delay' })).toBeVisible();
 });
