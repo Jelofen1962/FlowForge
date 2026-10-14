@@ -1,8 +1,0 @@
-Apply at the repository root.
-
-1. Copy dist/index.html into the repository root's dist/index.html. Commit it so the path exists on a clean CI checkout. Prefer running `npm run build` before any Cargo/Tauri command when the real frontend is available.
-2. Replace src-tauri/src/browser/process.rs with the included file.
-3. Keep `frontendDist: "../dist"` in src-tauri/tauri.conf.json.
-4. In CI, run frontend install/build before `cargo test` or any Tauri command that expands generate_context!.
-
-If your repo's real frontend build outputs to `dist`, the generated assets should replace this placeholder. This patch does not replace the UI.

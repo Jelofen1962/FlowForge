@@ -5,6 +5,7 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "scripts/**"
       - "index.html"
       - "package.json"
       - "package-lock.json"
@@ -16,6 +17,7 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "scripts/**"
       - "index.html"
       - "package.json"
       - "package-lock.json"
@@ -42,64 +44,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Deliberately no npm cache: the workflow must also work before
-          # package-lock.json has been committed.
 
-      - name: Verify repository layout
-        shell: bash
-        run: |
-          if [ ! -f package.json ]; then
-            echo "::error::Expected package.json at the repository root; source files may live in ./src."
-            exit 1
-          fi
-          test -f src/App.tsx || {
-            echo "::error::Expected src/App.tsx. Confirm the frontend source folder."
-            exit 1
-          }
-
-      - name: Configure CI-only test commands
-        shell: bash
-        run: |
-          # These edits exist only on the GitHub runner. Nothing is committed
-          # back to the repository, so no local file edits are required.
-          npm pkg set "scripts.test=vitest run --config vitest.config.ci.ts"
-          npm pkg set "scripts.test:e2e=playwright test"
-
-          cat > vitest.config.ci.ts <<'EOF'
-          import { defineConfig } from "vitest/config";
-          import react from "@vitejs/plugin-react";
-
-          export default defineConfig({
-            plugins: [react()],
-            test: {
-              include: ["src/**/*.test.{ts,tsx}"],
-              environment: "jsdom",
-              setupFiles: ["./src/test/ci-setup.ts"],
-              css: true,
-              clearMocks: true,
-              restoreMocks: true
-            }
-          });
-          EOF
-
-          cat > src/test/ci-setup.ts <<'EOF'
-          import "@testing-library/jest-dom/vitest";
-          import { cleanup } from "@testing-library/react";
-          import { afterEach } from "vitest";
-
-          afterEach(() => {
-            cleanup();
-          });
-          EOF
-
-      - name: Install Playwright and YAML dependencies
-        run: npm install --save-dev @playwright/test yaml
-
-      - name: Install project dependencies
+      - name: Install dependencies
         run: npm install
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Validate YAML scenario catalogue
+        run: npm run test:scenarios
 
       - name: Run frontend unit tests
         run: npm run test

@@ -1,5 +1,0 @@
---- a/src/App.test.tsx
-+++ b/src/App.test.tsx
-@@
--    expect(screen.getByRole("button", { name: /Extract data/ })).toBeInTheDocument();
-+    expect(screen.getByText("Extract data", { selector: ".palette-copy strong" })).toBeInTheDocument();

@@ -41,7 +41,9 @@ describe("CobWeb workspace", () => {
   it("filters step library items", () => {
     render(<App />);
     fireEvent.change(screen.getByRole("textbox", { name: "Search steps" }), { target: { value: "extract" } });
-    expect(screen.getByRole("button", { name: /Extract data/ })).toBeInTheDocument();
+    // Scope this assertion to the library. The workflow canvas also has an
+    // "Extract data" step, so a page-wide button query is ambiguous.
+    expect(screen.getByText("Extract data", { selector: ".palette-copy strong" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Navigate/ })).not.toBeInTheDocument();
   });
 
@@ -50,7 +52,10 @@ describe("CobWeb workspace", () => {
     vi.mocked(backend.runWorkflow).mockRejectedValueOnce(new Error("Launch a CobWeb desktop build to control a local browser."));
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /Run workflow/ }));
-    await waitFor(() => expect(screen.getByText(/desktop build to control a local browser/)).toBeInTheDocument());
+    await waitFor(async () => {
+      const messages = await screen.findAllByText(/desktop build to control a local browser/);
+      expect(messages.length).toBeGreaterThan(0);
+    });
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
   });
 
