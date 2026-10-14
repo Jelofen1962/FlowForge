@@ -4,22 +4,35 @@ on:
     branches: [main, master, develop]
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          # npm cache is omitted until a lockfile is committed.
+          # npm caching is enabled after a package-lock.json is committed.
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - uses: actions/upload-artifact@v4
+      - name: Verify release configuration
+        run: npm run verify:release
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build Windows installer
+        run: npm run build:win
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
         with:
-          name: flowforge-ui-build
-          path: dist/
+          name: flowforge-windows-${{ github.sha }}
+          path: release/*
           if-no-files-found: error
+          retention-days: 14

@@ -20,8 +20,31 @@ function createWindow() {
       sandbox: true
     }
   });
-  if (isDev) win.loadURL("http://127.0.0.1:5173");
-  else win.loadFile(path.join(__dirname, "../dist/index.html"));
+  const devUrl = "http://127.0.0.1:5173";
+  const productionFile = path.join(__dirname, "../dist/index.html");
+
+  // Prevent popups and renderer navigation away from the trusted application UI.
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.on("will-navigate", (event, targetUrl) => {
+    const allowed = isDev ? targetUrl === devUrl || targetUrl.startsWith(`${devUrl}/`) : targetUrl === require("node:url").pathToFileURL(productionFile).href;
+    if (!allowed) event.preventDefault();
+  });
+  win.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+
+  // Production renderer CSP. Dev mode needs Vite's local websocket for HMR.
+  if (!isDev) {
+    win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"]
+        }
+      });
+    });
+  }
+
+  if (isDev) win.loadURL(devUrl);
+  else win.loadFile(productionFile);
   win.on("closed", () => { win = null; });
 }
 
@@ -64,6 +87,15 @@ app.on("before-quit", () => {
   }
 });
 
+function handleTrusted(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    const trusted = !!win && !win.isDestroyed() && event.sender === win.webContents &&
+      event.senderFrame === win.webContents.mainFrame && event.senderFrame.url === win.webContents.getURL();
+    if (!trusted) throw new Error(`Blocked untrusted IPC sender for ${channel}.`);
+    return handler(event, ...args);
+  });
+}
+
 async function startEngine(payload) {
   if (engine) return { ok: false, error: "An automation is already running." };
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -104,9 +136,9 @@ async function startEngine(payload) {
   }
 }
 
-ipcMain.handle("engine:start", async (_event, payload) => startEngine(payload));
+handleTrusted("engine:start", async (_event, payload) => startEngine(payload));
 
-ipcMain.handle("recorder:start", async (_event, options = {}) => {
+handleTrusted("recorder:start", async (_event, options = {}) => {
   if (engine) return { ok: false, error: "A browser session is already running. Stop it before starting the recorder." };
   const startUrl = typeof options.startUrl === "string" ? options.startUrl : "https://example.com";
   const browser = options.browser === "edge" ? "edge" : "chrome";
@@ -115,26 +147,26 @@ ipcMain.handle("recorder:start", async (_event, options = {}) => {
   return await startEngine(payload);
 });
 
-ipcMain.handle("recorder:stop", async () => {
+handleTrusted("recorder:stop", async () => {
   if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No browser session is running." };
   engine.stdin.write(JSON.stringify({ type: "recorder:stop" }) + "\n");
   return { ok: true };
 });
 
-ipcMain.handle("recorder:navigate", async (_event, url) => {
+handleTrusted("recorder:navigate", async (_event, url) => {
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return { ok: false, error: "Recorder URL must use http or https." };
   if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No browser session is running." };
   engine.stdin.write(JSON.stringify({ type: "navigate", url }) + "\n");
   return { ok: true };
 });
 
-ipcMain.handle("session:export", async () => {
+handleTrusted("session:export", async () => {
   if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "Start a browser session before exporting its state." };
   engine.stdin.write(JSON.stringify({ type: "session:export" }) + "\n");
   return { ok: true };
 });
 
-ipcMain.handle("session:import", async (_event, snapshot) => {
+handleTrusted("session:import", async (_event, snapshot) => {
   if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "Start a browser session on the target site before importing session state." };
   let encoded;
   try { encoded = JSON.stringify(snapshot); } catch { return { ok: false, error: "Session snapshot is not valid JSON data." }; }
@@ -143,7 +175,7 @@ ipcMain.handle("session:import", async (_event, snapshot) => {
   return { ok: true };
 });
 
-ipcMain.handle("engine:stop", async () => {
+handleTrusted("engine:stop", async () => {
   if (!engine) return { ok: true, alreadyStopped: true };
   if (!engineStopping) {
     engineStopping = true;
@@ -153,7 +185,7 @@ ipcMain.handle("engine:stop", async () => {
   return { ok: true };
 });
 
-ipcMain.handle("profile:save", async (_event, profile) => {
+handleTrusted("profile:save", async (_event, profile) => {
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) return { ok: false, error: "Invalid profile." };
   const dir = path.join(app.getPath("userData"), "profiles");
   await fs.mkdir(dir, { recursive: true });
@@ -163,13 +195,13 @@ ipcMain.handle("profile:save", async (_event, profile) => {
   return { ok: true, path: target };
 });
 
-ipcMain.handle("profile:list", async () => {
+handleTrusted("profile:list", async () => {
   const dir = path.join(app.getPath("userData"), "profiles");
   await fs.mkdir(dir, { recursive: true });
   return (await fs.readdir(dir)).filter(file => file.endsWith(".json"));
 });
 
-ipcMain.handle("open:external", (_event, url) => {
+handleTrusted("open:external", (_event, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) return shell.openExternal(url);
   return false;
 });

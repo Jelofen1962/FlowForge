@@ -19,7 +19,7 @@ npm run dev
 npm run build
 npm start
 ```
-For a distributable installer, add `electron-builder` or `electron-forge` and configure Windows NSIS packaging.
+For a Windows NSIS installer, run `npm run build:win`. See [`docs/RELEASING.md`](docs/RELEASING.md) for the release checklist and tag workflow.
 
 ## Current starter functionality
 - Step list with add, delete, reorder, disable, and per-step error policy
@@ -125,3 +125,15 @@ Retry repeats the complete action. Use it only for actions that are safe to repe
 The **Optimizations** controls can disable images, stylesheets, web fonts, and common audio/video files. Chromium DevTools URL blocking is configured before the first navigation when supported. The page-load strategy can be `normal` (default), `eager` (return after DOM readiness), or `none` (do not wait for a page-load event). Add explicit wait steps when using faster strategies.
 
 The runner emits per-step elapsed time and a final performance summary with total run duration, latest navigation timing, resource count, and reported transfer bytes. These metrics are diagnostic estimates, not a complete network trace; cache and cross-origin policies can make transfer-size values incomplete. Full browser and Windows CI validation remains required.
+
+
+## Phase 9: Production Readiness & Windows Packaging
+
+- Electron windows deny new windows and navigation away from the trusted application page; renderer permissions are denied by default.
+- Privileged IPC calls are restricted to the trusted top-level application frame.
+- Packaged renderer responses receive a Content Security Policy; external font assets are limited to Google Fonts.
+- NSIS packaging uses ASAR, maximum compression, explicit packaged files, and versioned architecture-specific installer names.
+- CI runs release-config checks, TypeScript, unit tests, builds a Windows installer, and uploads the installer artifact. Tagged releases also generate SHA-256 checksums and publish installer files to GitHub Releases.
+- `SECURITY.md` and `docs/RELEASING.md` describe sensitive session data, release steps, and the unsigned-installer limitation.
+
+**Verification status:** Node syntax checks and `npm run verify:release` pass in this environment. Full Vitest, TypeScript, Vite production build, Windows packaging, and live app smoke tests are not verified because dependencies could not be installed here. No GitHub workflow has been run by this package generator. The repository does not yet include `package-lock.json`, so CI currently uses `npm install`; deterministic dependency resolution and npm caching remain follow-up work. The installer is not code-signed.

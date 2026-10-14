@@ -65,7 +65,7 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 
 ## Delivery phases (10 phases)
 
-**Current delivery status: Phase 7 of 10 implemented in this package.** Retry execution and local run history are implemented as first-pass features. Full dependency-backed tests and Windows browser integration still require CI verification.
+**Current delivery status: Phase 9 of 10 implemented in this package.** Retry execution and local run history are implemented as first-pass features. Full dependency-backed tests and Windows browser integration still require CI verification.
 
 1. **Foundation & desktop shell**: Electron hardening, React UI, Poppins typography, monochrome design, Windows packaging, settings.
 2. **Workflow editor**: typed step schema, add/reorder/duplicate/delete, groups, variables, JSON import/export, local autosave, validation. **Implemented in current package; CI verification pending.**
@@ -79,8 +79,8 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 10. **Polish & extensibility**: reusable workflow library, command palette, keyboard accessibility, templates, documentation, signed installer.
 
 ## CI and exports
-- `.github/workflows/ci.yml` runs typecheck, unit tests, and the UI build on pushes and pull requests.
-- `.github/workflows/release.yml` builds a Windows NSIS installer and uploads it as a GitHub Actions artifact. Pushing a `v*` tag also creates a GitHub Release and attaches the installer.
+- `.github/workflows/ci.yml` runs release configuration checks, typecheck, unit tests, and a Windows NSIS installer build on pushes and pull requests.
+- `.github/workflows/release.yml` builds a Windows NSIS installer, generates SHA-256 checksums, and uploads it as a GitHub Actions artifact. Pushing a `v*` tag also creates a GitHub Release and attaches the installer and checksum file.
 - The project has not been pushed to a GitHub repository by this generator. Create a repository, push these files, then create a version tag to enable automated release exports.
 
 
@@ -175,3 +175,8 @@ Session snapshots are intentionally plain JSON in this phase and can contain aut
 - [ ] Run full Vitest, TypeScript, production build, and installer jobs in dependency-installed CI.
 
 **Known limits:** Resource blocking uses Chromium DevTools URL patterns and may not be available with every driver. Transfer byte counts can be incomplete due to caching and cross-origin timing restrictions. `eager` and especially `none` can return before a page is fully ready, so workflows may need explicit wait steps.
+
+
+## Phase 9: Production Readiness & Windows Packaging
+
+The package includes trusted-frame IPC validation, navigation and popup restrictions, a production Content Security Policy, ASAR packaging, a release configuration checker, Windows CI packaging, tag-based release publishing, SHA-256 checksum generation, and release/security documentation. These safeguards have passed static checks locally, but CI and live Windows execution have not yet been run from this environment. The installer remains unsigned and a committed npm lockfile is still outstanding.

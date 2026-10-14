@@ -14,7 +14,8 @@
     "build:win": "npm run build && electron-builder --win nsis",
     "dist": "npm run build && electron-builder",
     "test:engine": "vitest run tests/runner.test.ts",
-    "test:control-flow": "vitest run tests/controlFlow.test.ts"
+    "test:control-flow": "vitest run tests/controlFlow.test.ts",
+    "verify:release": "node scripts/verify-release.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -47,7 +48,11 @@
       "dist/**/*",
       "electron/**/*",
       "engine/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.map",
+      "!**/*.md",
+      "!**/tests/**",
+      "!**/.github/**"
     ],
     "win": {
       "target": [
@@ -65,7 +70,12 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    }
+    },
+    "asar": true,
+    "compression": "maximum",
+    "artifactName": "FlowForge-${version}-${arch}-Setup.${ext}"
   },
-  "files": []
+  "engines": {
+    "node": ">=20"
+  }
 }
