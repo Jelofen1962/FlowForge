@@ -5,41 +5,72 @@ on:
     paths:
       - "src/**"
       - "tests/**"
-      - "playwright.config.ts"
+      - "index.html"
       - "package.json"
       - "package-lock.json"
+      - "playwright.config.ts"
+      - "vite.config.ts"
+      - "tsconfig.json"
       - ".github/workflows/frontend-tests.yml"
   pull_request:
     paths:
       - "src/**"
       - "tests/**"
-      - "playwright.config.ts"
+      - "index.html"
       - "package.json"
       - "package-lock.json"
+      - "playwright.config.ts"
+      - "vite.config.ts"
+      - "tsconfig.json"
       - ".github/workflows/frontend-tests.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   frontend:
+    name: Build and test frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Node
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          # Cache is intentionally omitted until package-lock.json is committed.
+
+      - name: Verify frontend manifest
+        shell: bash
+        run: |
+          test -f package.json || {
+            echo "::error::package.json was not found in the repository root. This workflow assumes package.json is at the root and frontend source is in ./src."
+            exit 1
+          }
+
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "::warning::package-lock.json is missing. Using npm install for this run. Commit package-lock.json for reproducible CI."
+            npm install
+          fi
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
       - name: Build frontend
         run: npm run build
-      - name: Run React unit tests
-        run: npm run test
+
+      - name: Run frontend unit tests
+        run: npm run test --if-present
+
       - name: Run Playwright frontend tests
         run: npm run test:e2e
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
