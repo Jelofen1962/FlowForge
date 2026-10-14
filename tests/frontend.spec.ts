@@ -65,17 +65,17 @@ test("UI-007 step library search filters results", async ({ page }) => {
 
 test("UI-008 selected step can be moved up", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Wait for page/ }).click();
-  await page.getByRole("button", { name: "Move up" }).click();
+  await page.locator(".flow-node").filter({ hasText: "Wait for page" }).click();
+  await page.getByRole("button", { name: "Move up", exact: true }).click();
   const names = await page.locator(".flow-node .node-content > strong").allTextContents();
   expect(names.indexOf("Wait for page")).toBeLessThan(names.indexOf("Open product page"));
 });
 
 test("UI-009 selected step can be deleted", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Open product page/ }).click();
-  await page.getByRole("button", { name: "Delete step" }).click();
-  await expect(page.getByText("Open product page")).toHaveCount(0);
+  await page.locator(".flow-node").filter({ hasText: "Open product page" }).click();
+  await page.getByRole("button", { name: "Delete step", exact: true }).click();
+  await expect(page.locator(".flow-node").filter({ hasText: "Open product page" })).toHaveCount(0);
   await expect(page.getByText("Wait for page")).toBeVisible();
 });
 
@@ -97,13 +97,13 @@ test("UI-011 JSON export copies workflow", async ({ page, context }) => {
 test("UI-012 browser discovery gives feedback", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Discover browsers" }).click();
-  await expect(page.getByText("Browser discovery complete")).toBeVisible();
+  await expect(page.locator(".statusbar")).toContainText("Browser discovery complete");
 });
 
 test("UI-013 workflow run failure is surfaced in browser preview", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Run workflow/ }).click();
-  await expect(page.getByText(/desktop build to control a local browser/i)).toBeVisible();
+  await expect(page.locator(".statusbar")).toContainText("Workflow execution requires the CobWeb desktop backend.");
   await expect(page.getByText("Needs attention")).toBeVisible();
 });
 
