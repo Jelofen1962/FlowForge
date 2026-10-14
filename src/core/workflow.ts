@@ -227,6 +227,10 @@ export function validateWorkflow(input: unknown): ValidationResult {
       if (step.disabled !== undefined && typeof step.disabled !== "boolean") errors.push(`Step ${n} disabled must be true or false.`);
       if (step.onError !== undefined && step.onError !== "stop" && step.onError !== "continue") errors.push(`Step ${n} has an invalid error policy.`);
       if (step.timeout !== undefined && (!Number.isFinite(step.timeout) || (step.timeout as number) < 0)) errors.push(`Step ${n} timeout must be a non-negative number.`);
+      if (step.retry !== undefined) {
+        if (!step.retry || !Number.isInteger(step.retry.attempts) || step.retry.attempts < 1 || step.retry.attempts > 10) errors.push(`Step ${n} retry attempts must be an integer from 1 to 10.`);
+        if (step.retry && step.retry.delayMs !== undefined && (!Number.isFinite(step.retry.delayMs) || step.retry.delayMs < 0 || step.retry.delayMs > 30000)) errors.push(`Step ${n} retry delay must be between 0 and 30000 ms.`);
+      }
       if (["wait"].includes(type) && step.ms !== undefined && (!Number.isFinite(step.ms) || (step.ms as number) < 0)) errors.push(`Step ${n} wait duration must be a non-negative number.`);
       if (type === "navigate" && (typeof step.url !== "string" || !isHttpUrl(step.url))) errors.push(`Step ${n} needs a valid http(s) URL.`);
       if (type === "key" && (typeof step.key !== "string" || !step.key.trim())) errors.push(`Step ${n} needs a key or shortcut.`);

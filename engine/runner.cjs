@@ -17,6 +17,22 @@ const STEP_TYPES = new Set([
   "assertText", "select", "screenshot", "back", "forward", "refresh"
 ]);
 
+async function runWithRetry(action, options = {}, onRetry = () => {}) {
+  const attempts = Math.max(1, Math.min(10, Math.floor(Number(options.attempts || 1)) || 1));
+  const delayMs = Math.max(0, Math.min(30_000, Math.floor(Number(options.delayMs || 0)) || 0));
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try { return await action(); } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        onRetry({ attempt, nextAttempt: attempt + 1, attempts, delayMs, error: normalizeError(error).message });
+        if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
+
 function isHttpUrl(value) {
   if (typeof value !== "string") return false;
   try {
@@ -48,6 +64,10 @@ function validatePayload(payload) {
     if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error(`Step ${i + 1} must be an object.`);
     if (!STEP_TYPES.has(step.type)) throw new Error(`Step ${i + 1} has unsupported type "${String(step.type)}".`);
     if (step.timeout !== undefined) asBoundedNumber(step.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, `Step ${i + 1} timeout`);
+    if (step.retry !== undefined) {
+      if (!step.retry || typeof step.retry !== "object" || !Number.isInteger(step.retry.attempts) || step.retry.attempts < 1 || step.retry.attempts > 10) throw new Error(`Step ${i + 1} retry attempts must be an integer from 1 to 10.`);
+      if (step.retry.delayMs !== undefined && (!Number.isFinite(step.retry.delayMs) || step.retry.delayMs < 0 || step.retry.delayMs > 30_000)) throw new Error(`Step ${i + 1} retry delay must be between 0 and 30000 ms.`);
+    }
     if (step.type === "wait") asBoundedNumber(step.ms, 1000, MAX_WAIT_MS, `Step ${i + 1} wait duration`);
     if (["click", "type", "waitVisible", "waitClickable", "assertText", "select"].includes(step.type)) {
       if (!step.target || !LOCATOR_NAMES.has(step.target.strategy) || typeof step.target.value !== "string" || !step.target.value.trim()) {
@@ -349,7 +369,7 @@ async function runWorkflow(rawPayload, deps = {}) {
         return element;
       };
 
-      try {
+      const executeStepAction = async () => {
         switch (step.type) {
           case "navigate": {
             const url = substituteVariables(step.url, variables);
@@ -441,14 +461,25 @@ async function runWorkflow(rawPayload, deps = {}) {
           default:
             throw new Error(`Unsupported step type: ${step.type}`);
         }
+      };
+      const retryConfig = step.retry && typeof step.retry === "object" ? step.retry : {};
+      const maxAttempts = Math.max(1, Math.min(10, Math.floor(Number(retryConfig.attempts || 1)) || 1));
+      const retryDelayMs = Math.max(0, Math.min(30_000, Math.floor(Number(retryConfig.delayMs || 0)) || 0));
+      let actionError = null;
+      try {
+        await runWithRetry(executeStepAction, { attempts: maxAttempts, delayMs: retryDelayMs }, info => {
+          emit("step-retry", { index, name: stepName, ...info, maxAttempts });
+        });
+      } catch (error) { actionError = error; }
+      if (actionError) {
+        const normalized = normalizeError(actionError);
+        runtimeContext.stepStatus[step.id || String(index)] = "error";
+        emit("step", { index, status: "error", name: stepName, error: normalized.message, errorName: normalized.name, attempts: maxAttempts });
+        if (step.onError !== "continue") throw actionError;
+      } else {
         runtimeContext.stepStatus[step.id || String(index)] = "success";
         try { runtimeContext.url = await driver.getCurrentUrl(); } catch {}
-        emit("step", { index, status: "success", name: stepName });
-      } catch (error) {
-        const normalized = normalizeError(error);
-        runtimeContext.stepStatus[step.id || String(index)] = "error";
-        emit("step", { index, status: "error", name: stepName, error: normalized.message, errorName: normalized.name });
-        if (step.onError !== "continue") throw error;
+        emit("step", { index, status: "success", name: stepName, attempts: maxAttempts });
       }
     }
     if (stopRequested) emit("done", { success: false, stopped: true });
@@ -480,5 +511,5 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MAX_WAIT_MS, isHttpUrl,
   asBoundedNumber, validatePayload, substituteVariables, buildLocator,
-  parseKeySequence, normalizeError, runWorkflow
+  parseKeySequence, normalizeError, runWithRetry, runWorkflow
 };

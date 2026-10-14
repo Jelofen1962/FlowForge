@@ -5,3 +5,6 @@
 
 .recorder-url{width:210px;min-width:140px;background:var(--panel,#111);border:1px solid var(--border,#333);border-radius:6px;color:inherit;padding:7px 9px;font:inherit;font-size:12px;outline:none}
 .recorder-url:focus{border-color:#e33}
+
+/* Phase 7 reliability and execution history */
+.history-list{display:flex;flex-direction:column;gap:12px;max-width:780px}.history-list .form-card{max-width:none}.history-title-row{display:flex;align-items:center;gap:12px;font-size:12px}.history-title-row .status-pill{margin-left:auto}.status-pill.success{color:#a8c4ae;border-color:#344239}.status-pill.failed,.status-pill.interrupted{color:#efaaaa;border-color:#553434}.status-pill.stopped{color:#c5b68c;border-color:#51462f}.history-stats{display:flex;gap:15px;flex-wrap:wrap;margin-top:12px;color:#9999a1;font:10px 'DM Mono',monospace}.history-list .validation-item{margin-top:12px}

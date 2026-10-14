@@ -7,6 +7,7 @@ const runner = require("../engine/runner.cjs") as {
   validatePayload: (payload: unknown) => { browser: string; steps: unknown[] };
   substituteVariables: (value: string, variables?: Record<string, unknown>) => string;
   parseKeySequence: (value: string, Key: Record<string, string>) => string[];
+  runWithRetry: (action: () => Promise<unknown>, options?: { attempts?: number; delayMs?: number }, onRetry?: (info: Record<string, unknown>) => void) => Promise<unknown>;
 };
 
 const Key = {
@@ -51,6 +52,25 @@ describe("Selenium runner validation", () => {
   it("substitutes declared variables and rejects missing variables", () => {
     expect(runner.substituteVariables("hello ${user}", { user: "Ada" })).toBe("hello Ada");
     expect(() => runner.substituteVariables("${missing}", {})).toThrow(/Unknown workflow variable/);
+  });
+
+  it("retries transient action failures and reports each retry", async () => {
+    let attempts = 0;
+    const retries: Record<string, unknown>[] = [];
+    const result = await runner.runWithRetry(async () => {
+      attempts++;
+      if (attempts < 3) throw new Error("temporary failure");
+      return "recovered";
+    }, { attempts: 3, delayMs: 0 }, info => retries.push(info));
+    expect(result).toBe("recovered");
+    expect(attempts).toBe(3);
+    expect(retries).toHaveLength(2);
+    await expect(runner.runWithRetry(async () => { throw new Error("permanent"); }, { attempts: 2, delayMs: 0 })).rejects.toThrow("permanent");
+  });
+
+  it("rejects unsafe retry configuration", () => {
+    expect(() => runner.validatePayload({ steps: [{ type: "wait", retry: { attempts: 99, delayMs: 0 } }] })).toThrow(/retry attempts/i);
+    expect(() => runner.validatePayload({ steps: [{ type: "wait", retry: { attempts: 2, delayMs: 30001 } }] })).toThrow(/retry delay/i);
   });
 
   it("parses modifier shortcuts and named keys", () => {

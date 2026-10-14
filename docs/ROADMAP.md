@@ -65,7 +65,7 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 
 ## Delivery phases (10 phases)
 
-**Current delivery status: Phase 2 of 10 completed in this package.** Phase 1 remains the existing desktop shell; Phase 2 adds the workflow editor model and editing safeguards. The app has not yet been built or exercised on Windows in this environment, so the implementation is code-complete but awaiting CI verification.
+**Current delivery status: Phase 7 of 10 implemented in this package.** Retry execution and local run history are implemented as first-pass features. Full dependency-backed tests and Windows browser integration still require CI verification.
 
 1. **Foundation & desktop shell**: Electron hardening, React UI, Poppins typography, monochrome design, Windows packaging, settings.
 2. **Workflow editor**: typed step schema, add/reorder/duplicate/delete, groups, variables, JSON import/export, local autosave, validation. **Implemented in current package; CI verification pending.**
@@ -73,8 +73,8 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 4. **Visual recorder**: 40% red hover overlay, click-to-select, XPath/CSS candidates, selector preview/test/highlight, iframe and shadow DOM.
 5. **Control flow & debugging**: if/else, loops, retry, error policies, pause/resume, breakpoints, step-through, rerun failed steps.
 6. **Profiles & sessions**: Chrome/Edge profile directories, cookies, localStorage/sessionStorage, encrypted export/import, secret redaction.
-7. **Optimization engine**: disable CSS/images/fonts/media, block selected network requests, timing metrics, timeout/polling controls.
-8. **Reliability & testing**: unit tests, integration tests, local fixture website, browser matrix tests, structured logs, diagnostics.
+7. **Reliability & testing**: bounded action retries, step error policies, persisted run history, structured retry/failure events. Full integration tests, local fixture website, browser matrix tests, and diagnostics export remain.
+8. **Optimization engine**: disable CSS/images/fonts/media, block selected network requests, timing metrics, timeout/polling controls.
 9. **GitHub delivery**: CI checks, build artifacts, versioned Windows NSIS installer, tag-triggered GitHub Releases, release notes.
 10. **Polish & extensibility**: reusable workflow library, command palette, keyboard accessibility, templates, documentation, signed installer.
 
@@ -148,3 +148,17 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 - [ ] Integration-test import/export against real Chrome and Edge on Windows.
 
 Session snapshots are intentionally plain JSON in this phase and can contain authentication credentials. They are not encrypted; handle them as secrets. Snapshots cover one HTTP(S) origin only.
+
+
+## Phase 7 of 10: Reliability, Recovery & Execution History
+
+- [x] Retry individual Selenium actions with 1–10 total attempts and bounded delay.
+- [x] Emit structured `step-retry` events with attempt number and last error message.
+- [x] Validate retry configuration in workflow and engine payload validation.
+- [x] Expose retry count and delay in the step editor.
+- [x] Persist the most recent 50 run summaries locally, including outcome, duration, and success/failure/skip counts.
+- [x] Support `stop` and `continue` step error policies with structured failure events.
+- [ ] Run the complete Vitest and TypeScript checks in a dependency-installed environment.
+- [ ] Validate transient failure recovery with live Chrome/Edge on Windows.
+
+**Known limits:** Run history is stored in renderer local storage and is not an encrypted audit log. Retry replays the whole action, so actions with side effects (such as submitting a form or placing an order) should only be retried when safe to repeat. Pause/resume, rerun-failed-step, and full diagnostics export are not included in this phase.

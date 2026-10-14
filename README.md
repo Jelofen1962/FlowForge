@@ -111,3 +111,10 @@ The control-flow module also exposes bounded `runCountedLoop` and `withRetry` he
 Open **Profiles** and start a browser session (the recorder keeps a session open), then export or import a versioned JSON snapshot for the current site origin. Snapshots include cookies and that origin's local/session storage, not passwords, cache, or other origins. Expired cookies are skipped and rejected cookies are counted in the engine output.
 
 **Security note:** snapshots are plain JSON and may contain active login credentials. Keep them out of source control and store them securely. Encryption and Windows Credential Manager integration are not included yet.
+
+
+## Phase 7: Reliability, Recovery & Run History
+
+Steps can be configured for 1–10 total attempts with a delay between retries. The runner emits structured retry events and retains the selected `stop` or `continue` error policy. The **Run history** panel stores the latest 50 local run summaries, including status, elapsed time, and succeeded/failed/skipped step counts.
+
+Retry repeats the complete action. Use it only for actions that are safe to repeat, since clicks and form submissions can have side effects. Run history is local renderer storage, not an encrypted or tamper-proof audit log. Pause/resume, rerun-failed-step, and full browser integration validation remain future work.
