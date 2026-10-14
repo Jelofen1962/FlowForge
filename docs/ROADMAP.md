@@ -65,8 +65,10 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 
 ## Delivery phases (10 phases)
 
+**Current delivery status: Phase 2 of 10 completed in this package.** Phase 1 remains the existing desktop shell; Phase 2 adds the workflow editor model and editing safeguards. The app has not yet been built or exercised on Windows in this environment, so the implementation is code-complete but awaiting CI verification.
+
 1. **Foundation & desktop shell**: Electron hardening, React UI, Poppins typography, monochrome design, Windows packaging, settings.
-2. **Workflow editor**: typed step schema, add/reorder/duplicate/delete, groups, variables, JSON import/export, autosave, validation.
+2. **Workflow editor**: typed step schema, add/reorder/duplicate/delete, groups, variables, JSON import/export, local autosave, validation. **Implemented in current package; CI verification pending.**
 3. **Selenium core**: navigation, click/type/keys, selectors, waits, assertions, tabs, frames, alerts, screenshots, uploads/downloads.
 4. **Visual recorder**: 40% red hover overlay, click-to-select, XPath/CSS candidates, selector preview/test/highlight, iframe and shadow DOM.
 5. **Control flow & debugging**: if/else, loops, retry, error policies, pause/resume, breakpoints, step-through, rerun failed steps.
