@@ -17,6 +17,11 @@ const STEP_TYPES = new Set([
   "click", "type", "key", "navigate", "waitVisible", "waitClickable", "wait",
   "assertText", "select", "screenshot", "back", "forward", "refresh"
 ]);
+const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select"]);
+
+function stepRequiresLocator(stepType) {
+  return LOCATOR_STEP_TYPES.has(stepType);
+}
 
 async function runWithRetry(action, options = {}, onRetry = () => {}) {
   const attempts = Math.max(1, Math.min(10, Math.floor(Number(options.attempts || 1)) || 1));
@@ -95,7 +100,7 @@ function validatePayload(payload) {
       if (step.retry.delayMs !== undefined && (!Number.isFinite(step.retry.delayMs) || step.retry.delayMs < 0 || step.retry.delayMs > 30_000)) throw new Error(`Step ${i + 1} retry delay must be between 0 and 30000 ms.`);
     }
     if (step.type === "wait") asBoundedNumber(step.ms, 1000, MAX_WAIT_MS, `Step ${i + 1} wait duration`);
-    if (["click", "type", "waitVisible", "waitClickable", "assertText", "select"].includes(step.type)) {
+    if (stepRequiresLocator(step.type)) {
       if (!step.target || !LOCATOR_NAMES.has(step.target.strategy) || typeof step.target.value !== "string" || !step.target.value.trim()) {
         throw new Error(`Step ${i + 1} (${step.type}) needs a supported locator and a non-empty locator value.`);
       }
@@ -415,7 +420,9 @@ async function runWorkflow(rawPayload, deps = {}) {
       const stepStarted = Date.now();
       emit("step", { index, status: "running", name: stepName, type: step.type });
       const timeout = asBoundedNumber(step.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, "Step timeout");
-      const by = step.target ? buildLocator(By, {
+      // Some imported workflows keep an empty target object on non-element steps.
+      // Only construct a Selenium locator for actions that actually use one.
+      const by = stepRequiresLocator(step.type) ? buildLocator(By, {
         strategy: step.target.strategy,
         value: substituteVariables(step.target.value, variables)
       }) : null;
@@ -589,6 +596,6 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MAX_WAIT_MS, isHttpUrl,
-  asBoundedNumber, validatePayload, substituteVariables, buildLocator,
+  asBoundedNumber, validatePayload, substituteVariables, buildLocator, stepRequiresLocator,
   parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, resolveDriverPath, runWorkflow
 };

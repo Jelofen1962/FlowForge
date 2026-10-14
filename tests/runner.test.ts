@@ -10,6 +10,7 @@ const runner = require("../engine/runner.cjs") as {
   runWithRetry: (action: () => Promise<unknown>, options?: { attempts?: number; delayMs?: number }, onRetry?: (info: Record<string, unknown>) => void) => Promise<unknown>;
   normalizeOptimizations: (value?: Record<string, unknown>) => { disableImages:boolean; disableCss:boolean; disableFonts:boolean; disableMedia:boolean; pageLoadStrategy:string };
   buildBlockedUrlPatterns: (value?: Record<string, unknown>) => string[];
+  stepRequiresLocator: (stepType: string) => boolean;
   resolveDriverPath: (browserName: string, env?: Record<string, string>, existsSync?: (path: string) => boolean, platform?: string) => string | null;
 };
 
@@ -21,6 +22,16 @@ const Key = {
 };
 
 describe("Selenium runner validation", () => {
+  it("requires locators only for element actions, not navigation or timed waits", () => {
+    expect(runner.stepRequiresLocator("click")).toBe(true);
+    expect(runner.stepRequiresLocator("type")).toBe(true);
+    expect(runner.stepRequiresLocator("navigate")).toBe(false);
+    expect(runner.stepRequiresLocator("wait")).toBe(false);
+    expect(runner.validatePayload({ steps: [
+      { type: "navigate", url: "https://parinsanat.com/", target: { strategy: "xpath", value: "" } },
+      { type: "wait", ms: 1000, target: { strategy: "xpath", value: "" } }
+    ] }).steps).toHaveLength(2);
+  });
   it("prefers the configured or default Windows ChromeDriver path when it exists", () => {
     const expected = "C:\\WebDriver\\chromedriver\\chromedriver.exe";
     expect(runner.resolveDriverPath("chrome", {}, path => path === expected, "win32")).toBe(expected);
