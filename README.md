@@ -59,3 +59,23 @@ The editor now supports:
 The editor keeps workflow documents local in the application. Variables are currently plain text in the saved workflow; do not place credentials in them until secret storage and redaction are implemented.
 
 **Verification status:** the workflow schema module passed standalone TypeScript checking and direct validation smoke tests in this environment. Full React/Vite tests and Windows packaging were not verified here because dependency installation timed out. GitHub Actions remains the intended full build/test environment.
+
+
+## Phase 3: Selenium Core Engine
+
+The engine runs in a separate Node process and emits newline-delimited JSON events. Supported actions include navigation, click, typing, key sequences (for example `CTRL+A`), explicit visibility/clickability waits, fixed waits, text assertions, native select-by-value, screenshots, and browser history controls.
+
+### Workflow variables
+
+Create variables in the workflow and reference them as `${variableName}` in URLs, locator values, typed text, key sequences, and assertion text. Undefined variables fail the step with an actionable error rather than silently becoming an empty string.
+
+### Engine behavior
+
+- Timeouts are bounded to 120 seconds; fixed waits are bounded to 5 minutes.
+- Locator-based actions wait for an element to be located and visible; click/select additionally wait for the element to be enabled.
+- Screenshot paths are reduced to a filename and written to the configured screenshot directory (or the process working directory).
+- `disableCss` blocks CSS requests through Chromium DevTools when supported. This is experimental and may break pages.
+- `onError: "continue"` allows the next step to run; other values stop the workflow.
+- Browser driver resolution depends on Selenium Manager and an installed Chrome or Edge browser.
+
+Run `npm test` to run unit tests. These tests cover engine validation and helper functions without opening a real browser. Browser integration still needs a Windows GitHub Actions run against an installed browser before release.

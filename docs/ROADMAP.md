@@ -82,3 +82,31 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 - `.github/workflows/ci.yml` runs typecheck, unit tests, and the UI build on pushes and pull requests.
 - `.github/workflows/release.yml` builds a Windows NSIS installer and uploads it as a GitHub Actions artifact. Pushing a `v*` tag also creates a GitHub Release and attaches the installer.
 - The project has not been pushed to a GitHub repository by this generator. Create a repository, push these files, then create a version tag to enable automated release exports.
+
+
+## Phase 3: Selenium Core Engine
+
+**Implemented in this package; run CI before marking release-ready.**
+
+- Validated engine payloads and bounded timeouts.
+- Real Chrome/Edge WebDriver sessions, with persistent user-data directory support.
+- Explicit Selenium waits for element location, visibility, and enabled state.
+- Navigation, click, typing, key sequences, native select-by-value, text assertions, waits, screenshots, and history controls.
+- Workflow variable substitution using `${variableName}`.
+- Structured newline-delimited JSON events for step status, warnings, screenshots, completion, and failures.
+- CSS blocking uses Chromium DevTools request blocking and reports a warning when unavailable.
+- Stop requests are handled gracefully by the runner; Electron IPC preserves the child process lifecycle and frames partial stdout chunks.
+
+**Known limits:** Browser driver availability still depends on an installed compatible Chrome/Edge and Selenium Manager's ability to resolve a driver. Browser-specific DevTools support varies. Stop behavior depends on Node/Electron process signal behavior on the host OS. Cookie/storage snapshot export, visual recording, retries, and debugger controls are later phases.
+
+### Phase 3 acceptance checklist
+
+- [x] Validate payload and URL inputs before starting a browser.
+- [x] Bound explicit timeouts and fixed waits.
+- [x] Wait for location, visibility, and enabled state as appropriate.
+- [x] Support declared variable interpolation in workflow values.
+- [x] Emit structured per-step status events.
+- [x] Unit tests for pure engine helpers.
+- [ ] Confirm Chrome and Edge integration on `windows-latest`.
+- [ ] Confirm graceful stop behavior with a live browser on Windows.
+- [ ] Confirm installer build and launch from the packaged application.
