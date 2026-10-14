@@ -73,7 +73,10 @@
     },
     "asar": true,
     "compression": "maximum",
-    "artifactName": "FlowForge-${version}-${arch}-Setup.${ext}"
+    "artifactName": "FlowForge-${version}-${arch}-Setup.${ext}",
+    "asarUnpack": [
+      "node_modules/selenium-webdriver/bin/**"
+    ]
   },
   "engines": {
     "node": ">=20"

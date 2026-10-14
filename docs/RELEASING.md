@@ -33,3 +33,16 @@ The current installer is **not code-signed**. Windows SmartScreen may show an un
 ## Dependency lockfile
 
 This project currently has no committed `package-lock.json`. CI therefore uses `npm install` and cannot guarantee byte-for-byte dependency resolution across runs. Commit a lockfile generated and reviewed on a network-enabled development machine, then change CI to `npm ci` and enable the setup-node npm cache.
+
+## Troubleshooting Selenium Manager on Windows
+
+The Selenium Manager executable must be unpacked from Electron's ASAR archive. The `build.asarUnpack` setting in `package.json` keeps `node_modules/selenium-webdriver/bin/**` in `resources/app.asar.unpacked`. After changing this setting, rebuild and reinstall the application; an already-installed copy will not be repaired by changing source files alone.
+
+If the app still reports `Unable to obtain browser driver`:
+
+1. Update/reinstall the latest FlowForge installer built from this configuration.
+2. Ensure Chrome or Microsoft Edge is installed and can be launched normally.
+3. Run FlowForge with internet access on the first driver setup, because Selenium Manager may need to download a matching driver.
+4. If the error persists, check that `resources/app.asar.unpacked/node_modules/selenium-webdriver/bin/windows/selenium-manager.exe` exists in the installed application directory and that endpoint protection has not quarantined it.
+
+The application does not bundle Chrome/Edge or a browser driver; Selenium Manager resolves the matching driver at runtime.
