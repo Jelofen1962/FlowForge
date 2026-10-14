@@ -148,3 +148,7 @@ The runner emits per-step elapsed time and a final performance summary with tota
 ## Release status
 
 The source package includes the ten planned delivery phases as a set of first-pass features, not a claim that every capability is production-complete. Run `npm install`, `npm run verify:release`, `npm run typecheck`, and `npm test` in a dependency-installed environment, then build and launch the Windows installer on a clean Windows machine. Do not distribute session snapshots: they can contain active authentication cookies and are currently plain JSON.
+
+## Automatic Windows releases
+
+Push to `main` or `master` to trigger the Automatic Windows Release workflow. After release checks, tests, and the Windows installer build pass, it automatically publishes a versioned GitHub Release with generated notes and SHA-256 checksums. The patch version increments from the latest stable version. Configure repository Actions permissions to allow workflows to create releases (`contents: write`). See [docs/RELEASING.md](docs/RELEASING.md) for details.

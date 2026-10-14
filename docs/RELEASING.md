@@ -1,14 +1,22 @@
 # Windows release checklist
 
-## Before tagging
+## Automatic release flow
 
-1. Run `npm install`, `npm run verify:release`, `npm run typecheck`, `npm test`, and `npm run build:win` on a supported Windows machine.
-2. Test the installed app on a clean Windows account with Chrome and/or Edge installed. Verify startup, a simple local or authorized test workflow, stop behavior, screenshots, and session import/export.
-3. Review dependency changes and security advisories. Session snapshots can contain live authentication cookies and must not be attached to public issues or releases.
-4. Update `package.json` version and user-facing release notes. The tag version should match the package version.
-5. Commit the changes and push the branch before tagging.
+Pushing a commit to `main` or `master` starts the **Automatic Windows Release** workflow. It:
 
-## Publish
+1. Finds the highest existing stable `vMAJOR.MINOR.PATCH` tag and the version in `package.json`.
+2. Increments the larger version's patch number for this release run (for example, `v0.3.0` to `v0.3.1`).
+3. Installs dependencies, runs release configuration checks, TypeScript, and tests.
+4. Builds the Windows NSIS installer, generates SHA-256 checksums, and uploads an Actions artifact.
+5. Creates a published GitHub Release with generated release notes and the installer/checksum files.
+
+The version bump is applied to the workflow's temporary checkout for packaging. It does not commit a version change back to the branch. The next release version is derived from the latest published/tagged version, so successive successful runs increment the patch version. Failed verification/builds do not publish a release.
+
+You can also use **Actions → Automatic Windows Release → Run workflow** from `main` or `master`. Manual runs from other branches are skipped. The repository's `Windows Release` workflow remains available for manually pushed `v*` tags.
+
+## Manual tag-based release
+
+If you prefer to control the version yourself, update `package.json`, commit and push, then push a matching tag:
 
 ```powershell
 # Example only: replace 0.4.0 with the version you reviewed
@@ -16,7 +24,7 @@ git tag v0.4.0
 git push origin v0.4.0
 ```
 
-The `Windows Release` workflow installs dependencies on `windows-latest`, verifies release configuration, runs TypeScript and unit tests, builds the NSIS installer, generates SHA-256 checksums, and attaches the files to a GitHub Release for `v*` tags. A manually dispatched workflow uploads an Actions artifact but does not publish a release unless the ref is a version tag.
+The tag-based workflow installs dependencies, verifies release configuration, runs TypeScript and unit tests, builds the NSIS installer, generates SHA-256 checksums, and attaches the files to a GitHub Release. A manually dispatched tag workflow uploads an Actions artifact but only publishes a release when running on a `v*` tag.
 
 ## Trust and signing
 

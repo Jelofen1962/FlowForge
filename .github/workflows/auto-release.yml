@@ -1,0 +1,92 @@
+name: Automatic Windows Release
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: automatic-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-windows:
+    # Manual runs are allowed only from the default release branches.
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Compute next patch version
+        id: version
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $baseVersion = [version]$package.version
+          $latestTag = git tag --list "v[0-9]*" --sort=-v:refname | Select-Object -First 1
+          if ($latestTag -match '^v(\d+\.\d+\.\d+)$') {
+            $tagVersion = [version]$Matches[1]
+            if ($tagVersion -gt $baseVersion) { $baseVersion = $tagVersion }
+          }
+          $nextVersion = [version]::new($baseVersion.Major, $baseVersion.Minor, ($baseVersion.Build + 1))
+          $versionText = "$($nextVersion.Major).$($nextVersion.Minor).$($nextVersion.Build)"
+          $package.version = $versionText
+          $package | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 package.json
+          "version=$versionText" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=v$versionText" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Preparing automatic release v$versionText"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify release configuration
+        run: npm run verify:release
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build Windows NSIS installer
+        run: npm run build:win
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' }
+          if (-not $files) { throw 'No release artifacts were generated.' }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          $lines | Set-Content -Encoding ascii release/SHA256SUMS.txt
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flowforge-windows-${{ steps.version.outputs.tag }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release automatically
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          $assets = @(Get-ChildItem release -File | ForEach-Object { $_.FullName })
+          if ($assets.Count -eq 0) { throw 'No release assets found.' }
+          gh release create $env:RELEASE_TAG @assets --title $env:RELEASE_TAG --generate-notes --latest --target $env:GITHUB_SHA
