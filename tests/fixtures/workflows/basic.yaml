@@ -1,0 +1,19 @@
+schema_version: 1
+id: fixture-basic
+name: Basic fixture workflow
+description: Used by repository tests.
+settings:
+  browser: chromium
+  headless: true
+variables:
+  base_url: https://example.test
+steps:
+  - id: step-001
+    action: navigate
+    url: https://example.test
+  - id: step-002
+    action: click
+    target:
+      by: role
+      role: button
+      name: Continue

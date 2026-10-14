@@ -1,7 +1,11 @@
-node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 dist/
-src-tauri/target/
-.vscode/
-.DS_Store
-cobweb-browser-profile/
-cobweb.zip
+build/
+*.egg-info/
+logs/
+artifacts/
