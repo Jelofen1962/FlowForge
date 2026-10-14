@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:win": "npm run build && electron-builder --win nsis",
-    "dist": "npm run build && electron-builder",
+    "build:win": "npm run build && electron-builder --win nsis --publish never",
+    "dist": "npm run build && electron-builder --publish never",
     "test:engine": "vitest run tests/runner.test.ts",
     "test:control-flow": "vitest run tests/controlFlow.test.ts",
     "verify:release": "node scripts/verify-release.cjs"
