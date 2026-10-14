@@ -15,7 +15,6 @@ pub struct AppState {
     pub cdp: Arc<CdpRegistry>,
 }
 
-
 impl Default for AppState {
     fn default() -> Self {
         Self {

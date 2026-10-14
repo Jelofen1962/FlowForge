@@ -22,8 +22,8 @@ pub struct BrowserManager {
 
 impl BrowserManager {
     pub fn launch(&mut self, options: &BrowserLaunchOptions) -> Result<BrowserSessionInfo, String> {
-        let instance = launch_browser(options)?;
-        let info = session_info(&instance);
+        let mut instance = launch_browser(options)?;
+        let info = session_info(&mut instance);
         self.sessions.insert(info.id.clone(), instance);
         Ok(info)
     }
@@ -36,7 +36,7 @@ impl BrowserManager {
                 Err(_) => false,
             }
         });
-        self.sessions.values().map(session_info).collect()
+        self.sessions.values_mut().map(session_info).collect()
     }
 
     pub fn close(&mut self, id: &str) -> Result<bool, String> {
@@ -66,7 +66,12 @@ impl Drop for BrowserManager {
     fn drop(&mut self) { self.close_all(); }
 }
 
-fn session_info(instance: &BrowserInstance) -> BrowserSessionInfo {
+fn session_info(instance: &mut BrowserInstance) -> BrowserSessionInfo {
+    let running = match instance.child.try_wait() {
+        Ok(Some(_)) => false,
+        Ok(None) => true,
+        Err(_) => false,
+    };
     BrowserSessionInfo {
         id: instance.id.clone(),
         engine: instance.engine.clone(),
@@ -74,7 +79,7 @@ fn session_info(instance: &BrowserInstance) -> BrowserSessionInfo {
         profile_path: instance.profile_path.to_string_lossy().into_owned(),
         executable: instance.executable.to_string_lossy().into_owned(),
         pid: Some(instance.child.id()),
-        running: instance.child.try_wait().ok().flatten().is_none(),
+        running,
         started_at_ms: instance.started_at_ms,
     }
 }

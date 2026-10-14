@@ -6,7 +6,7 @@ use crate::{
     workflow::{self, WorkflowStep},
     AppState,
 };
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::path::PathBuf;
 use tauri::State;
 

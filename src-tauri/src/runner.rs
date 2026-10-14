@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, process::Stdio, time::Duration};
-use tokio::{io::AsyncReadExt, process::Command};
+use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,7 +33,7 @@ pub async fn run_external(request: RunnerRequest) -> Result<RunnerResult, String
     let mut command = Command::new(&request.executable);
     command.args(&request.args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     if let Some(dir) = request.working_directory { command.current_dir(dir); }
-    let mut child = command.spawn().map_err(|e| format!("Failed to start runner: {e}"))?;
+    let child = command.spawn().map_err(|e| format!("Failed to start runner: {e}"))?;
     let result = tokio::time::timeout(timeout, async {
         let output = child.wait_with_output().await.map_err(|e| format!("Runner failed: {e}"))?;
         Ok::<_, String>(RunnerResult {
