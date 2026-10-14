@@ -79,3 +79,10 @@ Create variables in the workflow and reference them as `${variableName}` in URLs
 - Browser driver resolution depends on Selenium Manager and an installed Chrome or Edge browser.
 
 Run `npm test` to run unit tests. These tests cover engine validation and helper functions without opening a real browser. Browser integration still needs a Windows GitHub Actions run against an installed browser before release.
+
+
+## Phase 4: Visual Browser Recorder
+
+The Selenium-controlled browser receives `engine/recorder-bridge.js` when recorder mode is started. Hovering an element highlights it with a red 40%-opacity overlay; clicking selects one target and emits a `FLOWFORGE_RECORDER_V1` message with CSS and XPath locators. The bridge cleans up its overlay after selection.
+
+The engine control channel supports `recorder:start`, `recorder:stop`, and `navigate` commands. Renderer code should validate incoming selection messages with `parseRecorderMessage` from `src/core/recorder.ts` before converting the target to a workflow locator. This phase establishes the real-browser bridge and selector contract; it does not yet claim complete record-all-actions capture or automatic UI insertion.

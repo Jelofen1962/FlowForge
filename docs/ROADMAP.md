@@ -110,3 +110,18 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 - [ ] Confirm Chrome and Edge integration on `windows-latest`.
 - [ ] Confirm graceful stop behavior with a live browser on Windows.
 - [ ] Confirm installer build and launch from the packaged application.
+
+
+## Phase 4: Visual Browser Recorder
+
+**Implemented as a first-pass real-browser bridge; end-to-end browser validation remains required.**
+
+- Injected recorder bridge into the Selenium-controlled browser tab (not an iframe).
+- Hover target overlay uses `rgba(255,0,0,.4)` and a high z-index.
+- Click selection reports tag, id, name, visible text, attributes, XPath, and CSS selector.
+- One-shot selection removes overlays and event listeners after a target is selected.
+- Renderer-side message parser validates channel and selected-target fields.
+- Electron preload exposes recorder start/stop/navigation commands over IPC.
+- Unit tests cover recorder message validation and XPath/CSS locator mapping.
+
+**Known limits:** This phase provides the engine bridge and selector model, but a full visual browser control panel and automatic appending of selected elements to the React workflow UI require a live renderer integration. Navigation initiated outside FlowForge may need reinjection; browser extension-grade recording across all page transitions is not claimed.

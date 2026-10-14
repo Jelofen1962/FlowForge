@@ -64,7 +64,7 @@ app.on("before-quit", () => {
   }
 });
 
-ipcMain.handle("engine:start", async (_event, payload) => {
+async function startEngine(payload) {
   if (engine) return { ok: false, error: "An automation is already running." };
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, error: "Invalid automation payload." };
@@ -84,7 +84,7 @@ ipcMain.handle("engine:start", async (_event, payload) => {
   try {
     engine = spawn(process.execPath, [script], {
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", FLOWFORGE_PAYLOAD: encoded },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true
     });
     engine.stdout.on("data", handleStdout);
@@ -102,6 +102,30 @@ ipcMain.handle("engine:start", async (_event, payload) => {
     engine = null;
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+ipcMain.handle("engine:start", async (_event, payload) => startEngine(payload));
+
+ipcMain.handle("recorder:start", async (_event, options = {}) => {
+  if (engine) return { ok: false, error: "A browser session is already running. Stop it before starting the recorder." };
+  const startUrl = typeof options.startUrl === "string" ? options.startUrl : "https://example.com";
+  const browser = options.browser === "edge" ? "edge" : "chrome";
+  if (!/^https?:\/\//i.test(startUrl)) return { ok: false, error: "Recorder start URL must use http or https." };
+  const payload = { mode: "recorder", browser, startUrl, steps: [], profile: options.profile || {} };
+  return await startEngine(payload);
+});
+
+ipcMain.handle("recorder:stop", async () => {
+  if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No browser session is running." };
+  engine.stdin.write(JSON.stringify({ type: "recorder:stop" }) + "\n");
+  return { ok: true };
+});
+
+ipcMain.handle("recorder:navigate", async (_event, url) => {
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return { ok: false, error: "Recorder URL must use http or https." };
+  if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No browser session is running." };
+  engine.stdin.write(JSON.stringify({ type: "navigate", url }) + "\n");
+  return { ok: true };
 });
 
 ipcMain.handle("engine:stop", async () => {

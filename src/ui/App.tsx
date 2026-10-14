@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createId, normalizeWorkflow, validateWorkflow, type WorkflowGroup, type WorkflowVariable } from "../core/workflow";
+import { parseRecorderMessage, selectionToLocator, type RecorderSelection } from "../core/recorder";
 import {
   Activity, AppWindow, ArrowDown, ArrowUp, Braces, Check, ChevronDown, CircleHelp, Clock3,
   Code2, Cookie, Copy, FilePlus2, FolderOpen, Globe2, GripVertical, Layers3, MousePointer2,
@@ -36,6 +37,8 @@ export default function App(){
   const [profileName,setProfileName]=useState("Default profile");
   const [userDataDir,setUserDataDir]=useState("");
   const [running,setRunning]=useState(false);
+  const [recording,setRecording]=useState(false);
+  const [recordUrl,setRecordUrl]=useState("https://example.com");
   const [logs,setLogs]=useState<string[]>(["FlowForge engine ready.", "Create a workflow or run the sample steps."]);
   const [runState,setRunState]=useState<Record<string,string>>({});
   const current=steps.find(s=>s.id===selected) || steps[0];
@@ -53,7 +56,20 @@ export default function App(){
     return ()=>window.clearTimeout(handle);
   },[workflowDocument]);
   useEffect(()=>{
-    const off=window.flowforge.onLog(line=>{setLogs(old=>[...old, line.trim()].slice(-300)); try{const p=JSON.parse(line);if(p.type==="step")setRunState(s=>({...s,[steps[p.data.index]?.id]:p.data.status}));}catch{}});
+    const off=window.flowforge.onLog(line=>{setLogs(old=>[...old, line.trim()].slice(-300)); try{
+      const p=JSON.parse(line);
+      if(p.type==="step")setRunState(s=>({...s,[steps[p.data.index]?.id]:p.data.status}));
+      if(p.type==="recorder" && p.data?.status==="selected" && p.data.selection) {
+        const message=parseRecorderMessage({channel:"FLOWFORGE_RECORDER_V1",type:"selected",data:p.data.selection});
+        if(message?.type==="selected") {
+          const selectedElement=message.data as RecorderSelection;
+          const step:Step={id:createId(),name:`Click ${selectedElement.tagName}${selectedElement.text?`: ${selectedElement.text.slice(0,48)}`:""}`,type:"click",target:selectionToLocator(selectedElement,"xpath"),timeout:10000,onError:"stop",clearFirst:true};
+          setSteps(all=>[...all,step]);setSelected(step.id);
+          setLogs(old=>[...old,`Recorded ${selectedElement.tagName}: XPath locator added.`].slice(-300));
+        }
+      }
+      if(p.type==="recorder" && p.data?.status==="stopped")setRecording(false);
+    }catch{}});
     const done=window.flowforge.onFinished(r=>{setRunning(false);setLogs(old=>[...old,`Engine exited (${r.code}).`]);});
     return ()=>{off();done()};
   },[steps]);
@@ -65,6 +81,8 @@ export default function App(){
   const deleteStep=(id:string)=>{const next=steps.filter(x=>x.id!==id);setSteps(next);if(selected===id)setSelected(next[0]?.id||"")};
   const move=(direction:number)=>{const i=steps.findIndex(s=>s.id===selected),j=i+direction;if(j<0||j>=steps.length)return;const copy=[...steps];[copy[i],copy[j]]=[copy[j],copy[i]];setSteps(copy)};
   const run=async()=>{if(steps.length===0){setLogs(["Add at least one step before running the workflow."]);return}if(!validation.valid){setLogs(["Workflow validation failed:",...validation.errors]);return}setLogs([]);setRunState({});setRunning(true);const result=await window.flowforge.start({steps,startUrl,browser,variables,profile:{name:profileName,browser,userDataDir:userDataDir||undefined},optimizations:{disableImages,disableCss},closeBrowserWhenDone:closeBrowser});if(!result.ok){setRunning(false);setLogs([result.error||"Could not start engine."]) }};
+  const startRecorder=async()=>{const result=await window.flowforge.recorderStart({startUrl:recordUrl,browser,profile:{name:profileName,browser,userDataDir:userDataDir||undefined}});if(result.ok){setRecording(true);setRunning(true);setLogs(old=>[...old,"Recorder browser started. Hover over a page element and click to capture its locator."])}else setLogs(old=>[...old,result.error||"Could not start recorder."])};
+  const stopRecorder=async()=>{const result=await window.flowforge.recorderStop();if(!result.ok)setLogs(old=>[...old,result.error||"Could not stop recorder."]);};
   const saveProfile=async()=>{const r=await window.flowforge.saveProfile({name:profileName,browser,userDataDir,optimizations:{disableImages,disableCss}});setLogs(old=>[...old,`Profile saved: ${r.path||profileName}`])};
   const exportWorkflow=()=>{try{const json=JSON.stringify(workflowDocument,null,2);const blob=new Blob([json],{type:"application/json"});const a=document.createElement("a");const url=URL.createObjectURL(blob);a.href=url;a.download=`${workflowName.trim().replace(/[^a-z0-9-_]+/gi,"-")||"workflow"}.flowforge.json`;a.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);setLogs(old=>[...old,"Workflow JSON exported."])}catch(e){setLogs(old=>[...old,`Export failed: ${e instanceof Error?e.message:String(e)}`])}};
   const importWorkflow=()=>{const input=document.createElement("input");input.type="file";input.accept=".json,application/json";input.onchange=async()=>{const f=input.files?.[0];if(!f)return;try{const doc=normalizeWorkflow(JSON.parse(await f.text()));setWorkflowName(doc.name);setSteps(doc.steps as unknown as Step[]);setStartUrl(doc.startUrl);setBrowser(doc.browser);setGroups(doc.groups);setVariables(doc.variables);setSelected(doc.steps[0]?.id||"");setLogs(old=>[...old,`Imported ${f.name} (${doc.steps.length} steps).`]);}catch(e){setLogs(old=>[...old,`Import rejected: ${e instanceof Error?e.message:String(e)}`])}};input.click()};
@@ -73,7 +91,7 @@ export default function App(){
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Zap size={17}/></div><span>flowforge</span><span className="version">DESKTOP</span></div>
       <div className="top-center"><span className="live-dot"/><span>LOCAL AUTOMATION ENGINE</span><span className="top-sep">/</span><span className="muted">{workflowName} · {saveState}</span></div>
-      <div className="top-actions"><button className="icon-button" title="Import workflow" onClick={importWorkflow}><FolderOpen size={16}/></button><button className="icon-button" title="Export workflow" onClick={exportWorkflow}><Save size={16}/></button><button className="run-button" onClick={run} disabled={running||!validation.valid||steps.length===0}><Play size={14} fill="currentColor"/>{running?"Running":"Run workflow"}</button><button className="stop-button" onClick={()=>window.flowforge.stop()} disabled={!running}><Square size={13} fill="currentColor"/></button></div>
+      <div className="top-actions"><input aria-label="Recorder URL" className="recorder-url" value={recordUrl} onChange={e=>setRecordUrl(e.target.value)} placeholder="https://example.com" /><button className="icon-button" title="Import workflow" onClick={importWorkflow}><FolderOpen size={16}/></button><button className="icon-button" title="Export workflow" onClick={exportWorkflow}><Save size={16}/></button><button className="icon-button" title="Start visual recorder" onClick={startRecorder} disabled={running}><MousePointer2 size={15}/>{recording?"Recording":"Record"}</button>{recording&&<button className="icon-button" title="Stop recorder" onClick={stopRecorder}><Square size={14}/></button>}<button className="run-button" onClick={run} disabled={running||!validation.valid||steps.length===0}><Play size={14} fill="currentColor"/>{running?"Running":"Run workflow"}</button><button className="stop-button" onClick={()=>window.flowforge.stop()} disabled={!running}><Square size={13} fill="currentColor"/></button></div>
     </header>
     <div className="workspace">
       <aside className="rail">

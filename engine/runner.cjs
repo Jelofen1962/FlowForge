@@ -126,6 +126,9 @@ async function runWorkflow(rawPayload, deps = {}) {
   const variables = Object.fromEntries((payload.variables || []).map(v => [v.name, v.value]));
   let driver;
   let stopRequested = false;
+  let recording = false;
+  let recorderMode = payload.mode === "recorder";
+  let lastRecorderMessage = null;
   let quitPromise;
 
   const stop = () => { stopRequested = true; };
@@ -155,6 +158,78 @@ async function runWorkflow(rawPayload, deps = {}) {
 
     if (typeof process !== "undefined") process.once("SIGTERM", stop);
     if (payload.startUrl) await driver.get(substituteVariables(payload.startUrl, variables));
+
+    // Optional persistent stdin control channel for live recorder commands.
+    if (process.stdin && !process.stdin.destroyed) {
+      let controlBuffer = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", async chunk => {
+        controlBuffer += chunk;
+        const lines = controlBuffer.split(/\r?\n/);
+        controlBuffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let command;
+          try { command = JSON.parse(line); } catch { emit("error", { message: "Invalid engine control JSON.", name: "SyntaxError" }); continue; }
+          try {
+            if (command.type === "recorder:start") {
+              const bridgePath = path.join(__dirname, "recorder-bridge.js");
+              const source = await fs.readFile(bridgePath, "utf8");
+              await driver.executeScript(source);
+              recording = true;
+              lastRecorderMessage = null;
+              emit("recorder", { status: "started", url: await driver.getCurrentUrl() });
+            } else if (command.type === "recorder:stop") {
+              await driver.executeScript("window.__flowforgeRecorderStateV1?.stop?.()");
+              recording = false;
+              if (recorderMode) stopRequested = true;
+              emit("recorder", { status: "stopped" });
+            } else if (command.type === "navigate") {
+              if (!isHttpUrl(command.url)) throw new Error("Recorder navigation URL must use http or https.");
+              await driver.get(command.url);
+              if (recording) {
+                const source = await fs.readFile(path.join(__dirname, "recorder-bridge.js"), "utf8");
+                await driver.executeScript(source);
+              }
+              emit("recorder", { status: "navigated", url: await driver.getCurrentUrl() });
+            } else if (command.type === "stop") {
+              stopRequested = true;
+              emit("control", { status: "stop-requested" });
+            } else {
+              throw new Error(`Unsupported engine control command: ${String(command.type)}`);
+            }
+          } catch (error) {
+            emit("error", { message: normalizeError(error).message, name: normalizeError(error).name, control: command.type });
+          }
+        }
+      });
+    }
+
+    if (recorderMode) {
+      const bridgeSource = await fs.readFile(path.join(__dirname, "recorder-bridge.js"), "utf8");
+      await driver.executeScript(bridgeSource);
+      recording = true;
+      emit("recorder", { status: "started", url: await driver.getCurrentUrl() });
+      while (!stopRequested) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        try {
+          const message = await driver.executeScript("const m = window.__flowforgeRecorderLastMessage || null; window.__flowforgeRecorderLastMessage = null; return m;");
+          if (message && message.channel === "FLOWFORGE_RECORDER_V1") {
+            if (message.type === "selected" && message.data && typeof message.data.xpath === "string" && typeof message.data.css === "string") {
+              emit("recorder", { status: "selected", selection: message.data });
+              // Re-arm after each one-shot selection so recording can continue.
+              if (!stopRequested) await driver.executeScript(bridgeSource);
+            } else if (message.type === "stopped") {
+              // Selection stop is one-shot; the bridge is rearmed by the polling loop after selection.
+            }
+          }
+        } catch (error) {
+          emit("notice", { level: "warning", message: `Recorder polling failed: ${normalizeError(error).message}` });
+        }
+      }
+      emit("done", { success: true, recorder: true });
+      return;
+    }
 
     if (optimizations.disableCss) {
       try {
