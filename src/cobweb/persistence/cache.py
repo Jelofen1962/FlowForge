@@ -6,7 +6,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
 from pydantic import ValidationError
 from cobweb.domain.workflow import Workflow, CURRENT_SCHEMA_VERSION
 

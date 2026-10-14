@@ -1,38 +1,77 @@
 # CobWeb: Python + Qt foundation
 
-Phase 0 starter foundation for rebuilding CobWeb as a desktop browser-workflow automation app.
+CobWeb is being rebuilt as a desktop browser-workflow automation app using Python, PySide6/Qt,
+Playwright, and versioned YAML workflows. YAML will remain the workflow source of truth.
 
 ## Requirements
 
 - Python 3.12+
-- Windows is the initial target; the package avoids relying on the current working directory.
-- Chromium is installed separately by Playwright when the browser engine phase is introduced.
+- Windows is the initial target; the code avoids relying on the current working directory.
+- Playwright Chromium is installed in CI and will be checked by the application as browser features land.
 
-## Setup (PowerShell)
+## Local setup (PowerShell)
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-pytest
+python -m playwright install chromium
+python -m pytest
+python -m ruff check src tests --select E4,E7,E9,F
+python -m compileall -q src tests
 python -m cobweb.app
 ```
 
-If PowerShell blocks activation, run `.venv\Scripts\python.exe -m pip ...` directly.
+If PowerShell blocks activation, use `.venv\Scripts\python.exe -m pip ...` directly.
+
+## Test categories
+
+Tests are grouped by directory and marker:
+
+- `tests/unit`: isolated model, settings, YAML, persistence, migration, and cache tests.
+- `tests/integration`: repository/cache behavior across components.
+- `tests/ui`: Qt smoke tests using the offscreen platform plugin.
+- `tests/e2e`: local deterministic Playwright browser smoke tests. No live websites or credentials.
+
+Run all tests:
+
+```powershell
+python -m pytest
+```
+
+Run one category:
+
+```powershell
+python -m pytest -m unit
+python -m pytest -m integration
+python -m pytest -m ui
+python -m pytest -m e2e
+```
+
+Create local coverage and JUnit reports:
+
+```powershell
+python -m pytest --junitxml=test-results/junit.xml --cov=cobweb --cov-report=term-missing --cov-report=xml:coverage.xml --cov-report=html:htmlcov
+```
+
+## GitHub Actions
+
+`.github/workflows/ci.yml` runs on pushes to `main`, `master`, and `develop`, pull requests, and manual dispatch. It runs the complete test suite on Ubuntu and Windows, performs critical lint and compile checks, builds the wheel and source distribution, validates package metadata, and uploads test reports, coverage reports, and distribution exports as downloadable Actions artifacts.
+
+`.github/workflows/release.yml` builds release exports on version tags such as `v0.1.0` and attaches the wheel, source distribution, and source snapshot ZIP to a GitHub Release. A manual run uploads exports as an Actions artifact.
+
+### Downloading exports
+
+Open the repository's **Actions** tab, select a successful workflow run, and download its artifacts:
+
+- `test-reports-*`: JUnit XML, coverage XML, and HTML coverage report.
+- `cobweb-python-distributions`: installable wheel and source distribution, plus a source snapshot ZIP.
 
 ## Current scope
 
-This is intentionally Phase 0 only: package layout, Qt startup, startup diagnostics,
-logging, config defaults, tests, and architecture/setup documentation. Workflow YAML,
-browser execution, recording, and element picking are not implemented yet.
+The current milestone contains the Phase 0 shell and Phase 1 workflow models, safe YAML repository,
+atomic persistence, schema guard, and parsed-workflow cache. The browser runner, full visual editor,
+recorder, and element picker are planned phases and are not represented as complete features yet.
 
-## Project layout
-
-See `docs/architecture.md` and `docs/migration-inventory.md`.
-
-## Phase 1 status
-
-Implemented typed workflow/action/locator models, schema-v1 validation, safe YAML loading, atomic saving,
-import/export helpers, explicit migration guard, and in-memory/optional disk cache. See `docs/workflow-schema.md`
-and `docs/phase-1.md`. Phase 1 tests currently pass in the available Python environment.
+See `docs/architecture.md`, `docs/migration-inventory.md`, `docs/workflow-schema.md`, and `docs/phase-1.md`.

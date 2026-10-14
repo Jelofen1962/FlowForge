@@ -1,7 +1,6 @@
 from pathlib import Path
 import pytest
 from cobweb.domain.errors import WorkflowLoadError, WorkflowValidationError
-from cobweb.domain.workflow import Workflow
 from cobweb.persistence.yaml_repository import WorkflowRepository
 from cobweb.persistence.cache import WorkflowCache, DiskWorkflowCache
 
