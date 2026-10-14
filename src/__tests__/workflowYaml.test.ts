@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseWorkflowYaml, stringifyWorkflowYaml, validateWorkflowDocument } from '../workflowYaml';
+import { parseWorkflowYaml, stringifyWorkflowYaml, validateWorkflowDocument, type WorkflowDocument } from '../workflowYaml';
 
-const workflow = {
+const workflow: WorkflowDocument = {
   schemaVersion: 1,
   app: 'Cobweb' as const,
   name: 'Smoke test',
