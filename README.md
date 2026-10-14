@@ -1,77 +1,45 @@
-# CobWeb: Python + Qt foundation
+# FlowForge Desktop
 
-CobWeb is being rebuilt as a desktop browser-workflow automation app using Python, PySide6/Qt,
-Playwright, and versioned YAML workflows. YAML will remain the workflow source of truth.
+A Windows-first, local desktop GUI for building sequential browser automations. Built with Electron, React, TypeScript, and Selenium WebDriver. The browser is a real Chrome or Edge process, not an iframe.
 
 ## Requirements
+- Windows 10/11
+- Node.js 20+
+- Google Chrome and/or Microsoft Edge installed
+- A working Selenium-compatible driver setup. Recent Selenium Manager versions can discover/download drivers automatically when the machine can access the driver endpoints.
 
-- Python 3.12+
-- Windows is the initial target; the code avoids relying on the current working directory.
-- Playwright Chromium is installed in CI and will be checked by the application as browser features land.
-
-## Local setup (PowerShell)
-
+## Run in development
 ```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-python -m playwright install chromium
-python -m pytest
-python -m ruff check src tests --select E4,E7,E9,F
-python -m compileall -q src tests
-python -m cobweb.app
+npm install
+npm run dev
 ```
 
-If PowerShell blocks activation, use `.venv\Scripts\python.exe -m pip ...` directly.
-
-## Test categories
-
-Tests are grouped by directory and marker:
-
-- `tests/unit`: isolated model, settings, YAML, persistence, migration, and cache tests.
-- `tests/integration`: repository/cache behavior across components.
-- `tests/ui`: Qt smoke tests using the offscreen platform plugin.
-- `tests/e2e`: local deterministic Playwright browser smoke tests. No live websites or credentials.
-
-Run all tests:
-
+## Build UI
 ```powershell
-python -m pytest
+npm run build
+npm start
 ```
+For a distributable installer, add `electron-builder` or `electron-forge` and configure Windows NSIS packaging.
 
-Run one category:
+## Current starter functionality
+- Step list with add, delete, reorder, disable, and per-step error policy
+- Selenium actions: navigate, click, type, keyboard key, fixed wait, wait-visible, wait-clickable, assert text, select option, screenshot, back, forward, refresh
+- XPath, CSS, ID, name, link text, class name, and tag name locator strategies
+- Chrome / Edge choice and persistent user-data-directory setting
+- Image optimization toggle and close-browser-after-run setting
+- Local profile settings saved to Electron userData
+- Workflow JSON import/export
+- Live engine log stream
 
-```powershell
-python -m pytest -m unit
-python -m pytest -m integration
-python -m pytest -m ui
-python -m pytest -m e2e
-```
+## Important implementation notes
+This is a working starter scaffold, not a finished all-features product. Read `docs/ROADMAP.md` for the gaps that must be completed before production use. The selector panel currently demonstrates the intended 40% red overlay but is not connected to the browser yet. `disableCss` is currently UI-only and needs CDP network interception. Profile JSON stores configuration, not cookie contents. The `key` step currently sends one Selenium key; implement modifier-chord parsing for combinations such as `CTRL+A`.
 
-Create local coverage and JUnit reports:
+## Architecture
+- `electron/main.cjs`: desktop window, IPC, process lifecycle, profile configuration persistence
+- `electron/preload.cjs`: narrow, context-isolated IPC API
+- `src/ui`: React interface
+- `engine/runner.cjs`: independent Selenium execution process
+- `docs/ROADMAP.md`: planned production capabilities
 
-```powershell
-python -m pytest --junitxml=test-results/junit.xml --cov=cobweb --cov-report=term-missing --cov-report=xml:coverage.xml --cov-report=html:htmlcov
-```
-
-## GitHub Actions
-
-`.github/workflows/ci.yml` runs on pushes to `main`, `master`, and `develop`, pull requests, and manual dispatch. It runs only on Windows, executes the complete test suite, performs critical lint and compile checks, builds the Python wheel/source distribution and a Windows `CobWeb.exe`, validates package metadata, and uploads test reports, coverage reports, and Windows exports as downloadable Actions artifacts.
-
-`.github/workflows/release.yml` runs verification and builds Windows release exports on version tags such as `v0.1.0`, attaching `CobWeb.exe`, the wheel, source distribution, and source snapshot ZIP to a GitHub Release. A manual run uploads exports as an Actions artifact.
-
-### Downloading exports
-
-Open the repository's **Actions** tab, select a successful workflow run, and download its artifacts:
-
-- `test-reports-*`: JUnit XML, coverage XML, and HTML coverage report.
-- `cobweb-windows-exports`: `CobWeb.exe`, installable wheel, source distribution, and source snapshot ZIP.
-
-## Current scope
-
-The current milestone contains the Phase 0 shell and Phase 1 workflow models, safe YAML repository,
-atomic persistence, schema guard, and parsed-workflow cache. The browser runner, full visual editor,
-recorder, and element picker are planned phases and are not represented as complete features yet.
-
-See `docs/architecture.md`, `docs/migration-inventory.md`, `docs/workflow-schema.md`, and `docs/phase-1.md`.
+## Safety
+Use only on websites and accounts you are authorized to automate. Persistent browser profiles can contain authentication tokens and sensitive cookies. Keep profile directories private and never commit them to source control.
