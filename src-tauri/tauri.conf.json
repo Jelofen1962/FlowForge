@@ -29,6 +29,9 @@
     "icon": [
       "icons/icon.png",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "../scripts/run-workflow.mjs": "scripts/run-workflow.mjs"
+    }
   }
 }

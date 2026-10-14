@@ -20,6 +20,10 @@
 
 The browser recorder requires a supported Chromium-family browser and the local Node/Playwright runner. The iframe preview is not used for picking because it may be cross-origin or block embedding.
 
+## Runner path recovery
+
+The source project must contain `scripts/run-workflow.mjs`. It is included in this project ZIP and is also configured as a Tauri bundle resource. At runtime, Rust checks the source checkout path, Tauri resource directory, and current working directory before reporting a missing runner. If working from Git, make sure the script is committed (`git status --short scripts/run-workflow.mjs`) and rebuild the desktop app after updating the source.
+
 ## Validation commands
 
 ```bash

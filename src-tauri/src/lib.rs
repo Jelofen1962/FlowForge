@@ -3,7 +3,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::collections::HashMap;
 use std::sync::{Mutex, atomic::{AtomicU64, Ordering}};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use std::net::TcpListener;
 use url::Url;
 use regex::Regex;
@@ -123,15 +123,37 @@ struct WorkflowRunRequest {
     mode: Option<String>,
 }
 
+
+/// Resolve the runner from the source checkout during development or from Tauri's
+/// bundled resources in a packaged build. Checking multiple known roots also makes
+/// this resilient to CI working-directory differences.
+fn resolve_workflow_runner(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let mut candidates = Vec::new();
+    if let Some(project_root) = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent() {
+        candidates.push(project_root.join("scripts").join("run-workflow.mjs"));
+    }
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join("scripts").join("run-workflow.mjs"));
+        candidates.push(resource_dir.join("run-workflow.mjs"));
+    }
+    if let Ok(current_dir) = std::env::current_dir() {
+        candidates.push(current_dir.join("scripts").join("run-workflow.mjs"));
+    }
+    candidates.dedup();
+    candidates.iter().find(|path| path.is_file()).cloned().ok_or_else(|| {
+        let checked = candidates.iter().map(|path| path.display().to_string()).collect::<Vec<_>>().join("; ");
+        format!("Workflow runner not found. Expected scripts/run-workflow.mjs in the project checkout or bundled resources. Checked: {checked}. Restore and commit scripts/run-workflow.mjs, then rebuild the app.")
+    })
+}
+
 #[tauri::command]
 fn start_workflow(app: AppHandle, request: WorkflowRunRequest, state: State<WorkflowState>) -> Result<String, String> {
     validate_http_url(&request.starting_url)?;
     if request.steps.len() > 500 { return Err("Workflow exceeds the 500-step execution limit.".into()); }
-    let runner = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().ok_or("Could not resolve project directory")?.join("scripts").join("run-workflow.mjs");
-    if !runner.is_file() { return Err(format!("Workflow runner not found at {}. Restore the scripts directory.", runner.display())); }
+    let runner = resolve_workflow_runner(&app)?;
     let run_id = format!("run-{}-{}", std::process::id(), NEXT_RUN_ID.fetch_add(1, Ordering::Relaxed));
     let mut child = Command::new("node")
-        .arg(runner)
+        .arg(&runner)
         .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
         .spawn().map_err(|e| format!("Could not start the Node workflow runner. Install Node.js and project dependencies first: {e}"))?;
     let stdin = child.stdin.take().ok_or("Could not open workflow runner input")?;
