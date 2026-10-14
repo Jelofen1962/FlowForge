@@ -1,43 +1,25 @@
 name: CI
-
 on:
   push:
     branches: [main, master, develop]
   pull_request:
   workflow_dispatch:
-
-permissions:
-  contents: read
-
 jobs:
   verify:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          # No npm cache: this repository has no lockfile yet.
-
+          # npm cache is omitted until a lockfile is committed.
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Build application
-        run: npm run build
-
-      - name: Export build artifact
-        uses: actions/upload-artifact@v4
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
         with:
-          name: flowforge-build
+          name: flowforge-ui-build
           path: dist/
           if-no-files-found: error
-          compression-level: 1
