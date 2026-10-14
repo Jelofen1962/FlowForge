@@ -128,6 +128,21 @@ ipcMain.handle("recorder:navigate", async (_event, url) => {
   return { ok: true };
 });
 
+ipcMain.handle("session:export", async () => {
+  if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "Start a browser session before exporting its state." };
+  engine.stdin.write(JSON.stringify({ type: "session:export" }) + "\n");
+  return { ok: true };
+});
+
+ipcMain.handle("session:import", async (_event, snapshot) => {
+  if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "Start a browser session on the target site before importing session state." };
+  let encoded;
+  try { encoded = JSON.stringify(snapshot); } catch { return { ok: false, error: "Session snapshot is not valid JSON data." }; }
+  if (Buffer.byteLength(encoded, "utf8") > 2_000_000) return { ok: false, error: "Session snapshot exceeds the 2 MB limit." };
+  engine.stdin.write(JSON.stringify({ type: "session:import", snapshot }) + "\n");
+  return { ok: true };
+});
+
 ipcMain.handle("engine:stop", async () => {
   if (!engine) return { ok: true, alreadyStopped: true };
   if (!engineStopping) {

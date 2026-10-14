@@ -230,6 +230,36 @@ async function runWorkflow(rawPayload, deps = {}) {
                 await driver.executeScript(source);
               }
               emit("recorder", { status: "navigated", url: await driver.getCurrentUrl() });
+            } else if (command.type === "session:export") {
+              const currentUrl = await driver.getCurrentUrl();
+              const parsedUrl = new URL(currentUrl);
+              if (!isHttpUrl(currentUrl)) throw new Error("Session export requires an HTTP(S) page.");
+              const cookies = await driver.manage().getCookies();
+              const storage = await driver.executeScript("return {localStorage:Object.entries(window.localStorage),sessionStorage:Object.entries(window.sessionStorage)};");
+              const snapshot = { version: 1, createdAt: new Date().toISOString(), origin: parsedUrl.origin,
+                cookies: cookies.map(c => ({ name:c.name, value:c.value, ...(c.domain?{domain:c.domain}:{}), ...(c.path?{path:c.path}:{}), ...(typeof c.expiry === "number"?{expiry:c.expiry}:{}), ...(typeof c.secure === "boolean"?{secure:c.secure}:{}), ...(typeof c.httpOnly === "boolean"?{httpOnly:c.httpOnly}:{}), ...(c.sameSite?{sameSite:c.sameSite}:{}) })),
+                localStorage: storage.localStorage.map(([key,value])=>({key,value})), sessionStorage: storage.sessionStorage.map(([key,value])=>({key,value})) };
+              emit("session-export", snapshot);
+            } else if (command.type === "session:import") {
+              const snapshot = command.snapshot;
+              if (!snapshot || snapshot.version !== 1 || typeof snapshot.origin !== "string" || !isHttpUrl(snapshot.origin) || !Array.isArray(snapshot.cookies) || !Array.isArray(snapshot.localStorage) || !Array.isArray(snapshot.sessionStorage)) throw new Error("Malformed session snapshot.");
+              if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > 2_000_000) throw new Error("Session snapshot exceeds the 2 MB limit.");
+              const originUrl = new URL(snapshot.origin);
+              await driver.get(originUrl.origin);
+              const imported = { cookies: 0, expired: 0, rejected: 0, storageEntries: 0 };
+              for (const cookie of snapshot.cookies) {
+                try {
+                  if (!cookie || typeof cookie.name !== "string" || typeof cookie.value !== "string") { imported.rejected++; continue; }
+                  if (typeof cookie.expiry === "number" && cookie.expiry <= Math.floor(Date.now()/1000)) { imported.expired++; continue; }
+                  const domain = typeof cookie.domain === "string" ? cookie.domain.replace(/^\./, "").toLowerCase() : originUrl.hostname.toLowerCase();
+                  if (!(originUrl.hostname.toLowerCase() === domain || originUrl.hostname.toLowerCase().endsWith(`.${domain}`))) { imported.rejected++; continue; }
+                  const clean = { name: cookie.name, value: cookie.value, path: typeof cookie.path === "string" ? cookie.path : "/", ...(cookie.domain ? { domain: cookie.domain } : {}), ...(typeof cookie.expiry === "number" ? { expiry: cookie.expiry } : {}), ...(typeof cookie.secure === "boolean" ? { secure: cookie.secure } : {}), ...(typeof cookie.httpOnly === "boolean" ? { httpOnly: cookie.httpOnly } : {}), ...( ["Strict","Lax","None"].includes(cookie.sameSite) ? { sameSite: cookie.sameSite } : {}) };
+                  await driver.manage().addCookie(clean); imported.cookies++;
+                } catch { imported.rejected++; }
+              }
+              await driver.executeScript("for (const [k,v] of arguments[0]) localStorage.setItem(k,v); for (const [k,v] of arguments[1]) sessionStorage.setItem(k,v);", snapshot.localStorage.map(x => [x.key, x.value]), snapshot.sessionStorage.map(x => [x.key, x.value]));
+              imported.storageEntries = snapshot.localStorage.length + snapshot.sessionStorage.length;
+              emit("session-import", imported);
             } else if (command.type === "stop") {
               stopRequested = true;
               emit("control", { status: "stop-requested" });

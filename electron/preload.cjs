@@ -7,6 +7,8 @@ const subscribe = (channel, callback) => {
 contextBridge.exposeInMainWorld("flowforge", {
   start: payload => ipcRenderer.invoke("engine:start", payload),
   stop: () => ipcRenderer.invoke("engine:stop"),
+  sessionExport: () => ipcRenderer.invoke("session:export"),
+  sessionImport: snapshot => ipcRenderer.invoke("session:import", snapshot),
   recorderStart: payload => ipcRenderer.invoke("recorder:start", payload),
   recorderStop: () => ipcRenderer.invoke("recorder:stop"),
   recorderNavigate: url => ipcRenderer.invoke("recorder:navigate", url),

@@ -104,3 +104,10 @@ Workflow steps may now include a `condition` object. Example:
 Supported sources are `variable`, `lastText`, `url`, and `stepStatus`. Operators include `equals`, `notEquals`, `contains`, `notContains`, `matches`, `greaterThan`, `lessThan`, `truthy`, and `falsy`. Conditions that evaluate false skip the step and emit a structured `skipped` event. Unknown variables/step IDs and malformed regular expressions fail explicitly.
 
 The control-flow module also exposes bounded `runCountedLoop` and `withRetry` helpers plus execution records. These are foundational APIs: loops are not yet represented as nested blocks in the editor, and retries are not yet automatically applied around all Selenium actions.
+
+
+### Browser session snapshots
+
+Open **Profiles** and start a browser session (the recorder keeps a session open), then export or import a versioned JSON snapshot for the current site origin. Snapshots include cookies and that origin's local/session storage, not passwords, cache, or other origins. Expired cookies are skipped and rejected cookies are counted in the engine output.
+
+**Security note:** snapshots are plain JSON and may contain active login credentials. Keep them out of source control and store them securely. Encryption and Windows Credential Manager integration are not included yet.

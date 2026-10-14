@@ -137,3 +137,14 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 - Added unit tests for condition evaluation, loop/retry bounds, retries, and execution timing.
 
 **Not yet complete:** The counted-loop and retry helpers are unit-testable building blocks, but retry is not yet wired around every Selenium action and loops are not yet represented as nested workflow blocks. Pause/resume and single-step controls remain future work. Full CI verification is required.
+
+
+## Phase 6 of 10: Profiles, Sessions & State Management
+- [x] Save profile metadata separately from session snapshots.
+- [x] Export cookies and same-origin local/session storage to a versioned JSON snapshot.
+- [x] Validate imported snapshots, limit size, and reject malformed origins/storage/cookies.
+- [x] Restore on the snapshot origin; skip expired cookies and report rejected cookies.
+- [ ] Encrypt snapshots at rest or provide OS-backed secret storage.
+- [ ] Integration-test import/export against real Chrome and Edge on Windows.
+
+Session snapshots are intentionally plain JSON in this phase and can contain authentication credentials. They are not encrypted; handle them as secrets. Snapshots cover one HTTP(S) origin only.
