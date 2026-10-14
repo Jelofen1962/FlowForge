@@ -31,3 +31,17 @@ npm run build
 ## Current boundaries
 
 The execution engine stops at the first failed step and returns structured logs. Browser sessions are attached through CDP. Pause/resume at breakpoints, hard cancellation of an active run, multi-tab targeting, conditional/loop blocks, file upload/download, cookie/storage actions, and arbitrary JavaScript evaluation are not implemented by this runner yet. These step types fail with an explicit unsupported-step error rather than silently pretending to run. The Node companion approach is suitable for the current development phase; a packaged production release should bundle/manage the runner runtime and Playwright dependency rather than assume a user's Node installation.
+
+## Priority 1 execution controls
+
+The runner now uses a line-oriented control protocol over its standard input/output. The desktop app starts the runner asynchronously and receives step logs and state events through Tauri's `workflow-event` event channel. `Pause` takes effect at the next safe step boundary (the current browser action is allowed to finish); a configured breakpoint pauses before that step when Live debugging is enabled. `Resume` continues execution and `Stop` cancels the run, returns a cancelled result, and closes the runner's browser connection. F6 requests pause, F8 resumes, and Shift+F8 stops.
+
+Supported controls and reliability behavior:
+
+- Emits state, step-start, log, and finished events.
+- Reports disabled steps as skipped and stops on the first failed step.
+- Applies bounded per-step timeouts and returns structured cancellation/error results.
+- Exposes Pause/Resume and Stop controls in the builder while a run is active.
+- Adds real-browser integration tests using a local HTML fixture. Set `COBWEB_TEST_BROWSER` to the full path of a Chromium, Chrome, or Edge executable and run `npm run test:runner` to execute them. Without that variable, the browser-backed integration test is skipped rather than pretending it ran.
+
+Control limitations: Pause is cooperative and takes effect after the in-flight browser operation finishes. Cancellation races the in-flight operation and then tears down the runner connection; the underlying browser process remains managed by the desktop launcher. The current execution model remains single-run and sequential.

@@ -84,3 +84,9 @@ Scope: starter archive review, with emphasis on CI reliability, Windows-only bui
 - **Fix:** added an npm override pinning transitive `rollup` to `4.34.8`, avoiding the unavailable `rollup-4.64.6.tgz` tarball reported by the Windows runner.
 - **Fix:** dependency installation uses `--prefer-online` so npm favors fresh registry metadata over stale local cache metadata.
 - **Note:** a successful install/build still needs to be confirmed by GitHub Actions. A committed `package-lock.json` should be generated with a successful `npm install` and committed in the repository to make dependency resolution reproducible.
+
+## Phase 4 Priority 1 update (execution controls)
+
+The workflow runner is now asynchronous from the desktop UI and communicates structured step/state/finish events. Pause is cooperative at step boundaries, configured breakpoints pause before their step in live-debug mode, resume releases the pause gate, and stop races in-flight work against a cancellation signal. The builder surfaces Pause/Resume and Stop controls, and F6/F8/Shift+F8 keyboard controls are wired.
+
+Browser-backed integration tests live in `tests/runner.integration.test.mjs`. They exercise navigation, form interaction, breakpoint pause/resume, and cancellation against a local fixture page. These tests require `COBWEB_TEST_BROWSER` to point at a Chromium-family browser executable; they are skipped when that environment variable is not configured. This environment did not have the project dependencies or a Rust toolchain available, so a full TypeScript build and Rust compilation remain unverified here.

@@ -178,3 +178,7 @@ The Phase 3 configuration/import/export and test workflows are implemented, but 
 ## Phase 4 browser runner
 
 See [PHASE4.md](./PHASE4.md) for the desktop execution architecture, supported actions, step-detail syntax, requirements, and current limitations. Run `npm run check:runner` to validate the companion runner's JavaScript syntax.
+
+### Browser runner integration tests
+
+Run `npm run check:runner` for runner syntax checks and `npm run test:runner` for the browser-backed runner integration tests. Set `COBWEB_TEST_BROWSER` to the full path of a Chromium, Chrome, or Edge executable to enable those tests. The tests use a local HTML fixture and do not depend on a public website.

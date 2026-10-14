@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::collections::HashMap;
+use std::sync::{Mutex, atomic::{AtomicU64, Ordering}};
+use tauri::{AppHandle, Emitter};
 use std::net::TcpListener;
 use url::Url;
 use regex::Regex;
@@ -9,6 +11,10 @@ use tauri::State;
 
 #[derive(Default)]
 struct BrowserState { children: Mutex<Vec<Child>> }
+struct ManagedRun { child: Child, stdin: ChildStdin }
+#[derive(Default)]
+struct WorkflowState { runs: Mutex<HashMap<String, ManagedRun>> }
+static NEXT_RUN_ID: AtomicU64 = AtomicU64::new(1);
 
 impl Drop for BrowserState {
     fn drop(&mut self) {
@@ -113,37 +119,72 @@ struct WorkflowRunRequest {
     steps: Vec<serde_json::Value>,
     port: Option<u16>,
     timeout: Option<u64>,
+    live_debugging: Option<bool>,
 }
 
 #[tauri::command]
-fn execute_workflow(request: WorkflowRunRequest) -> Result<serde_json::Value, String> {
+fn start_workflow(app: AppHandle, request: WorkflowRunRequest, state: State<WorkflowState>) -> Result<String, String> {
     validate_http_url(&request.starting_url)?;
     if request.steps.len() > 500 { return Err("Workflow exceeds the 500-step execution limit.".into()); }
     let runner = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().ok_or("Could not resolve project directory")?.join("scripts").join("run-workflow.mjs");
-    if !runner.is_file() { return Err(format!("Workflow runner not found at {}. Reinstall or restore the scripts directory.", runner.display())); }
+    if !runner.is_file() { return Err(format!("Workflow runner not found at {}. Restore the scripts directory.", runner.display())); }
+    let run_id = format!("run-{}-{}", std::process::id(), NEXT_RUN_ID.fetch_add(1, Ordering::Relaxed));
     let mut child = Command::new("node")
         .arg(runner)
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
         .spawn().map_err(|e| format!("Could not start the Node workflow runner. Install Node.js and project dependencies first: {e}"))?;
+    let stdin = child.stdin.take().ok_or("Could not open workflow runner input")?;
+    let stdout = child.stdout.take().ok_or("Could not open workflow runner output")?;
     let payload = serde_json::json!({
+        "runId": run_id,
         "startingUrl": request.starting_url,
         "steps": request.steps,
         "port": request.port.unwrap_or(9222),
-        "timeout": request.timeout.unwrap_or(10000).clamp(100, 120000)
+        "timeout": request.timeout.unwrap_or(10000).clamp(100, 120000),
+        "liveDebugging": request.live_debugging.unwrap_or(true)
     });
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(payload.to_string().as_bytes()).map_err(|e| format!("Could not send workflow to runner: {e}"))?;
+    let mut stdin = stdin;
+    writeln!(stdin, "{}", payload).map_err(|e| format!("Could not send workflow to runner: {e}"))?;
+    stdin.flush().map_err(|e| format!("Could not flush workflow request: {e}"))?;
+    {
+        let mut runs = state.runs.lock().map_err(|_| "Workflow state lock failed".to_string())?;
+        runs.retain(|_, run| match run.child.try_wait() { Ok(Some(_)) => false, _ => true });
+        runs.insert(run_id.clone(), ManagedRun { child, stdin });
     }
-    let output = child.wait_with_output().map_err(|e| format!("Workflow runner failed: {e}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let result: serde_json::Value = serde_json::from_str(stdout.trim()).map_err(|_| {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        format!("Workflow runner returned invalid output. {}", stderr.trim())
-    })?;
-    if !output.status.success() && result.get("error").is_none() {
-        return Err(format!("Workflow runner exited with status {}", output.status));
+    let app_for_events = app.clone();
+    let event_run_id = run_id.clone();
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            let Ok(line) = line else { break; };
+            if let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) {
+                let _ = app_for_events.emit("workflow-event", serde_json::json!({"runId": event_run_id, "payload": event}));
+            }
+        }
+        let _ = app_for_events.emit("workflow-event", serde_json::json!({"runId": event_run_id, "payload": {"event":"runner-exit"}}));
+    });
+    Ok(run_id)
+}
+
+#[tauri::command]
+fn control_workflow(run_id: String, action: String, step: Option<u64>, state: State<WorkflowState>) -> Result<(), String> {
+    if !["pause", "resume", "stop"].contains(&action.as_str()) { return Err("Unsupported workflow control action.".into()); }
+    let mut runs = state.runs.lock().map_err(|_| "Workflow state lock failed".to_string())?;
+    let run = runs.get_mut(&run_id).ok_or_else(|| format!("Workflow run '{run_id}' is not active."))?;
+    let message = serde_json::json!({"runId": run_id, "action": action, "step": step});
+    writeln!(run.stdin, "{message}").map_err(|e| format!("Could not send workflow control command: {e}"))?;
+    run.stdin.flush().map_err(|e| format!("Could not flush workflow control command: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn finish_workflow(run_id: String, state: State<WorkflowState>) -> Result<(), String> {
+    let mut runs = state.runs.lock().map_err(|_| "Workflow state lock failed".to_string())?;
+    if let Some(mut run) = runs.remove(&run_id) {
+        drop(run.stdin);
+        let _ = run.child.wait();
     }
-    Ok(result)
+    Ok(())
 }
 
 #[tauri::command]
@@ -163,7 +204,8 @@ fn browser_status(state: State<BrowserState>) -> Result<bool, String> {
 pub fn run() {
     tauri::Builder::default()
         .manage(BrowserState::default())
-        .invoke_handler(tauri::generate_handler![launch_browser, execute_workflow, browser_status, inspect_json_payload, query_json_payload])
+        .manage(WorkflowState::default())
+        .invoke_handler(tauri::generate_handler![launch_browser, start_workflow, control_workflow, finish_workflow, browser_status, inspect_json_payload, query_json_payload])
         .run(tauri::generate_context!())
         .expect("error while running Cobweb");
 }

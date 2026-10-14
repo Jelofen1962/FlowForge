@@ -11,8 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:all": "npm run test && npm run test:e2e && npm run build",
-    "check:runner": "node --check scripts/run-workflow.mjs"
+    "test:all": "npm run test && npm run test:runner && npm run test:e2e && npm run build",
+    "check:runner": "node --check scripts/run-workflow.mjs && node --check tests/runner.integration.test.mjs",
+    "test:runner": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
