@@ -30,7 +30,7 @@ export function validateSessionSnapshot(value: unknown): SessionSnapshot {
     for (const key of ["secure", "httpOnly"] as const) if (raw[key] !== undefined && typeof raw[key] !== "boolean") throw new Error(`Session cookie ${key} flag is invalid.`);
     return { name: raw.name, value: raw.value, ...(raw.domain ? { domain: raw.domain as string } : {}), ...(raw.path ? { path: raw.path as string } : {}), ...(typeof raw.expiry === "number" ? { expiry: raw.expiry } : {}), ...(typeof raw.secure === "boolean" ? { secure: raw.secure } : {}), ...(typeof raw.httpOnly === "boolean" ? { httpOnly: raw.httpOnly } : {}), ...(raw.sameSite ? { sameSite: raw.sameSite as SessionCookie["sameSite"] } : {}) };
   });
-  if (!validStorage(value.localStorage) || !validStorage(value.sessionStorage)) throw new Error("Session storage data is invalid or too large.");
+  if (!validStorage(value.localStorage) || !validStorage(value.sessionStorage)) throw new Error("Session storage size or data is invalid.");
   const snapshot: SessionSnapshot = { version: 1, createdAt: value.createdAt, origin: url.origin, cookies, localStorage: value.localStorage, sessionStorage: value.sessionStorage };
   if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > MAX_BYTES) throw new Error("Session snapshot exceeds the 2 MB limit.");
   return snapshot;
