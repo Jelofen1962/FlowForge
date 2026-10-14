@@ -120,6 +120,7 @@ struct WorkflowRunRequest {
     port: Option<u16>,
     timeout: Option<u64>,
     live_debugging: Option<bool>,
+    mode: Option<String>,
 }
 
 #[tauri::command]
@@ -141,7 +142,8 @@ fn start_workflow(app: AppHandle, request: WorkflowRunRequest, state: State<Work
         "steps": request.steps,
         "port": request.port.unwrap_or(9222),
         "timeout": request.timeout.unwrap_or(10000).clamp(100, 120000),
-        "liveDebugging": request.live_debugging.unwrap_or(true)
+        "liveDebugging": request.live_debugging.unwrap_or(true),
+        "mode": request.mode.as_deref().unwrap_or("run")
     });
     let mut stdin = stdin;
     writeln!(stdin, "{}", payload).map_err(|e| format!("Could not send workflow to runner: {e}"))?;

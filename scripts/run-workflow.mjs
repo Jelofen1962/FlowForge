@@ -12,6 +12,7 @@ catch { process.stdout.write(JSON.stringify({ event: 'finished', result: { ok: f
 const port = Number(request.port || 9222);
 const defaultTimeout = Math.min(120000, Math.max(100, Number(request.timeout || 10000)));
 const runId = String(request.runId || 'unknown');
+const mode = request.mode === 'record' || request.mode === 'pick' ? request.mode : 'run';
 const logs = [];
 let paused = false;
 let cancelled = false;
@@ -61,8 +62,131 @@ try {
   const context = browser.contexts()[0] ?? await browser.newContext();
   page = context.pages()[0] ?? await context.newPage();
   if (request.startingUrl && page.url() === 'about:blank') await cancellable(() => page.goto(request.startingUrl, { waitUntil: 'domcontentloaded', timeout: defaultTimeout }));
-  send({ event: 'state', state: 'running' });
-  for (const step of request.steps ?? []) {
+
+  if (mode === 'record' || mode === 'pick') {
+    let sequence = 0;
+    let lastUrl = page.url();
+    let navigationFromRecordedClick = false;
+    const sendRecordedStep = payload => {
+      sequence += 1;
+      send({ event: mode === 'pick' ? 'picked-element' : 'recorded-step', step: { ...payload, recordId: sequence } });
+    };
+    await page.exposeBinding('__cobwebRecordEvent', (_source, payload) => {
+      if (cancelled || !payload || typeof payload !== 'object') return;
+      if (mode === 'pick') {
+        if (payload.kind === 'pick') {
+          send({ event: 'picked-element', selector: payload.selector, tag: payload.tag, text: payload.text });
+          cancelled = true;
+          cancelResolver?.();
+        }
+        return;
+      }
+      if (payload.kind === 'click') {
+        navigationFromRecordedClick = Boolean(payload.navigates);
+        sendRecordedStep({ type: 'click', title: `Click ${payload.label || payload.tag || 'element'}`, detail: `css: ${payload.selector}`, enabled: true, breakpoint: false });
+      } else if (payload.kind === 'fill') {
+        sendRecordedStep({ type: 'fill', title: `Fill ${payload.label || payload.tag || 'field'}`, detail: `css: ${payload.selector} · “${String(payload.value ?? '').slice(0, 500)}”`, enabled: true, breakpoint: false });
+      }
+    });
+    const recorderScript = (pickMode) => {
+      if (window.__cobwebRecorderInstalled) return;
+      window.__cobwebRecorderInstalled = true;
+      let hover;
+      const listeners = [];
+      const listen = (type, handler) => { document.addEventListener(type, handler, true); listeners.push([type, handler]); };
+      let lastFieldKey = '';
+      let lastFieldAt = 0;
+      const esc = value => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+      const cssPath = element => {
+        if (!(element instanceof Element)) return '';
+        for (const attr of ['data-testid', 'data-test', 'data-qa']) {
+          const value = element.getAttribute(attr);
+          if (value) { const candidate = `[${attr}="${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`; try { if (document.querySelectorAll(candidate).length === 1) return candidate; } catch {} }
+        }
+        if (element.id) { const candidate = `#${esc(element.id)}`; try { if (document.querySelectorAll(candidate).length === 1) return candidate; } catch {} }
+        const name = element.getAttribute('name');
+        if (name) { const candidate = `${element.tagName.toLowerCase()}[name="${name.replace(/"/g, '\\"')}"]`; try { if (document.querySelectorAll(candidate).length === 1) return candidate; } catch {} }
+        const aria = element.getAttribute('aria-label');
+        if (aria) { const candidate = `${element.tagName.toLowerCase()}[aria-label="${aria.replace(/"/g, '\\"')}"]`; try { if (document.querySelectorAll(candidate).length === 1) return candidate; } catch {} }
+        const parts = [];
+        let node = element;
+        while (node && node.nodeType === 1 && parts.length < 7) {
+          let part = node.tagName.toLowerCase();
+          if (node.id) { const candidate = `#${esc(node.id)}`; try { if (document.querySelectorAll(candidate).length === 1) { parts.unshift(candidate); break; } } catch {} part += `#${esc(node.id)}`; }
+          const parent = node.parentElement;
+          if (parent) {
+            const sameTag = Array.from(parent.children).filter(child => child.tagName === node.tagName);
+            if (sameTag.length > 1) part += `:nth-of-type(${sameTag.indexOf(node) + 1})`;
+          }
+          parts.unshift(part);
+          node = parent;
+        }
+        return parts.join(' > ');
+      };
+      const labelFor = element => (element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.getAttribute('name') || element.innerText || element.value || element.tagName.toLowerCase()).trim().slice(0, 80);
+      const highlight = element => {
+        if (hover) hover.remove();
+        hover = document.createElement('div');
+        const rect = element.getBoundingClientRect();
+        Object.assign(hover.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, zIndex: '2147483647', pointerEvents: 'none', border: '2px solid #ef4444', background: 'rgba(239,68,68,.18)', boxSizing: 'border-box' });
+        hover.dataset.cobwebOverlay = 'true';
+        document.documentElement.appendChild(hover);
+      };
+      listen('mouseover', event => { const el = event.target; if (el instanceof Element && !el.closest('[data-cobweb-overlay]')) highlight(el); });
+      listen('mouseout', event => { if (event.target instanceof Element && hover) { hover.remove(); hover = null; } });
+      listen('click', event => {
+        const raw = event.target;
+        if (!(raw instanceof Element) || raw.closest('[data-cobweb-overlay]')) return;
+        const el = raw.closest('button,a,input,textarea,select,[role="button"],[role="link"]') || raw;
+        const selector = cssPath(el);
+        if (pickMode) {
+          event.preventDefault(); event.stopImmediatePropagation();
+          window.__cobwebRecordEvent({ kind: 'pick', selector, tag: el.tagName.toLowerCase(), text: labelFor(el) });
+          return;
+        }
+        if (!el.matches('input,textarea,select,[contenteditable="true"]')) window.__cobwebRecordEvent({ kind: 'click', selector, tag: el.tagName.toLowerCase(), label: labelFor(el), navigates: el.matches('a[href],area[href]') });
+      });
+      const recordField = event => {
+        if (pickMode) return;
+        const el = event.target;
+        if (!(el instanceof Element) || !el.matches('input:not([type="password"]),textarea,select,[contenteditable="true"]')) return;
+        const selector = cssPath(el);
+        const value = el.matches('[contenteditable="true"]') ? el.textContent : el.value;
+        const key = `${selector}\u0000${String(value ?? '')}`;
+        const now = Date.now();
+        if (key === lastFieldKey && now - lastFieldAt < 300) return;
+        lastFieldKey = key; lastFieldAt = now;
+        window.__cobwebRecordEvent({ kind: 'fill', selector, tag: el.tagName.toLowerCase(), label: labelFor(el), value });
+      };
+      listen('change', recordField);
+      listen('focusout', event => { if (event.target instanceof Element && event.target.matches('input:not([type="password"]),textarea,[contenteditable="true"]')) recordField(event); });
+      window.__cobwebRecorderCleanup = () => { for (const [type, handler] of listeners) document.removeEventListener(type, handler, true); if (hover) hover.remove(); delete window.__cobwebRecorderCleanup; delete window.__cobwebRecorderInstalled; };
+    };
+    await page.addInitScript(recorderScript, mode === 'pick');
+    await page.evaluate(recorderScript, mode === 'pick');
+    const navHandler = frame => {
+      if (frame !== page.mainFrame()) return;
+      const current = frame.url();
+      if (mode === 'record' && current && current !== lastUrl && /^https?:/i.test(current)) {
+        lastUrl = current;
+        if (navigationFromRecordedClick) { navigationFromRecordedClick = false; return; }
+        sendRecordedStep({ type: 'navigate', title: 'Navigate to URL', detail: current, enabled: true, breakpoint: false });
+      }
+    };
+    page.on('framenavigated', navHandler);
+    send({ event: 'state', state: mode === 'pick' ? 'picking' : 'recording' });
+    if (mode === 'pick') {
+      await Promise.race([cancellation, page.waitForEvent('close').catch(() => {})]);
+    } else {
+      await cancellation;
+    }
+    page.off('framenavigated', navHandler);
+    try { await page.evaluate(() => window.__cobwebRecorderCleanup?.()); } catch { /* The page may have navigated or closed during recording. */ }
+    try { await page.removeExposedFunction('__cobwebRecordEvent'); } catch { /* Cleanup is best-effort on closed pages. */ }
+    finalResult = { ok: true, stopped: true, mode, logs, finalUrl: page.url() };
+  } else {
+    send({ event: 'state', state: 'running' });
+    for (const step of request.steps ?? []) {
     if (cancelled) break;
     await waitIfPaused(step);
     if (cancelled) break;
@@ -115,9 +239,10 @@ try {
       break;
     }
   }
-  const wasCancelled = cancelled;
-  const failed = logs.some(item => item.status === 'failed');
-  finalResult = { ok: !failed && !wasCancelled, cancelled: wasCancelled, logs, finalUrl: page.url() };
+    const wasCancelled = cancelled;
+    const failed = logs.some(item => item.status === 'failed');
+    finalResult = { ok: !failed && !wasCancelled, cancelled: wasCancelled, logs, finalUrl: page.url() };
+  }
 } catch (error) {
   finalResult = { ok: false, cancelled, logs, error: error instanceof Error ? error.message : String(error), finalUrl: page?.url?.() };
 } finally {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseWorkflowYaml, stringifyWorkflowYaml, validateWorkflowDocument, type WorkflowDocument } from '../workflowYaml';
+import { clearWorkflowYamlCache, getWorkflowYamlCacheStats, parseWorkflowYaml, stringifyWorkflowYaml, validateWorkflowDocument, type WorkflowDocument } from '../workflowYaml';
 
 const workflow: WorkflowDocument = {
   schemaVersion: 1,
@@ -15,6 +15,17 @@ describe('workflow YAML', () => {
     const yaml = stringifyWorkflowYaml(workflow);
     expect(yaml).toContain('schemaVersion: 1');
     expect(parseWorkflowYaml(yaml)).toMatchObject(workflow);
+  });
+
+  it('caches parsed and serialized YAML while returning defensive copies', () => {
+    clearWorkflowYamlCache();
+    const yaml = stringifyWorkflowYaml(workflow);
+    const first = parseWorkflowYaml(yaml);
+    first.steps[0].title = 'Mutated outside cache';
+    const second = parseWorkflowYaml(yaml);
+    expect(second.steps[0].title).toBe('Go to URL');
+    expect(getWorkflowYamlCacheStats()).toMatchObject({ parsed: 1, serialized: 1, limit: 64 });
+    expect(stringifyWorkflowYaml(workflow)).toBe(yaml);
   });
 
   it('rejects malformed YAML with a useful error', () => {

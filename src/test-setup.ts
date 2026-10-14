@@ -2,8 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 
-// React unit tests run in jsdom, not inside the Tauri WebView. Stub the Tauri
-// event bridge so mounting App does not call missing __TAURI_INTERNALS__.
+// jsdom does not provide the native Tauri bridge; mock its event API for UI tests.
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => () => {}),
   emit: vi.fn(async () => {}),

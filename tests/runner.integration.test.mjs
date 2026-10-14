@@ -111,3 +111,42 @@ integrationTest('cancels a workflow while it is waiting', async t => {
   assert.equal(finished.result.ok, false);
   runner.child.stdin.end();
 });
+
+integrationTest('records clicks and form values from the controlled browser page', async t => {
+  const { chromium } = await import('@playwright/test');
+  const f = await fixture();
+  t.after(() => closeFixture(f));
+  const runner = await runRunner(f, { mode: 'record', steps: [] });
+  await runner.waitFor(e => e.event === 'state' && e.state === 'recording');
+  const client = await chromium.connectOverCDP(`http://127.0.0.1:${f.cdpPort}`);
+  const page = client.contexts()[0].pages()[0];
+  await page.locator('#name').fill('CobWeb recorder');
+  await page.locator('#submit').click();
+  const fill = await runner.waitFor(e => e.event === 'recorded-step' && e.step.type === 'fill');
+  const click = await runner.waitFor(e => e.event === 'recorded-step' && e.step.type === 'click');
+  assert.match(fill.step.detail, /#name/);
+  assert.match(fill.step.detail, /CobWeb recorder/);
+  assert.match(click.step.detail, /#submit/);
+  runner.send({ action: 'stop' });
+  const finished = await runner.waitFor(e => e.event === 'finished');
+  assert.equal(finished.result.mode, 'record');
+  await client.close();
+  runner.child.stdin.end();
+});
+
+integrationTest('picks an element and returns a usable CSS selector', async t => {
+  const { chromium } = await import('@playwright/test');
+  const f = await fixture();
+  t.after(() => closeFixture(f));
+  const runner = await runRunner(f, { mode: 'pick', steps: [] });
+  await runner.waitFor(e => e.event === 'state' && e.state === 'picking');
+  const client = await chromium.connectOverCDP(`http://127.0.0.1:${f.cdpPort}`);
+  const page = client.contexts()[0].pages()[0];
+  await page.locator('#heading').click();
+  const picked = await runner.waitFor(e => e.event === 'picked-element' && e.selector);
+  assert.equal(picked.selector, '#heading');
+  const finished = await runner.waitFor(e => e.event === 'finished');
+  assert.equal(finished.result.mode, 'pick');
+  await client.close();
+  runner.child.stdin.end();
+});
