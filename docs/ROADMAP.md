@@ -65,7 +65,7 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 
 ## Delivery phases (10 phases)
 
-**Current delivery status: Phase 9 of 10 implemented in this package.** Retry execution and local run history are implemented as first-pass features. Full dependency-backed tests and Windows browser integration still require CI verification.
+**Current delivery status: Phase 10 of 10 implemented as a first-pass feature set.** The command palette, starter templates, keyboard focus states, and documentation cleanup are included. This does not mean every roadmap capability is production-complete: full dependency-backed tests, live Chrome/Edge integration, and a verified Windows release still require CI verification.
 
 1. **Foundation & desktop shell**: Electron hardening, React UI, Poppins typography, monochrome design, Windows packaging, settings.
 2. **Workflow editor**: typed step schema, add/reorder/duplicate/delete, groups, variables, JSON import/export, local autosave, validation. **Implemented in current package; CI verification pending.**
@@ -180,3 +180,17 @@ Session snapshots are intentionally plain JSON in this phase and can contain aut
 ## Phase 9: Production Readiness & Windows Packaging
 
 The package includes trusted-frame IPC validation, navigation and popup restrictions, a production Content Security Policy, ASAR packaging, a release configuration checker, Windows CI packaging, tag-based release publishing, SHA-256 checksum generation, and release/security documentation. These safeguards have passed static checks locally, but CI and live Windows execution have not yet been run from this environment. The installer remains unsigned and a committed npm lockfile is still outstanding.
+
+
+## Phase 10: Final Polish & Extensibility
+
+- [x] Add a searchable command palette, opened with `Ctrl+K` or `Cmd+K`, with actions for run/stop, new workflow, import/export, navigation, and adding common steps.
+- [x] Add a reusable template library with website smoke-check, form-entry, and search-page starter workflows. Templates use example URLs and selectors and must be adapted before use.
+- [x] Add visible keyboard focus styles, dialog semantics, accessible labels for the command palette, and `Escape` dismissal.
+- [x] Update release and feature documentation to distinguish implemented first-pass functionality from unverified integration.
+- [ ] Verify command palette interactions and template workflows with the full Vitest suite in CI.
+- [ ] Perform keyboard-only and screen-reader checks on Windows.
+
+### Capability status and known gaps
+
+The command palette is a searchable action list; it does not yet implement arrow-key selection or a full focus trap. Template examples are generic scaffolds, not production-tested site-specific workflows. The Browser tab still includes a selector demo and explanatory text; the complete recorder UI experience requires further end-to-end validation. Phase 5 nested loops, pause/resume, breakpoints, and rerun-failed-step are not complete. Phase 6 session JSON is not encrypted. Phase 7 run history is local renderer storage, not an audit log. The installer is unsigned, and live Windows CI results must be checked in GitHub Actions before distribution.

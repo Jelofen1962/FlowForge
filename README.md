@@ -137,3 +137,14 @@ The runner emits per-step elapsed time and a final performance summary with tota
 - `SECURITY.md` and `docs/RELEASING.md` describe sensitive session data, release steps, and the unsigned-installer limitation.
 
 **Verification status:** Node syntax checks and `npm run verify:release` pass in this environment. Full Vitest, TypeScript, Vite production build, Windows packaging, and live app smoke tests are not verified because dependencies could not be installed here. No GitHub workflow has been run by this package generator. The repository does not yet include `package-lock.json`, so CI currently uses `npm install`; deterministic dependency resolution and npm caching remain follow-up work. The installer is not code-signed.
+
+
+## Phase 10: templates and command palette
+
+- Press `Ctrl+K` on Windows (or `Cmd+K` on macOS) to open the searchable command palette. Use `Enter` to run the first filtered command and `Escape` to close it.
+- Open **Templates** to load a website smoke-check, form-entry, or search-page starter. Replace example URLs, locators, and values before running against a target site.
+- Keyboard focus indicators are visible for interactive controls. A full focus trap, arrow-key navigation, screen-reader certification, and end-to-end Windows verification remain future validation tasks.
+
+## Release status
+
+The source package includes the ten planned delivery phases as a set of first-pass features, not a claim that every capability is production-complete. Run `npm install`, `npm run verify:release`, `npm run typecheck`, and `npm test` in a dependency-installed environment, then build and launch the Windows installer on a clean Windows machine. Do not distribute session snapshots: they can contain active authentication cookies and are currently plain JSON.
