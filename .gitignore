@@ -1,22 +1,7 @@
-# Node / frontend
 node_modules/
 dist/
-coverage/
-*.tsbuildinfo
-
-# Playwright
-playwright-report/
-test-results/
-blob-report/
-
-# Tauri / Rust
 src-tauri/target/
-
-# Local environment and editor files
-.env
-.env.*
-!.env.example
-.DS_Store
-Thumbs.db
 .vscode/
-.idea/
+.DS_Store
+cobweb-browser-profile/
+cobweb.zip

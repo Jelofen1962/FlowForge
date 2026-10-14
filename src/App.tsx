@@ -1,263 +1,74 @@
-import { useMemo, useState } from "react";
-import {
-  Activity, ArrowDown, ArrowUp, Braces, Check, ChevronDown, CircleHelp,
-  Clock3, Code2, Command, Copy, Database, Globe2, GripVertical, Layers3,
-  ListFilter, MoreHorizontal, MousePointer2, PanelLeftClose, Play, Plus,
-  Radio, RefreshCw, Search, Settings2, Square, Terminal, Trash2, Type,
-  Workflow as WorkflowIcon, X, Zap
-} from "lucide-react";
-import { backend } from "./backend";
-import type { StepKind, Workflow, WorkflowStep } from "./types";
-import { stepLabels } from "./types";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, ArrowDownToLine, Copy, ArrowLeft, ArrowRight, BookOpen, Braces, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Code2, Ellipsis, ExternalLink, Eye, FileText, Filter, Globe2, GripVertical, Image, Keyboard, Layers3, ListChecks, MousePointer2, MoreHorizontal, Play, Plus, Radio, RotateCcw, Search, Settings2, ShieldCheck, Sparkles, Square, Terminal, Trash2, Type, Video, Workflow, X, Zap } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { DropdownMenu } from './DropdownMenu';
+import { nextStepId, readWorkflowDraft, safeFilename, validateHttpUrl } from './workflow';
+import { parseWorkflowYaml, stringifyWorkflowYaml, type WorkflowDocument } from './workflowYaml';
+import { DataPage, LogicPage, ProfilesPage } from './advanced';
+type Step={id:number;type:string;title:string;detail:string;enabled:boolean;breakpoint:boolean};
+type BrowserEngine='edge'|'chromium'|'chrome';
+type Preferences={browserEngine:BrowserEngine;timeout:number;devtoolsPort:number;optim:{css:boolean;fonts:boolean;images:boolean;media:boolean;animations:boolean}};
+const defaultPreferences:Preferences={browserEngine:'edge',timeout:10000,devtoolsPort:9222,optim:{css:false,fonts:false,images:false,media:false,animations:false}};
+function readPreferences():Preferences{try{const raw=JSON.parse(localStorage.getItem('cobweb.preferences.v1')||'null');if(raw&&typeof raw==='object')return {...defaultPreferences,...raw,optim:{...defaultPreferences.optim,...raw.optim}}}catch{}return defaultPreferences}
+const defaultSites=[{name:'Parin Sanat',url:'https://parinsanat.com',color:'#f97316',letter:'P'},{name:'Example Store',url:'https://example.com',color:'#71717a',letter:'E'},{name:'Dashboard',url:'https://app.example.com',color:'#8b5cf6',letter:'D'}];
+const initial:Step[]=[{id:1,type:'navigate',title:'Go to URL',detail:'https://example.com',enabled:true,breakpoint:false},{id:2,type:'wait',title:'Wait for element',detail:'css: main h1 · up to 10s',enabled:true,breakpoint:false},{id:3,type:'click',title:'Click element',detail:'css: button[data-action="continue"]',enabled:true,breakpoint:true},{id:4,type:'type',title:'Type text',detail:'css: input[name="email"] · “hello@example.com”',enabled:true,breakpoint:false},{id:5,type:'screenshot',title:'Take screenshot',detail:'Save as step-05.png',enabled:true,breakpoint:false}];
+const groups=[['Navigation',[['navigate','Go to URL'],['back','Go back'],['forward','Go forward'],['reload','Reload page'],['wait','Wait / delay'],['waitUntil','Wait until condition'],['delay','Wait X ms'],['ifElse','If / else condition'],['loop','Repeat block']]],['Pointer',[['click','Click element'],['doubleClick','Double click'],['rightClick','Right click'],['hover','Hover element'],['scroll','Scroll page / element'],['dragDrop','Drag and drop']]],['Keyboard & forms',[['type','Type text'],['press','Press key'],['fill','Fill input'],['clear','Clear input'],['select','Select option'],['check','Check / uncheck'],['upload','Upload file']]],['Capture & assertions',[['screenshot','Take screenshot'],['textAssert','Assert text'],['visibleAssert','Assert visible'],['urlAssert','Assert URL'],['extract','Extract text / attribute'],['evaluate','Run JavaScript']]],['Browser controls',[['newTab','Open new tab'],['switchTab','Switch tab'],['closeTab','Close tab'],['cookie','Set cookie'],['storage','Set local storage'],['download','Wait for download']]]] as const;
+const icons:Record<string,any>={navigate:Globe2,wait:Clock3,waitUntil:Clock3,delay:Clock3,ifElse:Workflow,loop:RotateCcw,click:MousePointer2,type:Type,screenshot:Image,back:ArrowLeft,forward:ArrowRight,reload:RotateCcw,doubleClick:MousePointer2,rightClick:MousePointer2,hover:Eye,scroll:ArrowDownToLine,dragDrop:GripVertical,press:Keyboard,fill:FileText,clear:Trash2,select:ChevronDown,check:Check,upload:ArrowDownToLine,textAssert:ListChecks,visibleAssert:Eye,urlAssert:ExternalLink,extract:Braces,evaluate:Code2,newTab:Plus,switchTab:Layers3,closeTab:Square,cookie:ShieldCheck,storage:Layers3,download:ArrowDownToLine};
+export default function App(){
+ const [sites,setSites]=useState(()=>{try{const saved=JSON.parse(localStorage.getItem('cobweb.sites.v1')||'null');if(Array.isArray(saved)&&saved.every((x:any)=>x&&typeof x.name==='string'&&typeof x.url==='string'))return saved; }catch{}return defaultSites}),[page,setPage]=useState('builder'),[steps,setSteps]=useState<Step[]>(()=>readWorkflowDraft(localStorage.getItem('cobweb.workflow.v1'))?.steps||initial),[selected,setSelected]=useState(3),[live,setLive]=useState(()=>readWorkflowDraft(localStorage.getItem('cobweb.workflow.v1'))?.settings?.liveDebugging ?? true),[recording,setRecording]=useState(false),[headless,setHeadless]=useState(()=>readWorkflowDraft(localStorage.getItem('cobweb.workflow.v1'))?.settings?.headless ?? false),[prefs,setPrefs]=useState<Preferences>(readPreferences),[showAdd,setShowAdd]=useState(false),[showSite,setShowSite]=useState(false),[url,setUrl]=useState(()=>readWorkflowDraft(localStorage.getItem('cobweb.workflow.v1'))?.startingUrl || 'https://example.com'),[name,setName]=useState('Example site smoke test'),[running,setRunning]=useState(false),[paused,setPaused]=useState<number|null>(null),[search,setSearch]=useState(''),[toast,setToast]=useState(''),[activeSite,setActiveSite]=useState(1),[expanded,setExpanded]=useState(true),[previewReload,setPreviewReload]=useState(0);
+ useEffect(()=>{try{localStorage.setItem('cobweb.preferences.v1',JSON.stringify(prefs))}catch(e){console.error('Could not persist preferences',e)}},[prefs]);
+ useEffect(()=>{try{localStorage.setItem('cobweb.workflow.v1',JSON.stringify({version:1,name,startingUrl:url,settings:{headless,liveDebugging:live},steps,updatedAt:new Date().toISOString()}))}catch(e){console.error('Could not persist workflow draft',e)}},[name,steps,url,headless,live]);
+ useEffect(()=>{try{localStorage.setItem('cobweb.sites.v1',JSON.stringify(sites))}catch(e){console.error('Could not persist website list',e)}},[sites]);
+ const runRef=useRef<(()=>Promise<void>)|null>(null);
+ useEffect(()=>{const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'){setShowAdd(false);setShowSite(false)}if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();void runRef.current?.()} };document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey)},[]);
 
-const starter: Workflow = {
-  id: "wf-product-scan",
-  name: "Product price monitor",
-  steps: [
-    { id: "step-1", kind: "navigate", title: "Open product page", description: "Load the target page in the browser", value: "https://example.com/products", enabled: true },
-    { id: "step-2", kind: "wait", title: "Wait for page", description: "Give dynamic content time to render", value: "1200", enabled: true },
-    { id: "step-3", kind: "extract", title: "Extract product details", description: "Collect the name and current price", value: "name, price", enabled: true },
-    { id: "step-4", kind: "click", title: "Open next result", description: "Move to the next product result", value: "button.next", enabled: true }
-  ]
-};
-
-const palette: { kind: StepKind; title: string; description: string; icon: typeof Globe2 }[] = [
-  { kind: "navigate", title: "Navigate", description: "Open a URL", icon: Globe2 },
-  { kind: "click", title: "Click element", description: "Interact with a page", icon: MousePointer2 },
-  { kind: "type", title: "Type text", description: "Enter text into a field", icon: Type },
-  { kind: "wait", title: "Wait", description: "Pause execution", icon: Clock3 },
-  { kind: "extract", title: "Extract data", description: "Capture page data", icon: Database }
-];
-
-function iconFor(kind: StepKind) {
-  switch (kind) {
-    case "navigate": return Globe2;
-    case "click": return MousePointer2;
-    case "type": return Type;
-    case "wait": return Clock3;
-    case "extract": return Database;
-  }
-}
-
-function createStep(kind: StepKind, index: number): WorkflowStep {
-  const defaults: Record<StepKind, { title: string; description: string; value: string }> = {
-    navigate: { title: "Navigate to page", description: "Load a page in the browser", value: "https://" },
-    click: { title: "Click element", description: "Click a page element", value: "button.submit" },
-    type: { title: "Type into field", description: "Enter text into an input", value: "Text to enter" },
-    wait: { title: "Wait for page", description: "Pause before the next action", value: "1000" },
-    extract: { title: "Extract data", description: "Capture data from the page", value: "title" }
-  };
-  return { id: `step-${Date.now()}-${index}`, kind, ...defaults[kind], enabled: true };
-}
-
-export default function App() {
-  const [workflow, setWorkflow] = useState<Workflow>(starter);
-  const [selectedId, setSelectedId] = useState(starter.steps[0].id);
-  const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"steps" | "data">("steps");
-  const [running, setRunning] = useState(false);
-  const [runState, setRunState] = useState<"idle" | "success" | "error">("idle");
-  const [message, setMessage] = useState("Ready to run");
-  const [browserStatus, setBrowserStatus] = useState<"unknown" | "connected" | "offline">("unknown");
-  const [showPalette, setShowPalette] = useState(true);
-  const [showInspector, setShowInspector] = useState(true);
-
-  const selected = workflow.steps.find(step => step.id === selectedId) ?? workflow.steps[0];
-  const filteredSteps = useMemo(() => workflow.steps.filter(s =>
-    `${s.title} ${s.description} ${s.kind}`.toLowerCase().includes(query.toLowerCase())
-  ), [workflow.steps, query]);
-
-  function updateSelected(patch: Partial<WorkflowStep>) {
-    if (!selected) return;
-    setWorkflow(current => ({ ...current, steps: current.steps.map(step => step.id === selected.id ? { ...step, ...patch } : step) }));
-  }
-
-  function addStep(kind: StepKind) {
-    const next = createStep(kind, workflow.steps.length + 1);
-    setWorkflow(current => ({ ...current, steps: [...current.steps, next] }));
-    setSelectedId(next.id);
-    setRunState("idle");
-    setMessage(`${stepLabels[kind]} added`);
-  }
-
-  function removeSelected() {
-    if (!selected) return;
-    const nextSteps = workflow.steps.filter(step => step.id !== selected.id);
-    setWorkflow(current => ({ ...current, steps: nextSteps }));
-    setSelectedId(nextSteps[0]?.id ?? "");
-    setMessage("Step removed");
-  }
-
-  function moveSelected(direction: -1 | 1) {
-    const index = workflow.steps.findIndex(step => step.id === selectedId);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= workflow.steps.length) return;
-    setWorkflow(current => {
-      const steps = [...current.steps];
-      [steps[index], steps[target]] = [steps[target], steps[index]];
-      return { ...current, steps };
-    });
-  }
-
-  async function runWorkflow() {
-    setRunning(true);
-    setRunState("idle");
-    setMessage("Starting workflow…");
-    try {
-      await backend.runWorkflow(workflow);
-      setRunState("success");
-      setMessage("Workflow completed");
-    } catch (error) {
-      setRunState("error");
-      setMessage(error instanceof Error ? error.message : "Could not run workflow");
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  async function connectBrowser() {
-    setMessage("Looking for browsers…");
-    try {
-      await backend.listBrowsers();
-      setBrowserStatus("connected");
-      setMessage("Browser discovery complete");
-    } catch (error) {
-      setBrowserStatus("offline");
-      setMessage(error instanceof Error ? error.message : "Browser discovery failed");
-    }
-  }
-
-  const Icon = selected ? iconFor(selected.kind) : WorkflowIcon;
-
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark"><WorkflowIcon size={18} strokeWidth={2.2} /></div>
-          <span className="brand-name">cobweb</span><span className="brand-divider" />
-          <span className="workspace-name">Automation studio</span>
-        </div>
-        <div className="topbar-center"><span className="save-dot" /> All changes saved</div>
-        <div className="topbar-actions">
-          <button className="icon-button" aria-label="Help"><CircleHelp size={16} /></button>
-          <button className="icon-button" aria-label="Settings"><Settings2 size={16} /></button>
-          <div className="avatar">CW</div>
-        </div>
-      </header>
-
-      <div className="projectbar">
-        <div className="project-title">
-          <span className="eyebrow">WORKFLOWS /</span>
-          <input aria-label="Workflow name" className="workflow-name" value={workflow.name} onChange={e => setWorkflow(w => ({ ...w, name: e.target.value }))} />
-          <ChevronDown size={14} className="muted-icon" />
-        </div>
-        <div className="project-actions">
-          <button className="secondary-button" onClick={() => { setWorkflow(starter); setSelectedId(starter.steps[0].id); setMessage("Starter workflow restored"); }}><RefreshCw size={14} /> Reset</button>
-          <button className="secondary-button" onClick={() => { void navigator.clipboard?.writeText(JSON.stringify(workflow, null, 2)); setMessage("Workflow JSON copied"); }}><Copy size={14} /> Export JSON</button>
-          <button className="run-button" onClick={() => void runWorkflow()} disabled={running || workflow.steps.length === 0}>
-            {running ? <Square size={14} /> : <Play size={14} fill="currentColor" />} {running ? "Running" : "Run workflow"} <span className="shortcut">⌘ ↵</span>
-          </button>
-        </div>
-      </div>
-
-      <main className={`workspace ${!showPalette ? "no-palette" : ""} ${!showInspector ? "no-inspector" : ""}`}>
-        {showPalette && <aside className="left-panel">
-          <div className="panel-heading"><span>BUILD</span><button className="icon-button small" aria-label="Hide step library" onClick={() => setShowPalette(false)}><PanelLeftClose size={15} /></button></div>
-          <div className="search-wrap"><Search size={14} /><input aria-label="Search steps" placeholder="Find a step..." value={query} onChange={e => setQuery(e.target.value)} /><kbd>/</kbd></div>
-          <div className="section-label">STEP LIBRARY <span>{palette.length}</span></div>
-          <div className="palette-list">
-            {palette.filter(item => `${item.title} ${item.description}`.toLowerCase().includes(query.toLowerCase())).map(item => {
-              const ItemIcon = item.icon;
-              return <button className="palette-item" key={item.kind} onClick={() => addStep(item.kind)}>
-                <span className="palette-icon"><ItemIcon size={16} /></span><span className="palette-copy"><strong>{item.title}</strong><small>{item.description}</small></span><Plus size={14} className="palette-plus" />
-              </button>;
-            })}
-          </div>
-          <div className="left-bottom">
-            <div className="tip-icon"><Zap size={15} /></div><div><strong>Build faster</strong><p>Add steps from the library, then configure them in the inspector.</p></div>
-          </div>
-        </aside>}
-
-        <section className="canvas-panel">
-          <div className="canvas-toolbar">
-            <div className="canvas-breadcrumb"><Layers3 size={14} /><span>Workflow</span><span className="crumb-sep">/</span><span className="muted">Editor</span></div>
-            <div className="canvas-tools">
-              {!showPalette && <button className="icon-button small" aria-label="Show step library" onClick={() => setShowPalette(true)}><PanelLeftClose size={15} /></button>}
-              <span className="canvas-count">{workflow.steps.length} steps</span>
-              <button className="icon-button small" aria-label="Toggle inspector" onClick={() => setShowInspector(v => !v)}><ListFilter size={15} /></button>
-              <button className="icon-button small" aria-label="More workflow actions"><MoreHorizontal size={16} /></button>
-            </div>
-          </div>
-          <div className="canvas-scroll">
-            <div className="flow-heading"><div><div className="flow-kicker">AUTOMATION FLOW</div><h1>{workflow.name || "Untitled workflow"}</h1><p>Configure each step, then run it against your browser session.</p></div><span className={`run-state ${runState}`}><span />{runState === "success" ? "Completed" : runState === "error" ? "Needs attention" : "Draft"}</span></div>
-            <div className="flow-track">
-              <div className="start-node"><span className="start-icon"><Play size={13} fill="currentColor" /></span><div><strong>Workflow start</strong><small>Execution entry point</small></div><span className="node-tag">TRIGGER</span></div>
-              <div className="connector"><span /></div>
-              {filteredSteps.map((step, index) => {
-                const StepIcon = iconFor(step.kind);
-                const actualIndex = workflow.steps.findIndex(s => s.id === step.id);
-                return <div className="flow-item-wrap" key={step.id}>
-                  <button className={`flow-node ${selectedId === step.id ? "selected" : ""} ${!step.enabled ? "disabled" : ""}`} onClick={() => setSelectedId(step.id)}>
-                    <div className={`node-icon ${step.kind}`}><StepIcon size={17} /></div>
-                    <div className="node-content"><div className="node-topline"><span>STEP {String(actualIndex + 1).padStart(2, "0")}</span><span className="node-kind">{stepLabels[step.kind]}</span></div><strong>{step.title}</strong><p>{step.value || step.description}</p></div>
-                    <div className="node-side"><span className={`enabled-indicator ${step.enabled ? "on" : ""}`} /><GripVertical size={15} /></div>
-                  </button>
-                  <div className="flow-inline-actions">
-                    <button aria-label={`Move ${step.title} up`} disabled={actualIndex === 0} onClick={() => moveSelectedFor(step.id, -1, workflow, setWorkflow, setSelectedId)}><ArrowUp size={12} /></button>
-                    <button aria-label={`Move ${step.title} down`} disabled={actualIndex === workflow.steps.length - 1} onClick={() => moveSelectedFor(step.id, 1, workflow, setWorkflow, setSelectedId)}><ArrowDown size={12} /></button>
-                  </div>
-                  {index < filteredSteps.length - 1 && <div className="connector"><span /></div>}
-                </div>;
-              })}
-              <button className="add-node" onClick={() => setShowPalette(true)}><Plus size={14} /><span>Add next step</span></button>
-              <div className="end-node"><span className="end-icon"><Check size={13} /></span><div><strong>Workflow complete</strong><small>End of execution</small></div></div>
-            </div>
-          </div>
-          <footer className="statusbar"><div className="status-left"><span className={`status-led ${runState}`} /><span>{message}</span></div><div className="status-right"><span><Code2 size={12} /> JSON workflow</span><span><Command size={12} /> Local-first</span></div></footer>
-        </section>
-
-        {showInspector && <aside className="right-panel">
-          <div className="inspector-heading"><div><span className="eyebrow">CONFIGURATION</span><h2>Inspector</h2></div><button className="icon-button small" aria-label="Close inspector" onClick={() => setShowInspector(false)}><X size={15} /></button></div>
-          <div className="inspector-tabs"><button className={activeTab === "steps" ? "active" : ""} onClick={() => setActiveTab("steps")}>Step settings</button><button className={activeTab === "data" ? "active" : ""} onClick={() => setActiveTab("data")}>Data <span className="tab-count">0</span></button></div>
-          {activeTab === "steps" ? (selected ? <div className="inspector-body">
-            <div className="selected-step-header"><div className={`node-icon large ${selected.kind}`}><Icon size={18} /></div><div><span className="eyebrow">STEP CONFIGURATION</span><h3>{stepLabels[selected.kind]}</h3></div></div>
-            <label className="field-label" htmlFor="step-title">Step name</label>
-            <input id="step-title" className="field-input" value={selected.title} onChange={e => updateSelected({ title: e.target.value })} />
-            <label className="field-label" htmlFor="step-kind">Action type</label>
-            <div className="select-shell"><select id="step-kind" value={selected.kind} onChange={e => updateSelected({ kind: e.target.value as StepKind })}>{palette.map(item => <option key={item.kind} value={item.kind}>{item.title}</option>)}</select><ChevronDown size={14} /></div>
-            <label className="field-label" htmlFor="step-value">{selected.kind === "navigate" ? "Target URL" : selected.kind === "wait" ? "Delay (milliseconds)" : selected.kind === "extract" ? "Fields to extract" : selected.kind === "type" ? "Text to enter" : "CSS selector"}</label>
-            <textarea id="step-value" className="field-input field-textarea" rows={3} value={selected.value} onChange={e => updateSelected({ value: e.target.value })} />
-            <p className="field-hint">{selected.description}</p>
-            <div className="toggle-row"><div><strong>Enabled</strong><small>Include this step during execution</small></div><button role="switch" aria-checked={selected.enabled} aria-label="Enable step" className={`toggle ${selected.enabled ? "on" : ""}`} onClick={() => updateSelected({ enabled: !selected.enabled })}><span /></button></div>
-            <div className="inspector-divider" />
-            <div className="field-label">Step actions</div>
-            <div className="action-grid"><button onClick={() => moveSelected(-1)} disabled={workflow.steps.findIndex(s => s.id === selected.id) === 0}><ArrowUp size={14} /> Move up</button><button onClick={() => moveSelected(1)} disabled={workflow.steps.findIndex(s => s.id === selected.id) === workflow.steps.length - 1}><ArrowDown size={14} /> Move down</button></div>
-            <button className="delete-button" onClick={removeSelected}><Trash2 size={14} /> Delete step</button>
-          </div> : <div className="empty-inspector"><WorkflowIcon size={22} /><strong>No step selected</strong><p>Add a step to start building your workflow.</p></div>) : <div className="data-empty"><div className="data-icon"><Braces size={20} /></div><strong>No output data yet</strong><p>Run a workflow with an Extract data step to see captured values here.</p><button className="secondary-button" onClick={() => setActiveTab("steps")}>Back to steps</button></div>}
-          <div className="browser-card">
-            <div className="browser-card-head"><div className="browser-symbol"><Globe2 size={15} /></div><div><strong>Browser session</strong><small>Local browser runtime</small></div><span className={`connection-dot ${browserStatus}`} /></div>
-            <div className="browser-card-status"><span>{browserStatus === "connected" ? "Discovery complete" : browserStatus === "offline" ? "Not connected" : "Not connected"}</span><span className="browser-status-pill">{browserStatus === "connected" ? "READY" : "IDLE"}</span></div>
-            <button className="connect-button" onClick={() => void connectBrowser()}><Radio size={14} /> Discover browsers</button>
-          </div>
-        </aside>}
-      </main>
-      <div className="bottom-hint"><span><Terminal size={12} /> {message}</span><span>COBWEB DESKTOP <i /> PHASE 2 UI</span></div>
-    </div>
-  );
-}
-
-function moveSelectedFor(
-  id: string, direction: -1 | 1, workflow: Workflow,
-  setWorkflow: (next: Workflow | ((current: Workflow) => Workflow)) => void,
-  setSelectedId: (id: string) => void
-) {
-  const index = workflow.steps.findIndex(step => step.id === id);
-  const target = index + direction;
-  if (index < 0 || target < 0 || target >= workflow.steps.length) return;
-  setWorkflow(current => {
-    const steps = [...current.steps];
-    [steps[index], steps[target]] = [steps[target], steps[index]];
-    return { ...current, steps };
-  });
-  setSelectedId(id);
+ const notify=(s:string)=>{setToast(s);window.setTimeout(()=>setToast(''),2600)};const step=steps.find(s=>s.id===selected)||steps[0];
+ const workflowDocument:WorkflowDocument={schemaVersion:1,app:'Cobweb',name,startingUrl:url,settings:{headless,liveDebugging:live},steps};
+ const downloadText=(content:string,filename:string,mime:string)=>{const blob=new Blob([content],{type:mime});const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download=filename;document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(href),1000)};
+ const exportWorkflow=()=>{try{downloadText(JSON.stringify({...workflowDocument,exportedAt:new Date().toISOString()},null,2),safeFilename(name),'application/json;charset=utf-8');notify('Workflow JSON exported')}catch(e){notify(e instanceof Error?e.message:'Could not export workflow')}};
+ const exportWorkflowYaml=()=>{try{downloadText(stringifyWorkflowYaml(workflowDocument),safeFilename(name).replace(/\.json$/i,'.yaml'),'text/yaml;charset=utf-8');notify('Workflow YAML exported')}catch(e){notify(e instanceof Error?e.message:'Could not export workflow')}};
+ const importWorkflowFile=async(file:File)=>{try{const text=await file.text();let document:WorkflowDocument;if(/\.(ya?ml)$/i.test(file.name)){document=parseWorkflowYaml(text)}else{const parsed=JSON.parse(text);document={...parsed, schemaVersion:parsed.schemaVersion??1};const checked=stringifyWorkflowYaml(document);void checked;}setName(document.name);setUrl(document.startingUrl);setSteps(document.steps);setSelected(document.steps[0]?.id??1);setHeadless(document.settings?.headless??false);setLive(document.settings?.liveDebugging??true);notify(`Imported ${document.steps.length} workflow steps`)}catch(e){notify(e instanceof Error?e.message:'Could not import workflow file')}};
+ const opts=useMemo(()=>groups.map(([g,items])=>[g,items.filter(([t,l])=>(t+' '+l).toLowerCase().includes(search.toLowerCase()))] as const).filter(g=>g[1].length),[search]);
+ const patch=(id:number,p:Partial<Step>)=>setSteps(s=>s.map(x=>x.id===id?{...x,...p}:x));
+ const add=(type:string,title:string)=>{const id=nextStepId(steps);setSteps(s=>[...s,{id,type,title,detail:type==='navigate'?'https://example.com':type==='wait'?'CSS selector · up to 10s':'Select an element to configure',enabled:true,breakpoint:false}]);setSelected(id);setShowAdd(false);notify('Step added to your flow')};
+ const run=async()=>{const urlError=validateHttpUrl(url);if(urlError){notify(urlError);return}if(!steps.length){notify('Add at least one step before running');return}setRunning(true);setPaused(null);notify('Run started');if((window as any).__TAURI_INTERNALS__){try{const r:any=await invoke('launch_browser',{url,headless,profileId:localStorage.getItem('cobweb.activeProfile')||'default',browserEngine:prefs.browserEngine,devtoolsPort:prefs.devtoolsPort});notify(r.message||'Browser launched')}catch(e){notify(String(e))}}let i=0;const tick=()=>{if(i>=steps.length){setRunning(false);setPaused(null);notify('Preview run completed. Browser actions are not yet executed.');return}const s=steps[i];if(!s.enabled){i++;tick();return}if(live&&s.breakpoint){setPaused(s.id);setRunning(false);return}i++;window.setTimeout(tick,s.type==='wait'?500:250)};tick()};
+ runRef.current=run;
+ const continueRun=()=>{if(paused===null)return;let i=steps.findIndex(s=>s.id===paused)+1;setPaused(null);setRunning(true);const tick=()=>{if(i>=steps.length){setRunning(false);notify('Preview run completed. Browser actions are not yet executed.');return}const s=steps[i];if(live&&s.breakpoint){setPaused(s.id);setRunning(false);return}i++;window.setTimeout(tick,250)};window.setTimeout(tick,250)};
+ return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><Workflow size={19}/></div><div><div className="brand-name">cobweb<span>.</span></div><div className="brand-caption">BROWSER AUTOMATION</div></div></div><DropdownMenu className="workspace-menu" label="Workspace menu" icon={<><span className="workspace-avatar">CW</span><span className="workspace-label"><b>Personal workspace</b><small>Local project</small></span><ChevronDown size={15}/></>} actions={[
+ {label:'Settings',icon:<Settings2 size={14}/>,onSelect:()=>setPage('settings')},
+ {label:'Browse websites',icon:<Globe2 size={14}/>,onSelect:()=>setPage('sites')}
+]}/><div className="side-label">WORKSPACE</div><nav className="nav-list">{[['sites',Globe2,'Websites','G W'],['builder',Workflow,'Automations','3'],['logic',Workflow,'Logic blocks',''],['profiles',ShieldCheck,'Profiles',''],['data',Braces,'JSON data',''],['performance',Activity,'Performance','NEW']].map(([id,Icon,label,tag]:any)=><button key={id} className={'nav-item '+(page===id?'active':'')} onClick={()=>setPage(id)}><Icon size={17}/><span>{label}</span>{tag&&<kbd>{tag}</kbd>}</button>)}</nav><div className="side-label side-label-row"><span>YOUR WEBSITES</span><button className="tiny-icon" onClick={()=>setShowSite(true)}><Plus size={15}/></button></div><div className="site-list">{sites.map((s,i)=><button key={s.name} className={'site-item '+(activeSite===i?'site-selected':'')} onClick={()=>{setActiveSite(i);setUrl(s.url)}}><span className="site-favicon" style={{'--site-color':s.color} as React.CSSProperties}>{s.letter}</span><span className="site-meta"><b>{s.name}</b><small>{s.url.replace('https://','')}</small></span><span className="site-status"/></button>)}</div><div className="sidebar-bottom"><button className={'nav-item '+(page==='settings'?'active':'')} onClick={()=>setPage('settings')}><Settings2 size={17}/><span>Settings</span></button><button className={'nav-item '+(page==='shortcuts'?'active':'')} onClick={()=>setPage('shortcuts')}><Keyboard size={17}/><span>Keyboard shortcuts</span><kbd>⌘ /</kbd></button><div className="profile"><div className="profile-avatar">CW</div><div><b>Local operator</b><small>Community edition</small></div><MoreHorizontal size={16}/></div></div></aside>
+ <main className="main-area"><header className="topbar"><div className="breadcrumbs"><span>Workspace</span><ChevronRight size={14}/><span>{({builder:'Automations',sites:'Websites',logic:'Logic blocks',profiles:'Browser profiles',data:'JSON data engine',performance:'Performance',settings:'Settings',shortcuts:'Shortcuts'} as any)[page]}</span>{page==='builder'&&<><ChevronRight size={14}/><b>{name}</b></>}</div><div className="top-actions"><DropdownMenu className="engine-menu" label="Local engine options" icon={<><i/> Local engine <ChevronDown size={13}/></>} actions={[
+ {label:'Check browser status',icon:<Activity size={14}/>,onSelect:()=>notify('Browser process status is available in the desktop runtime.')},
+ {label:headless?'Use visible browser':'Use headless browser',icon:<Eye size={14}/>,onSelect:()=>setHeadless(v=>!v)}
+]}/><DropdownMenu label="Help menu" icon={<CircleHelp size={17}/>} actions={[
+ {label:'Quick help',icon:<BookOpen size={14}/>,onSelect:()=>notify('Configure steps, save the draft, and export workflow JSON.')},
+ {label:'Keyboard shortcuts',icon:<Keyboard size={14}/>,onSelect:()=>setPage('shortcuts')}
+]}/><DropdownMenu label="Account menu" icon={<span className="avatar-small">CW</span>} actions={[
+ {label:'Preferences',icon:<Settings2 size={14}/>,onSelect:()=>setPage('settings')},
+ {label:'About Cobweb',icon:<CircleHelp size={14}/>,onSelect:()=>notify('Cobweb Community Edition')}
+]}/></div></header>
+ {page==='builder'&&<><div className="page-heading"><div><div className="eyebrow"><i/> AUTOMATION BUILDER <span>/</span> DRAFT</div><input className="heading-input" value={name} onChange={e=>setName(e.target.value)}/><p className="page-subtitle">Build, debug, and run browser workflows step by step.</p></div><div className="heading-actions"><button className="button secondary" onClick={()=>{try{localStorage.setItem('cobweb.workflow.v1',JSON.stringify({version:1,name,startingUrl:url,settings:{headless,liveDebugging:live},steps,updatedAt:new Date().toISOString()}));notify('Draft saved on this device')}catch(e){notify('Could not save draft: browser storage unavailable')}}}><Check size={15}/> Save draft</button><button className="button primary" disabled={running} onClick={run}><Play size={15} fill="currentColor"/>{running?'Running…':'Run automation'} <kbd>⌘ ↵</kbd></button></div></div><div className="builder-layout"><section className="flow-panel panel"><div className="panel-header"><div className="panel-title"><Workflow size={16}/><b>Workflow</b><span className="count-pill">{steps.length} steps</span></div><button className="icon-btn" onClick={()=>setShowAdd(!showAdd)}><Plus size={16}/></button></div><div className="flow-settings"><label className="field-label">STARTING URL</label><div className="url-input-wrap"><Globe2 size={15}/><input value={url} onChange={e=>setUrl(e.target.value)}/><button className="icon-btn compact" onClick={()=>notify('URL opens when the browser engine is connected')}><ExternalLink size={14}/></button></div><div className="run-options"><div className="toggle-row"><span className="toggle-copy"><Radio size={14}/><span><b>Live debugging</b><small>Pause at breakpoints</small></span></span><button className={'switch '+(live?'on':'')} onClick={()=>setLive(!live)}><span/></button></div><div className="toggle-row"><span className="toggle-copy"><Eye size={14}/><span><b>Headless browser</b><small>Run without a visible window</small></span></span><button className={'switch '+(headless?'on':'')} onClick={()=>setHeadless(!headless)}><span/></button></div></div></div><div className="steps-header"><span className="field-label">STEPS <span className="subtle-count">({steps.length})</span></span><button className="text-button" onClick={()=>setShowAdd(!showAdd)}><Plus size={14}/> Add step</button></div>{showAdd&&<div className="add-step-popover"><div className="add-search"><Search size={14}/><input placeholder="Find an interaction…" value={search} onChange={e=>setSearch(e.target.value)}/><kbd>ESC</kbd></div><div className="interaction-options">{opts.map(([g,items])=><div key={g}><div className="option-group-title">{g}</div>{items.map(([t,l])=>{const Icon=icons[t]||Zap;return <button className="option-item" key={t} onClick={()=>add(t,l)}><Icon size={15}/><span>{l}</span><Plus size={13}/></button>})}</div>)}</div></div>}<div className="steps-list"><div className="group-heading" onClick={()=>setExpanded(!expanded)}><ChevronDown size={14} className={expanded?'':'rotated'}/><Layers3 size={14}/><b>Main flow</b><span>· {steps.length} steps</span><DropdownMenu className="group-dropdown" label="Main flow actions" icon={<Ellipsis size={15}/>} actions={[
+ {label:expanded?'Collapse group':'Expand group',icon:<Layers3 size={14}/>,onSelect:()=>setExpanded(v=>!v)},
+ {label:'Enable all steps',icon:<Check size={14}/>,onSelect:()=>{setSteps(all=>all.map(item=>({...item,enabled:true})));notify('All steps enabled')}},
+ {label:'Disable all steps',icon:<X size={14}/>,onSelect:()=>{setSteps(all=>all.map(item=>({...item,enabled:false})));notify('All steps disabled')}}
+]}/></div>{expanded&&steps.map((s,i)=>{const Icon=icons[s.type]||Zap;return <div key={s.id} className={'step-row '+(selected===s.id?'selected ':'')+(paused===s.id?'breakpoint-paused':'')}><button className={'step-gutter '+(s.breakpoint?'breakpoint':'')} title="Toggle breakpoint" onClick={()=>patch(s.id,{breakpoint:!s.breakpoint})}><span className="step-number">{String(i+1).padStart(2,'0')}</span><span className="gutter-dot"/></button><button className="step-main" onClick={()=>setSelected(s.id)}><span className="step-icon"><Icon size={15}/></span><span className="step-copy"><b>{s.title}</b><small>{s.detail}</small></span>{!s.enabled&&<span className="disabled-label">Disabled</span>}{s.breakpoint&&<span className="breakpoint-badge">● Pause</span>}</button><DropdownMenu className="step-dropdown" label={`Step ${s.id} actions`} icon={<Ellipsis size={16}/>} actions={[
+ {label:'Duplicate step',icon:<Copy size={14}/>,onSelect:()=>{const id=nextStepId(steps);setSteps(all=>[...all,{...s,id,title:s.title+' copy'}]);setSelected(id);notify('Step duplicated')}},
+ {label:s.enabled?'Disable step':'Enable step',icon:<Eye size={14}/>,onSelect:()=>{patch(s.id,{enabled:!s.enabled});notify(s.enabled?'Step disabled':'Step enabled')}},
+ {label:'Delete step',icon:<Trash2 size={14}/>,danger:true,onSelect:()=>{setSteps(all=>all.filter(x=>x.id!==s.id));if(selected===s.id)setSelected(steps.find(x=>x.id!==s.id)?.id||0);notify('Step deleted')}}
+]}/></div>})}<button className="add-step-inline" onClick={()=>setShowAdd(true)}><Plus size={14}/> Add step <span/></button></div><div className="flow-footer"><span><i/> All changes saved locally</span><div className="panel-tools"><input aria-label="Import workflow file" type="file" accept=".json,.yaml,.yml,application/json,text/yaml" style={{display:"none"}} id="workflow-import" onChange={e=>{const file=e.currentTarget.files?.[0];if(file)void importWorkflowFile(file);e.currentTarget.value=""}}/><button className="text-button" onClick={()=>document.getElementById("workflow-import")?.click()}><ArrowLeft size={13}/> Import</button><button className="text-button" onClick={exportWorkflowYaml}><ArrowDownToLine size={13}/> Export YAML</button><button className="text-button" onClick={exportWorkflow}><ArrowDownToLine size={13}/> Export JSON</button></div></div></section>
+ <section className="right-column"><div className="editor-panel panel"><div className="panel-header"><div className="panel-title"><Settings2 size={16}/><b>Step configuration</b></div><span className="step-id">STEP {String(step?.id||1).padStart(2,'0')}</span></div>{step&&<div className="editor-content"><div className="selected-step-title"><div className="big-step-icon">{(()=>{const Icon=icons[step.type]||Zap;return <Icon size={18}/>})()}</div><div><h3>{step.title}</h3><p>Configure this interaction's behavior.</p></div></div><div className="form-field"><label>STEP NAME</label><input value={step.title} onChange={e=>patch(step.id,{title:e.target.value})}/></div><div className="form-field"><label>ELEMENT SELECTOR / VALUE</label><div className="selector-input"><Code2 size={14}/><input value={step.detail} onChange={e=>patch(step.id,{detail:e.target.value})}/><button className={'record-button '+(recording?'recording':'')} onClick={()=>{setRecording(!recording);notify(!recording?'Recorder is a UI placeholder. Live element picking is not implemented yet.':'Recording stopped')}}><span/>{recording?'Stop':'Pick'}</button></div><p className="field-hint">Record mode will highlight the target element in red at 40% opacity.</p></div><div className="form-field"><label>WAIT STRATEGY</label><select defaultValue="visible"><option value="visible">Wait until visible</option><option value="attached">Wait until attached</option><option value="hidden">Wait until hidden</option><option value="none">Do not wait</option></select></div><div className="two-fields"><div className="form-field"><label>TIMEOUT</label><div className="unit-input"><input aria-label="Default timeout" type="number" min="100" max="120000" value={prefs.timeout} onChange={e=>setPrefs(p=>({...p,timeout:Math.min(120000,Math.max(100,Number(e.target.value)||100))}))}/><span>ms</span></div></div><div className="form-field"><label>RETRY COUNT</label><div className="unit-input"><input defaultValue="0"/><span>times</span></div></div></div><div className="editor-divider"/>{[['Enable this step','Skip it when running if disabled',step.enabled,()=>patch(step.id,{enabled:!step.enabled})],['Pause before this step','Stop here in live debug mode',step.breakpoint,()=>patch(step.id,{breakpoint:!step.breakpoint})]].map(([t,d,on,fn]:any)=><div className="toggle-row editor-toggle" key={t}><span className="toggle-copy"><span><b>{t}</b><small>{d}</small></span></span><button className={'switch '+(on?'on':'')} onClick={fn}><span/></button></div>)}<div className="editor-bottom"><button className="button danger-ghost" onClick={()=>{setSteps(s=>s.filter(x=>x.id!==step.id));notify('Step removed')}}><Trash2 size={14}/> Delete step</button><button className="button secondary" onClick={()=>notify('Step configuration saved')}><Check size={14}/> Apply changes</button></div></div>}</div><div className="browser-panel panel"><div className="panel-header"><div className="panel-title"><Globe2 size={16}/><b>Browser preview</b><span className="live-pill"><i/>{paused!==null?'PAUSED':running?'RUNNING':'IDLE'}</span></div><div className="panel-tools"><button className="icon-btn" aria-label="Refresh browser preview" title="Refresh browser preview" onClick={()=>setPreviewReload(v=>v+1)}><RotateCcw size={14}/></button><button className="icon-btn" title="Open in browser" onClick={()=>{if((window as any).__TAURI_INTERNALS__){void invoke('launch_browser',{url,headless:false,profileId:localStorage.getItem('cobweb.activeProfile')||'default',browserEngine:prefs.browserEngine,devtoolsPort:prefs.devtoolsPort}).then((r:any)=>notify(r.message||'Browser opened')).catch(e=>notify(String(e)))}else window.open(url,'_blank','noopener,noreferrer')}}><ExternalLink size={14}/></button></div></div><div className="browser-toolbar"><div className="browser-dots"><i/><i/><i/></div><div className="browser-address"><ShieldCheck size={12}/><span>{url.replace(/^https?:\/\//,'')}</span></div><Ellipsis size={15}/></div><div className="preview-content"><iframe key={previewReload} className="preview-frame" title="Live website preview" src={url} referrerPolicy="no-referrer" onError={()=>notify('This site may block embedded previews. Open it in the external browser instead.')} /><div className="preview-frame-note">If the site blocks embedding, use Open in browser.</div>{paused!==null&&<div className="pause-overlay"><div className="pause-card"><div className="pause-icon"><MousePointer2 size={19}/></div><b>Breakpoint reached</b><p>Paused before “{steps.find(s=>s.id===paused)?.title}”</p><button className="button primary" onClick={continueRun}><Play size={14} fill="currentColor"/> Continue <kbd>F8</kbd></button></div></div>}</div><div className="browser-footer"><span><i/> Browser actions not connected</span><button className="text-button" onClick={()=>notify('DevTools Protocol integration is a next milestone')}>Connection details <ChevronRight size={13}/></button></div></div></section></div></>}
+ {page==='sites'&&<div className="standalone-page"><div className="page-heading"><div><div className="eyebrow">WORKSPACE / TARGETS</div><h1>Websites</h1><p className="page-subtitle">Manage the sites your automations work with.</p></div><button className="button primary" onClick={()=>setShowSite(true)}><Plus size={15}/> Add website</button></div><div className="site-cards">{sites.map((s,i)=><div className="site-card" key={s.name}><div className="site-card-top"><span className="site-favicon large" style={{'--site-color':s.color} as React.CSSProperties}>{s.letter}</span><DropdownMenu label={`Actions for ${s.name}`} icon={<Ellipsis size={17}/>} actions={[
+ {label:'Use this website',icon:<Globe2 size={14}/>,onSelect:()=>{setActiveSite(i);setUrl(s.url);setPage('builder');notify(`${s.name} selected`)}},
+ {label:'Copy website URL',icon:<Copy size={14}/>,onSelect:async()=>{try{await navigator.clipboard.writeText(s.url);notify('Website URL copied')}catch{notify(s.url)}}},
+ {label:'Remove website',icon:<Trash2 size={14}/>,danger:true,disabled:i<3,onSelect:()=>{setSites(all=>all.filter((_,idx)=>idx!==i));notify('Website removed')}}
+]}/></div><h3>{s.name}</h3><p>{s.url}</p><div className="site-card-bottom"><span><i/> Ready to configure</span><button className="text-button" onClick={()=>{setActiveSite(i);setUrl(s.url);setPage('builder')}}>Open workflows <ArrowRight size={13}/></button></div></div>)}</div></div>}
+ {page==='performance'&&<div className="standalone-page"><div className="page-heading"><div><div className="eyebrow">OBSERVABILITY / RUN HISTORY</div><h1>Performance</h1><p className="page-subtitle">Inspect timing, slow steps, and run health at a glance.</p></div><button className="button secondary" onClick={()=>notify('Report export planned')}><ArrowDownToLine size={15}/> Export report</button></div><div className="metric-grid">{[['LAST RUN DURATION','1.42','s','Sample data · no live run yet'],['AVERAGE STEP','284','ms','Across 5 sample interactions'],['SUCCESS RATE','98.4','%','Illustrative baseline only'],['SLOWEST STEP','620','ms','Wait for element']].map(a=><div className="metric-card" key={a[0]}><span>{a[0]}</span><strong>{a[1]} <small>{a[2]}</small></strong><p>{a[3]}</p></div>)}</div><div className="panel performance-table"><div className="panel-header"><div className="panel-title"><Activity size={16}/><b>Step timings</b><span className="count-pill">Sample data</span></div><Filter size={15}/></div><div className="timing-head"><span>STEP</span><span>TYPE</span><span>DURATION</span><span>TIME</span><span>STATUS</span></div>{[{n:'Go to URL',type:'Navigation',ms:412,pct:66,c:'fast'},{n:'Wait for element',type:'Wait',ms:620,pct:100,c:'slow'},{n:'Click element',type:'Pointer',ms:98,pct:16,c:'fast'},{n:'Type text',type:'Keyboard',ms:184,pct:30,c:'medium'},{n:'Take screenshot',type:'Capture',ms:106,pct:17,c:'fast'}].map((r,i)=><div className="timing-row" key={r.n}><span className="timing-name"><i>{String(i+1).padStart(2,'0')}</i>{r.n}</span><span className="timing-type">{r.type}</span><span className="duration-cell"><span className="duration-track"><i className={r.c} style={{width:r.pct+'%'}}/></span><b className={r.c}>{r.ms} ms</b></span><span className="timing-time">+{[0,412,1032,1130,1314][i]} ms</span><span className="status-success"><Check size={11}/>Sample</span></div>)}</div><div className="notice-box"><Activity size={17}/><div><b>Timing colors</b><p>Green indicates fast steps, amber steps worth watching, red slow interactions. Current values are illustrative until browser instrumentation is connected.</p></div></div></div>}
+ {page==='settings'&&<div className="standalone-page"><div className="page-heading"><div><div className="eyebrow">PREFERENCES / RUNTIME</div><h1>Settings</h1><p className="page-subtitle">Tune the browser runtime for faster, repeatable tests.</p></div></div><div className="settings-layout"><div className="panel settings-panel"><div className="panel-header"><div className="panel-title"><Zap size={16}/><b>Page optimization</b></div><span className="count-pill">Per run</span></div><p className="settings-intro">Block expensive resources when they are not needed. Some pages may behave differently when assets are disabled.</p>{[{key:'css',icon:Code2,title:'Stylesheets (CSS)',desc:'Block stylesheets to reduce render work.'},{key:'fonts',icon:Type,title:'Web fonts',desc:'Block remote and local web font requests.'},{key:'images',icon:Image,title:'Images',desc:'Skip image downloads.'},{key:'media',icon:Video,title:'Audio & video',desc:'Block media files.'},{key:'animations',icon:Sparkles,title:'Animations',desc:'Inject reduced-motion styles where supported.'}].map(x=>{const Icon=x.icon;return <div className="optimization-row" key={x.key}><div className="optimization-icon"><Icon size={16}/></div><div className="optimization-copy"><b>{x.title}</b><small>{x.desc}</small></div><button aria-label={`Toggle ${x.title}`} className={'switch '+(prefs.optim[x.key as keyof Preferences['optim']]?'on':'')} onClick={()=>setPrefs(p=>({...p,optim:{...p.optim,[x.key]:!p.optim[x.key as keyof typeof p.optim]}}))}><span/></button></div>})}</div><div className="panel settings-panel"><div className="panel-header"><div className="panel-title"><Settings2 size={16}/><b>Browser runtime</b></div></div><div className="setting-block"><label>Browser engine</label><select aria-label="Browser engine" value={prefs.browserEngine} onChange={e=>setPrefs(p=>({...p,browserEngine:e.target.value as BrowserEngine}))}><option value="edge">Microsoft Edge (recommended)</option><option value="chromium">Chromium</option><option value="chrome">Google Chrome</option></select></div><div className="setting-block"><label>Default timeout</label><div className="unit-input"><input aria-label="Default timeout" type="number" min="100" max="120000" value={prefs.timeout} onChange={e=>setPrefs(p=>({...p,timeout:Math.min(120000,Math.max(100,Number(e.target.value)||100))}))}/><span>ms</span></div></div><div className="setting-block"><label>DevTools Protocol port</label><div className="unit-input"><input aria-label="DevTools Protocol port" type="number" min="1024" max="65535" value={prefs.devtoolsPort} onChange={e=>setPrefs(p=>({...p,devtoolsPort:Math.min(65535,Math.max(1024,Number(e.target.value)||9222))}))}/><span>TCP</span></div></div><div className="setting-block"><label>Default mode</label><div className="mode-choice"><button className={!headless?'mode-selected':''} onClick={()=>setHeadless(false)}><Eye size={15}/> Visible</button><button className={headless?'mode-selected':''} onClick={()=>setHeadless(true)}><Terminal size={15}/> Headless</button></div></div><button className="button primary full-button" onClick={()=>{try{localStorage.setItem('cobweb.preferences.v1',JSON.stringify(prefs));notify('Preferences saved on this device')}catch{notify('Could not save preferences: local storage is unavailable')}}}><Check size={14}/> Save settings</button></div></div></div>}
+ {page==='shortcuts'&&<div className="standalone-page"><div className="page-heading"><div><div className="eyebrow">REFERENCE / PRODUCTIVITY</div><h1>Keyboard shortcuts</h1><p className="page-subtitle">A quick reference for navigating Cobweb.</p></div></div><div className="panel shortcut-panel">{[['General',[['Save automation','⌘','S'],['Show shortcuts','⌘','/'],['Run automation','⌘','↵']] ],['Builder',[['Add step','⌘','⇧','A'],['Duplicate step','⌘','D'],['Delete step','⌫'],['Toggle breakpoint','B']] ],['Live debugging',[['Continue / next step','F8'],['Pause run','F6'],['Stop run','⇧','F8']] ],['Navigation',[['Go to Websites','G','W'],['Go to Automations','G','A'],['Go to Performance','G','P']] ]].map(([g,rows]:any)=><div className="shortcut-group" key={g}><h3>{g}</h3>{rows.map((r:any)=><div className="shortcut-row" key={r[0]}><span>{r[0]}</span><div>{r.slice(1).map((k:string,i:number)=><kbd key={i}>{k}</kbd>)}</div></div>)}</div>)}</div></div>}
+ {page==='logic'&&<LogicPage notify={notify}/>}
+ {page==='profiles'&&<ProfilesPage notify={notify}/>}
+ {page==='data'&&<DataPage notify={notify}/>}
+ <footer className="app-footer"><span>COBWEB <b>●</b> v0.1.0</span><span><i/> Local-first by design</span><button onClick={()=>setPage('shortcuts')}><Keyboard size={12}/> Shortcuts</button><button onClick={()=>notify('Starter build · browser CDP integration pending')}><BookOpen size={12}/> Docs</button></footer></main>
+ {showSite&&<div className="modal-backdrop" onClick={()=>setShowSite(false)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modal-title"><div><h2>Add a website</h2><p>Save a target for your browser workflows.</p></div><button className="icon-btn" onClick={()=>setShowSite(false)}>×</button></div><div className="form-field"><label>WEBSITE NAME</label><input id="site-name" placeholder="e.g. My dashboard"/></div><div className="form-field"><label>BASE URL</label><input id="site-url" placeholder="https://example.com"/></div><div className="modal-actions"><button className="button secondary" onClick={()=>setShowSite(false)}>Cancel</button><button className="button primary" onClick={()=>{const n=(document.getElementById('site-name') as HTMLInputElement).value.trim(),u=(document.getElementById('site-url') as HTMLInputElement).value.trim();const urlError=validateHttpUrl(u);if(!n||urlError){notify(urlError||'Enter a website name');return}const entry={name:n,url:u,color:'#64748b',letter:n.slice(0,1).toUpperCase()};setSites(all=>[...all,entry]);setActiveSite(sites.length);setUrl(u);setPage('builder');notify(`Website “${n}” added and saved locally`);setShowSite(false)}}><Plus size={14}/> Add website</button></div></div></div>}{toast&&<div className="toast"><Check size={15}/>{toast}</div>}</div>
 }

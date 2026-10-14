@@ -2,32 +2,33 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Cobweb",
   "version": "0.1.0",
-  "identifier": "com.cobweb.automation",
+  "identifier": "com.parinsanat.cobweb",
   "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "title": "Cobweb",
-        "width": 1440,
-        "height": 900,
-        "minWidth": 1000,
-        "minHeight": 650
+        "width": 1600,
+        "height": 1000,
+        "minWidth": 1100,
+        "minHeight": 720
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; frame-src http: https:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'"
     }
   },
   "bundle": {
     "active": true,
+    "targets": "all",
     "icon": [
+      "icons/icon.png",
       "icons/icon.ico"
-    ],
-    "targets": [
-      "nsis",
-      "msi"
     ]
   }
 }
