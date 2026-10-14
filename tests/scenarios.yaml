@@ -1,0 +1,195 @@
+# Scenario catalogue for CobWeb Phase 2 frontend.
+# Executable coverage is in tests/frontend.spec.ts. Keep IDs stable for CI reporting.
+suite: cobweb-frontend-phase-2
+base_url: "${COBWEB_BASE_URL:-http://127.0.0.1:5173}"
+browser: chromium
+defaults:
+  viewport:
+    width: 1440
+    height: 960
+  timeout_ms: 10000
+  reduced_motion: reduce
+
+scenarios:
+  - id: UI-001
+    name: Main workspace renders
+    priority: critical
+    steps:
+      - open: /
+      - expect_visible: "Automation studio"
+      - expect_visible: "Product price monitor"
+      - expect_visible: "Workflow start"
+      - expect_visible: "Workflow complete"
+
+  - id: UI-002
+    name: Starter steps and inspector render
+    priority: critical
+    steps:
+      - open: /
+      - expect_visible: "Open product page"
+      - expect_visible: "Wait for page"
+      - expect_visible: "Extract product details"
+      - expect_label_value:
+          label: "Target URL"
+          value: "https://example.com/products"
+
+  - id: UI-003
+    name: Workflow name can be changed
+    priority: high
+    steps:
+      - fill:
+          label: "Workflow name"
+          value: "QA crawl"
+      - expect_visible: "QA crawl"
+
+  - id: UI-004
+    name: Add and configure a step
+    priority: critical
+    steps:
+      - click: "Type text"
+      - fill:
+          label: "Step name"
+          value: "Enter search term"
+      - expect_visible: "Enter search term"
+      - expect_label_value:
+          label: "Step name"
+          value: "Enter search term"
+
+  - id: UI-005
+    name: Step type can be changed
+    priority: high
+    steps:
+      - select:
+          label: "Action type"
+          value: "wait"
+      - expect_label_value:
+          label: "Action type"
+          value: "wait"
+
+  - id: UI-006
+    name: Selected step can be disabled and enabled
+    priority: high
+    steps:
+      - expect_attribute:
+          role: switch
+          name: "Enable step"
+          attribute: aria-checked
+          value: "true"
+      - click: "Enable step"
+      - expect_attribute:
+          role: switch
+          name: "Enable step"
+          attribute: aria-checked
+          value: "false"
+      - click: "Enable step"
+      - expect_attribute:
+          role: switch
+          name: "Enable step"
+          attribute: aria-checked
+          value: "true"
+
+  - id: UI-007
+    name: Step library search filters results
+    priority: high
+    steps:
+      - fill:
+          label: "Search steps"
+          value: "extract"
+      - expect_visible: "Extract data"
+      - expect_hidden: "Navigate"
+
+  - id: UI-008
+    name: Selected step can be moved up and down
+    priority: high
+    steps:
+      - select_step: "Wait for page"
+      - click: "Move up"
+      - expect_step_order:
+          - "Wait for page"
+          - "Open product page"
+
+  - id: UI-009
+    name: Selected step can be deleted
+    priority: high
+    steps:
+      - select_step: "Open product page"
+      - click: "Delete step"
+      - expect_hidden: "Open product page"
+      - expect_visible: "Wait for page"
+
+  - id: UI-010
+    name: Workflow can be reset
+    priority: medium
+    steps:
+      - fill:
+          label: "Workflow name"
+          value: "Temporary name"
+      - click: "Reset"
+      - expect_visible: "Product price monitor"
+
+  - id: UI-011
+    name: JSON export copies workflow
+    priority: high
+    steps:
+      - grant_clipboard_read: true
+      - click: "Export JSON"
+      - expect_clipboard_contains: "Product price monitor"
+
+  - id: UI-012
+    name: Browser discovery gives feedback
+    priority: high
+    steps:
+      - click: "Discover browsers"
+      - expect_status_message: "Browser discovery complete"
+
+  - id: UI-013
+    name: Workflow run failure is surfaced outside desktop shell
+    priority: critical
+    notes: In browser preview, execution should show the desktop-only message rather than claim a real browser run succeeded.
+    steps:
+      - click: "Run workflow"
+      - expect_status_contains: "desktop backend"
+
+  - id: UI-014
+    name: Inspector can be hidden and reopened
+    priority: medium
+    steps:
+      - click: "Toggle inspector"
+      - expect_hidden: "Inspector"
+      - click: "Toggle inspector"
+      - expect_visible: "Inspector"
+
+  - id: UI-015
+    name: Step library can be hidden and reopened
+    priority: medium
+    steps:
+      - click: "Hide step library"
+      - expect_hidden: "STEP LIBRARY"
+      - click: "Show step library"
+      - expect_visible: "STEP LIBRARY"
+
+  - id: UI-016
+    name: Data tab shows empty-state guidance
+    priority: medium
+    steps:
+      - click: "Data"
+      - expect_visible: "No output data yet"
+      - expect_visible: "Run a workflow"
+
+  - id: UI-017
+    name: Layout remains usable at tablet width
+    priority: medium
+    viewport:
+      width: 1024
+      height: 768
+    steps:
+      - open: /
+      - expect_visible: "Run workflow"
+      - expect_visible: "Inspector"
+
+  - id: UI-018
+    name: No uncaught page errors on initial load
+    priority: critical
+    steps:
+      - open: /
+      - expect_no_page_errors: true

@@ -1,33 +1,25 @@
-# Cobweb Phase 1: Backend foundation
+# CobWeb frontend YAML scenarios and Playwright tests
 
-Merge-ready Rust/Tauri v2 backend scaffold for the Cobweb desktop browser automation studio.
+## What's included
+- `tests/scenarios.yaml`: readable, ID-labelled test plan for QA review.
+- `tests/frontend.spec.ts`: executable Playwright tests for the Phase 2 React UI.
+- `playwright.config.ts`: browser/test-runner setup.
+- `.github/workflows/frontend-tests.yml`: CI workflow.
+- `package.test-additions.json`: dependency and npm-script additions to merge into the existing package.json.
 
-## Included
-- Windows Edge/Chrome/Chromium discovery with explicit executable-path override.
-- Safe URL/profile validation, loopback-only DevTools port allocation, isolated profile directories, process lifecycle tracking.
-- CDP HTTP discovery (`/json/version`), correlated WebSocket request/response handling, navigation, JavaScript evaluation, coordinate input, element resolution, waits, and common browser actions.
-- JSON/NDJSON parsing, schema summaries, filtering, row binding, execution manifests.
-- Workflow step types and sequential execution with step results and stop-on-error behavior.
-- Tauri commands for browser lifecycle, CDP actions, data inspection/filtering, workflow execution, and script runner invocation.
-- Unit tests for validation, data engine, selectors/URL policy, workflow behavior, and exporters/command argument validation.
-- GitHub Actions Windows CI running Rust tests and Tauri build.
+## Install
+Merge the entries from `package.test-additions.json` into the existing `package.json`, preserving existing scripts/dependencies. Then run:
 
-## Security notes
-- The DevTools endpoint binds only to `127.0.0.1`.
-- Only `http` and `https` navigation URLs are accepted.
-- Do not expose the DevTools port on a network interface.
-- External runner execution uses a configured executable and argument list, never a shell command string.
-- This scaffold does not include credentials or remote control services.
-
-## Integrating
-Copy `src-tauri/` into the existing project, merge the `tauri.conf.json` settings with your current configuration, and register the command list from `lib.rs`. Keep your existing Tauri capabilities file and add only the permissions required by your app.
-
-## Run tests (on a machine with Rust installed)
-```powershell
-cargo test --manifest-path src-tauri/Cargo.toml
+```bash
+npm install
+npx playwright install chromium
+npm run test:e2e
 ```
 
-Build prerequisites for Windows: Rust stable/MSVC toolchain, WebView2, Node.js, and the frontend/Tauri CLI configured in the main project.
+For CI, commit the resulting `package-lock.json`. GitHub Actions runs `npm ci`, so a matching lockfile is required.
 
-## Verification status in this environment
-Rust/Cargo are not installed in the execution environment used to prepare this package, so `cargo test` and a Windows binary build could not be run here. Tests are included but must be executed in the Windows CI workflow before Phase 1 is marked verified.
+## Run the YAML scenarios
+The YAML is the human-readable specification; the executable Playwright suite is TypeScript and mirrors its cases. It is not automatically interpreted as test code in this package. If you want YAML to drive execution dynamically, add a YAML scenario loader and a generic step runner as a separate enhancement.
+
+## Important integration note
+The frontend scaffold's browser discovery and workflow execution currently depend on Tauri command signatures. In browser preview, the adapter intentionally rejects workflow execution. The browser discovery test expects a successful mocked/preview response as the scaffold currently implements it; if the app is running in Tauri, the backend command names and return shapes must match `src/backend.ts`. Align those names with `src-tauri/src/commands.rs` before treating desktop integration tests as authoritative.
