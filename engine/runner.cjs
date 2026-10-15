@@ -19,9 +19,9 @@ const STEP_TYPES = new Set([
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
-  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop"
+  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop", "setVariable", "extractAll", "operateAll"
 ]);
-const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select", "hover", "rightClick", "doubleClick", "scrollTo", "uploadFile", "extractText", "extractAttribute", "extractValue", "extractTable", "saveImage", "assertExists", "assertCount", "assertAttribute", "switchFrame", "dragDrop"]);
+const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select", "hover", "rightClick", "doubleClick", "scrollTo", "uploadFile", "extractText", "extractAttribute", "extractValue", "extractTable", "saveImage", "assertExists", "assertCount", "assertAttribute", "switchFrame", "dragDrop", "extractAll", "operateAll"]);
 
 function stepRequiresLocator(stepType) {
   return LOCATOR_STEP_TYPES.has(stepType);
@@ -108,6 +108,11 @@ function validatePayload(payload, depth = 0) {
     if (step.type === "dragDrop" && (!step.target2 || !LOCATOR_NAMES.has(step.target2.strategy) || typeof step.target2.value !== "string" || !step.target2.value.trim())) throw new Error(`Step ${i + 1} needs a destination locator for drag and drop.`);
     if (["extractAttribute", "assertAttribute"].includes(step.type) && (typeof step.attribute !== "string" || !step.attribute.trim())) throw new Error(`Step ${i + 1} needs an attribute name.`);
     if (["extractText", "extractAttribute", "extractValue", "extractTable"].includes(step.type) && step.outputName !== undefined && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} output variable must be a valid identifier.`);
+    if (["setVariable", "extractAll"].includes(step.type) && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} needs a valid output variable name.`);
+    if (step.type === "operateAll" && (!["click", "type", "extractText", "extractAttribute", "extractValue"].includes(step.bulkOperation) || (step.bulkOperation === "extractAttribute" && (typeof step.attribute !== "string" || !step.attribute.trim())))) throw new Error(`Step ${i + 1} needs a supported bulk operation and attribute when extracting attributes.`);
+    if (step.type === "extractAll" && step.bulkOperation !== undefined && !["extractText", "extractAttribute", "extractValue"].includes(step.bulkOperation)) throw new Error(`Step ${i + 1} has an unsupported extraction mode.`);
+    if (step.type === "operateAll" && String(step.bulkOperation || "").startsWith("extract") && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} needs a valid output variable for extraction.`);
+    if (step.type === "setVariable" && typeof step.text !== "string") throw new Error(`Step ${i + 1} needs a text value to assign.`);
     if (step.type === "uploadFile" && (typeof step.filePath !== "string" || !step.filePath.trim())) throw new Error(`Step ${i + 1} needs a file path.`);
     if (["assertUrl", "assertTitle"].includes(step.type) && (typeof step.expected !== "string" || !step.expected.trim())) throw new Error(`Step ${i + 1} needs an expected value.`);
     if (step.type === "repeat" && (!Number.isInteger(step.repeatCount) || step.repeatCount < 1 || step.repeatCount > 1000 || !Array.isArray(step.loopSteps))) throw new Error(`Step ${i + 1} repeat count must be 1-1000 and include loopSteps.`);
@@ -417,6 +422,9 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "dragDrop": { const source = await nestedWaiters.visible(); const destBy = buildLocator(By, { strategy: nested.target2.strategy, value: substituteVariables(nested.target2.value, childVariables) }); const dest = await driver.wait(async()=>{try{const e=await driver.findElement(destBy);return await e.isDisplayed()?e:false}catch{return false}}, nestedTimeout, "Drag destination not visible", 200); await driver.actions({async:true}).dragAndDrop(source,dest).perform(); break; }
             case "uploadFile": { const file = path.resolve(substituteVariables(nested.filePath, childVariables)); await fs.access(file); await (await nestedWaiters.visible()).sendKeys(file); break; }
             case "extractText": { const value=await (await nestedWaiters.visible()).getText(); nestedRuntimeContext.lastText=value; childVariables[nested.outputName||"extractedText"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`text-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
+            case "setVariable": { const name=nested.outputName; childVariables[name]=substituteVariables(nested.text||"",childVariables); break; }
+            case "extractAll": { const elements=await driver.findElements(nestedBy); if(elements.length>5000)throw new Error("Bulk extraction is limited to 5,000 elements."); const mode=nested.bulkOperation||"extractText"; const values=await Promise.all(elements.map(async el=>mode==="extractAttribute"?String(await el.getAttribute(substituteVariables(nested.attribute||"href",childVariables))??""):mode==="extractValue"?String(await driver.executeScript("return arguments[0].value ?? '';",el)??""):el.getText())); const json=JSON.stringify(values); childVariables[nested.outputName]=json; await writeArtifact(`${safeOutputName(nested.outputName)}.json`,json,"application/json; charset=utf-8"); break; }
+            case "operateAll": { const elements=await driver.findElements(nestedBy); if(elements.length>1000)throw new Error("Bulk operations are limited to 1,000 elements."); const values=[]; for(const el of elements){if(nested.bulkOperation==="click")await el.click();else if(nested.bulkOperation==="type")await el.sendKeys(substituteVariables(nested.text||"",childVariables));else if(nested.bulkOperation==="extractText")values.push(await el.getText());else if(nested.bulkOperation==="extractAttribute")values.push(String(await el.getAttribute(substituteVariables(nested.attribute,childVariables))??""));else if(nested.bulkOperation==="extractValue")values.push(String(await driver.executeScript("return arguments[0].value ?? '';",el)??""));} if(nested.outputName){childVariables[nested.outputName]=JSON.stringify(values);if(values.length)await writeArtifact(`${safeOutputName(nested.outputName)}.json`,JSON.stringify(values),"application/json; charset=utf-8");} break; }
             case "extractAttribute": { const value=String(await (await nestedWaiters.visible()).getAttribute(substituteVariables(nested.attribute,childVariables))??""); childVariables[nested.outputName||"extractedAttribute"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`attribute-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
             case "extractValue": { const el=await nestedWaiters.visible(); const value=String(await driver.executeScript("return arguments[0].value ?? '';",el)??""); childVariables[nested.outputName||"extractedValue"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`value-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
             case "extractTable": { const table=await nestedWaiters.visible(); const rows=await table.findElements(By.css("tr")); const values=[]; for(const row of rows){const cells=await row.findElements(By.css("th,td"));values.push(await Promise.all(cells.map(cell=>cell.getText())))} const csv=values.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n"); await writeArtifact(`${safeOutputName(nested.outputName||`table-${childIndex+1}`)}.csv`,csv,"text/csv; charset=utf-8"); childVariables[nested.outputName||"extractedTable"]=JSON.stringify(values); break; }
@@ -788,6 +796,40 @@ async function runWorkflow(rawPayload, deps = {}) {
               await new Promise(resolve => setTimeout(resolve, 250));
             }
             if (!completed) throw new Error(`Download did not finish within ${limit}ms${expected ? ` for ${expected}` : ""}.`); emit("output-artifact", outputArtifacts.find(a => a.name === completed)); break;
+          }
+          case "setVariable": {
+            const name = step.outputName;
+            const value = substituteVariables(step.text || "", variables);
+            runtimeContext.variables[name] = value; variables[name] = value;
+            emit("variable-set", { index, name }); break;
+          }
+          case "extractAll": {
+            const elements = await driver.findElements(by);
+            if (elements.length > 5000) throw new Error("Bulk extraction is limited to 5,000 matching elements.");
+            const mode = step.bulkOperation || "extractText";
+            const values = await Promise.all(elements.map(async element => {
+              if (mode === "extractAttribute") return String(await element.getAttribute(substituteVariables(step.attribute || "href", variables)) ?? "");
+              if (mode === "extractValue") return String(await driver.executeScript("return arguments[0].value ?? '';", element) ?? "");
+              return await element.getText();
+            }));
+            const json = JSON.stringify(values); const name = step.outputName;
+            runtimeContext.variables[name] = json; variables[name] = json; runtimeContext.lastText = json;
+            await writeArtifact(`${safeOutputName(name)}.json`, json, "application/json; charset=utf-8");
+            emit("extracted", { index, kind: "collection", variable: name, count: values.length }); break;
+          }
+          case "operateAll": {
+            const elements = await driver.findElements(by);
+            if (elements.length > 1000) throw new Error("Bulk operations are limited to 1,000 matching elements.");
+            const operation = step.bulkOperation || "click"; const values = [];
+            for (const element of elements) {
+              if (operation === "click") await element.click();
+              else if (operation === "type") await element.sendKeys(substituteVariables(step.text || "", variables));
+              else if (operation === "extractText") values.push(await element.getText());
+              else if (operation === "extractAttribute") values.push(String(await element.getAttribute(substituteVariables(step.attribute || "href", variables)) ?? ""));
+              else if (operation === "extractValue") values.push(String(await driver.executeScript("return arguments[0].value ?? '';", element) ?? ""));
+            }
+            if (step.outputName && operation.startsWith("extract")) { const json = JSON.stringify(values); runtimeContext.variables[step.outputName] = json; variables[step.outputName] = json; await writeArtifact(`${safeOutputName(step.outputName)}.json`, json, "application/json; charset=utf-8"); }
+            emit("bulk-operation", { index, operation, count: elements.length }); break;
           }
           case "extractText": {
             const value = await (await visible()).getText(); runtimeContext.lastText = value; const name = safeOutputName(step.outputName || `text-${index + 1}`);

@@ -22,6 +22,20 @@ describe("advanced browser actions", () => {
     expect(runner.validatePayload({ steps: [{ type: "ifElse", condition: { source: "lastText", operator: "contains", expected: "x" }, thenSteps: [], elseSteps: [] }] }).steps).toHaveLength(1);
   });
 
+
+  it("supports set-variable and bulk selector actions", () => {
+    for (const type of ["setVariable", "extractAll", "operateAll"] as const) {
+      const step = createStep(type);
+      expect(step.type).toBe(type);
+    }
+    expect(runner.stepRequiresLocator("extractAll")).toBe(true);
+    expect(runner.stepRequiresLocator("operateAll")).toBe(true);
+    expect(() => runner.validatePayload({ steps: [{ type: "setVariable", outputName: "customerName", text: "Ada" }] })).not.toThrow();
+    expect(() => runner.validatePayload({ steps: [{ type: "extractAll", target: { strategy: "css", value: ".product" }, outputName: "products" }] })).not.toThrow();
+    expect(() => runner.validatePayload({ steps: [{ type: "operateAll", target: { strategy: "className", value: "product" }, bulkOperation: "click" }] })).not.toThrow();
+    expect(() => runner.validatePayload({ steps: [{ type: "setVariable", outputName: "not valid", text: "x" }] })).toThrow(/valid output variable/i);
+  });
+
   it("supports URL-change and true/false action-result conditions", () => {
     const context = { variables: {}, lastText: "", url: "https://example.com/next", urlChanged: true, stepStatus: { "click-1": "success", "click-2": "error", "click-3": "skipped" } };
     expect(runner.evaluateRuntimeCondition({ source: "urlChanged", operator: "equals", expected: "true" }, context)).toBe(true);

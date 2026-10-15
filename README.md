@@ -194,3 +194,11 @@ Nested `ifElse`, `repeat`, `loopList`, and `while` bodies are currently edited a
 ### Conditional action outcomes (v0.3.11)
 
 If/else and while blocks support `Previous action result` and `Did the URL change?` conditions. Choose an earlier step in the workflow, then branch on `Succeeded`, `Failed`, or `Skipped`. To route a failed action to an Else branch, set that action's error handling to `Continue`; otherwise the default Stop policy ends the workflow immediately. The UI uses a consistent black/white/magenta theme and reduced-motion-aware icon hover animations.
+
+
+### Bulk selectors and variables (v0.3.12)
+
+- **Set variable** assigns a literal or a string containing `${name}` substitutions. Example: `${firstName} ${lastName}`.
+- **Extract all matching elements** queries every element matching a CSS, XPath, id, name, class, tag, or link-text locator and saves text, attributes, or input values as a JSON array variable and `.json` artifact (maximum 5,000 matches).
+- **Operate on all matching elements** can click, type into, or extract text/attributes/input values from all matches (maximum 1,000 matches). Extraction results are saved as a JSON array variable. Test broad selectors carefully before bulk click/type.
+- The topbar recorder now lets you choose the action to create (click, hover, wait-visible, extract text, or assert exists). It prefers a generated CSS selector and includes element identity/text in the step name and log.
