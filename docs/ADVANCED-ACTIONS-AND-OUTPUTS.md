@@ -35,3 +35,21 @@ Per-file output is capped at 100 MB and in-app previews at 10 MB. ZIPs and outpu
 - Browser alert actions require an alert to be present at that moment.
 - Window switching uses a zero-based tab index.
 - Full UI, Chrome/Edge integration, Windows packaging, and full Vitest suite still need validation on a machine with project dependencies installed.
+
+## Workflow editor UX refresh (0.3.10)
+
+- If/else, repeat-N, for-each, and bounded while blocks now expose their nested actions as editable visual lists rather than requiring users to hand-edit JSON arrays.
+- Nested actions can be added from an action picker, renamed, configured with common URL/text/locator fields, reordered by deleting and re-adding, or removed in-place. Advanced nested action payloads can still be edited through workflow JSON import/export.
+- The step list includes a search field for finding actions by name, type, or locator.
+- Upload-file actions include a native file chooser. The selected path is stored in the workflow; the file is only sent to the target website when that workflow runs.
+- Panel surfaces, form controls, status panels, library cards, output cards, and responsive breakpoints share the app's theme tokens. Lucide icons use subtle CSS motion on hover/focus/press and respect reduced-motion preferences.
+
+The requested `npx shadcn add @lucide-animated` command was attempted, but the CLI did not resolve before the environment timeout. The project therefore retains its existing `lucide-react` dependency and uses local CSS micro-animations rather than claiming that the external shadcn registry component was installed.
+
+
+## Conditional action results and UI refresh (0.3.11)
+
+- `ifElse` and `while` conditions can test whether the current URL changed after the prior action.
+- Conditions can inspect a prior step's result by selecting its step ID and testing `success`, `error`, or `skipped`; `truthy` means succeeded and `falsy` means it did not succeed.
+- A failed action can feed the Else branch when that action's error policy is set to Continue. The default remains Stop to avoid silently continuing after failures.
+- The app uses a consistent black/white/electric-magenta palette with reduced-motion-aware Lucide hover feedback across sections.

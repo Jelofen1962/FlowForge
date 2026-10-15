@@ -22,7 +22,7 @@ export interface Locator {
 
 
 export interface StepCondition {
-  source: "variable" | "lastText" | "url" | "stepStatus";
+  source: "variable" | "lastText" | "url" | "urlChanged" | "stepStatus";
   key?: string;
   operator: "equals" | "notEquals" | "contains" | "notContains" | "matches" | "greaterThan" | "lessThan" | "truthy" | "falsy";
   expected?: string;
@@ -286,7 +286,7 @@ export function validateWorkflow(input: unknown): ValidationResult {
       }
       if (step.condition !== undefined) {
         const condition = step.condition;
-        if (!condition || !["variable", "lastText", "url", "stepStatus"].includes(condition.source) || !["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(condition.operator)) errors.push(`Step ${n} has an invalid condition.`);
+        if (!condition || !["variable", "lastText", "url", "urlChanged", "stepStatus"].includes(condition.source) || !["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(condition.operator)) errors.push(`Step ${n} has an invalid condition.`);
         if (condition && ["variable", "stepStatus"].includes(condition.source) && (!condition.key || !condition.key.trim())) errors.push(`Step ${n} condition needs a key.`);
       }
       if (["wait"].includes(type) && step.ms !== undefined && (!Number.isFinite(step.ms) || (step.ms as number) < 0)) errors.push(`Step ${n} wait duration must be a non-negative number.`);

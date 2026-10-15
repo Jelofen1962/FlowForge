@@ -26,16 +26,16 @@ For a Windows NSIS installer, run `npm run build:win`. See [`docs/RELEASING.md`]
 - Browser actions: navigate, click, type, key sequences, hover, right-click, double-click, drag-and-drop, scroll-to, page scroll, waits, select, upload file, wait for download, browser history, tabs, frames, and alert handling
 - Data actions: extract element text/attributes/input values/tables, save text, capture element images, and take page screenshots
 - Assertions: text, URL, page title, element existence/count, and exact attribute values
-- Control flow: conditions, if/else branches, repeat, list loops, bounded while loops, break, continue, retries, and reusable nested workflows
+- Control flow: visual if/else branches, repeat-N blocks, list loops, bounded while loops, break, continue, retries, and reusable nested workflows. Nested branch/loop actions can be added and configured in place without hand-editing JSON.
 - Per-workflow output archives: each run can package screenshots, extracted text/data, CSV tables, saved text, image captures, and downloaded files into a ZIP; the Outputs panel previews supported files and can open, reveal, or delete archives
-- XPath, CSS, ID, name, link text, class name, and tag name locator strategies
+- Native file picker for upload actions, plus XPath, CSS, ID, name, link text, class name, and tag name locator strategies
 - Chrome / Edge choice and persistent user-data-directory setting
 - Image optimization toggle and close-browser-after-run setting
 - Local profile settings saved to Electron userData
 - Multi-workflow local library with create, edit, duplicate, delete, and automatic persistence
 - JSON import/export packages that include referenced sub-workflows and remap workflow IDs on import
 - A `Run another workflow` action that executes reusable sub-workflows in the same browser session, with cycle detection and a maximum nesting depth of 10
-- Live engine log stream
+- Searchable workflow step list, theme-consistent panels, subtle hover/focus icon motion, and live engine log stream
 
 ## Important implementation notes
 This is a local-first desktop automation application and still needs a complete Windows integration test before production distribution. Read `docs/ROADMAP.md` for remaining gaps. Workflow library data is stored in Electron/Chromium local storage on the current device. JSON packages include referenced sub-workflows; review exported files before sharing because workflow values may contain personal or sensitive data. Nested workflows reuse the active browser session and inherit parent variables, with child variables overriding same-named parent variables. Cycles are rejected and nesting is limited to 10 levels. Browser-side behavior must still be verified against real Chrome/Edge versions.
@@ -189,3 +189,8 @@ Open **Workflows** in the left navigation to create, reopen, duplicate, export, 
 See [`docs/ADVANCED-ACTIONS-AND-OUTPUTS.md`](docs/ADVANCED-ACTIONS-AND-OUTPUTS.md) for the expanded action catalog, control-flow block format, output archive behavior, size limits, and remaining integration boundaries. Open **Outputs** in the left rail to browse the current workflow's run ZIPs, preview text/image artifacts, open an archive in the system ZIP viewer, reveal it in Explorer, or delete it with its preview files. Output data is stored locally under Electron user data at `outputs/<workflow-id>/`.
 
 Nested `ifElse`, `repeat`, `loopList`, and `while` bodies are currently edited as JSON step arrays in the editor, not with a visual block canvas. `saveImage` stores an element screenshot as PNG. Download detection expects the browser's configured download directory and supports a filename-substring filter. Review output archives before sharing because they can contain personal data.
+
+
+### Conditional action outcomes (v0.3.11)
+
+If/else and while blocks support `Previous action result` and `Did the URL change?` conditions. Choose an earlier step in the workflow, then branch on `Succeeded`, `Failed`, or `Skipped`. To route a failed action to an Else branch, set that action's error handling to `Continue`; otherwise the default Stop policy ends the workflow immediately. The UI uses a consistent black/white/magenta theme and reduced-motion-aware icon hover animations.

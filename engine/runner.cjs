@@ -115,7 +115,7 @@ function validatePayload(payload, depth = 0) {
     if (step.type === "loopList" && step.itemVariable !== undefined && (typeof step.itemVariable !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.itemVariable))) throw new Error(`Step ${i + 1} item variable must be a valid identifier.`);
     if (step.condition !== undefined) {
       const condition = step.condition;
-      if (!condition || typeof condition !== "object" || !["variable", "lastText", "url", "stepStatus"].includes(condition.source) || !["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(condition.operator)) throw new Error(`Step ${i + 1} has an invalid condition.`);
+      if (!condition || typeof condition !== "object" || !["variable", "lastText", "url", "urlChanged", "stepStatus"].includes(condition.source) || !["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(condition.operator)) throw new Error(`Step ${i + 1} has an invalid condition.`);
       if (["variable", "stepStatus"].includes(condition.source) && (typeof condition.key !== "string" || !condition.key.trim())) throw new Error(`Step ${i + 1} condition needs a key.`);
       if (condition.expected !== undefined && typeof condition.expected !== "string") throw new Error(`Step ${i + 1} condition expected value must be text.`);
     }
@@ -226,6 +226,7 @@ function evaluateRuntimeCondition(condition, context) {
       break;
     case "lastText": actual = context.lastText; break;
     case "url": actual = context.url; break;
+    case "urlChanged": actual = context.urlChanged === true; break;
     case "stepStatus":
       if (!Object.prototype.hasOwnProperty.call(context.stepStatus, condition.key || "")) throw new Error(`Condition refers to unknown step id "${condition.key || ""}".`);
       actual = context.stepStatus[condition.key];
@@ -234,8 +235,8 @@ function evaluateRuntimeCondition(condition, context) {
   }
   const expected = String(condition.expected ?? "");
   switch (condition.operator) {
-    case "equals": return actual === expected;
-    case "notEquals": return actual !== expected;
+    case "equals": return condition.source === "urlChanged" ? String(actual) === expected : actual === expected;
+    case "notEquals": return condition.source === "urlChanged" ? String(actual) !== expected : actual !== expected;
     case "contains": return String(actual).includes(expected);
     case "notContains": return !String(actual).includes(expected);
     case "matches":
@@ -247,8 +248,8 @@ function evaluateRuntimeCondition(condition, context) {
       if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error("Numeric condition requires numeric values.");
       return condition.operator === "greaterThan" ? a > b : a < b;
     }
-    case "truthy": return String(actual).length > 0 && actual !== "false" && actual !== "0";
-    case "falsy": return String(actual).length === 0 || actual === "false" || actual === "0";
+    case "truthy": return condition.source === "stepStatus" ? actual === "success" : (actual === true || (String(actual).length > 0 && actual !== "false" && actual !== "0"));
+    case "falsy": return condition.source === "stepStatus" ? (actual !== "success" && actual !== undefined && actual !== null) : (actual === false || String(actual).length === 0 || actual === "false" || actual === "0");
     default: throw new Error("Unsupported condition operator.");
   }
 }
@@ -294,7 +295,7 @@ async function runWorkflow(rawPayload, deps = {}) {
   let driver;
   let stopRequested = false;
   let recording = false;
-  const runtimeContext = { variables, lastText: "", url: payload.startUrl || "", stepStatus: {} };
+  const runtimeContext = { variables, lastText: "", url: payload.startUrl || "", urlChanged: false, stepStatus: {} };
   let recorderMode = payload.mode === "recorder";
   let lastRecorderMessage = null;
   let quitPromise;
@@ -352,7 +353,7 @@ async function runWorkflow(rawPayload, deps = {}) {
     if (!child || !Array.isArray(child.steps)) throw new Error(`Referenced workflow "${workflowId}" was not found in the workflow library.`);
     validatePayload({ ...child, workflowLibrary: library });
     const childVariables = { ...inheritedVariables, ...Object.fromEntries((child.variables || []).map(v => [v.name, String(v.value ?? "")])) };
-    const nestedRuntimeContext = { variables: childVariables, lastText: "", url: await driver.getCurrentUrl().catch(() => ""), stepStatus: {} };
+    const nestedRuntimeContext = { variables: childVariables, lastText: "", url: await driver.getCurrentUrl().catch(() => ""), urlChanged: false, stepStatus: {} };
     emit("subworkflow", { status: "started", workflowId, name: child.name || workflowId, depth });
     try {
       if (typeof child.startUrl === "string" && child.startUrl.trim()) {
@@ -373,10 +374,25 @@ async function runWorkflow(rawPayload, deps = {}) {
           if (!conditionPasses) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "skipped"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "skipped", reason: "condition-false" }); continue; }
         }
         if (nested.type === "runWorkflow") {
-          try { await executeNestedWorkflow(nested.workflowId, depth + 1, [...stack, workflowId], childVariables); nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "success"; }
-          catch (nestedCallError) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; if (nested.onError === "continue") { emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "error", error: normalizeError(nestedCallError).message }); continue; } throw nestedCallError; }
+          const nestedWorkflowUrlBefore = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+          try {
+            await executeNestedWorkflow(nested.workflowId, depth + 1, [...stack, workflowId], childVariables);
+            nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "success";
+          } catch (nestedCallError) {
+            nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error";
+            const failedUrl = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+            nestedRuntimeContext.urlChanged = failedUrl !== nestedWorkflowUrlBefore;
+            nestedRuntimeContext.url = failedUrl;
+            if (nested.onError === "continue") { emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "error", error: normalizeError(nestedCallError).message }); continue; }
+            throw nestedCallError;
+          }
+          const succeededUrl = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+          nestedRuntimeContext.urlChanged = succeededUrl !== nestedWorkflowUrlBefore;
+          nestedRuntimeContext.url = succeededUrl;
           continue;
         }
+        const nestedUrlBefore = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+        nestedRuntimeContext.url = nestedUrlBefore;
         const nestedTimeout = asBoundedNumber(nested.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, "Nested step timeout");
         const nestedBy = stepRequiresLocator(nested.type) ? buildLocator(By, { strategy: nested.target?.strategy, value: substituteVariables(nested.target?.value, childVariables) }) : null;
         const nestedWaiters = createElementWaiters(driver, nestedBy, nestedTimeout, nested.target ? `${nested.target.strategy}=${nested.target.value}` : "element");
@@ -434,9 +450,11 @@ async function runWorkflow(rawPayload, deps = {}) {
           }
           }, nested.retry || {}, info => emit("subworkflow-step-retry", { workflowId, index: childIndex, name: nested.name || nested.type, ...info }));
           nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "success";
-          nestedRuntimeContext.url = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+          const nestedUrlAfter = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+          nestedRuntimeContext.urlChanged = nestedUrlAfter !== nestedUrlBefore;
+          nestedRuntimeContext.url = nestedUrlAfter;
           emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "success" });
-        } catch (error) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "error", error: normalizeError(error).message }); if (error && error.flowControl) throw error; if (nested.onError === "continue") continue; throw error; }
+        } catch (error) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; const nestedUrlAfterFailure = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url); nestedRuntimeContext.urlChanged = nestedUrlAfterFailure !== nestedUrlBefore; nestedRuntimeContext.url = nestedUrlAfterFailure; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "error", error: normalizeError(error).message }); if (error && error.flowControl) throw error; if (nested.onError === "continue") continue; throw error; }
       }
       for (const [name, value] of Object.entries(childVariables)) inheritedVariables[name] = value;
       nestedRuntimeContext.url = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
@@ -620,6 +638,7 @@ async function runWorkflow(rawPayload, deps = {}) {
       const step = payload.steps[index];
       const stepName = typeof step.name === "string" && step.name.trim() ? step.name : `${step.type} step`;
       if (step.disabled) {
+        runtimeContext.stepStatus[step.id || String(index)] = "skipped";
         emit("step", { index, status: "skipped", name: stepName, reason: "disabled" });
         continue;
       }
@@ -638,6 +657,8 @@ async function runWorkflow(rawPayload, deps = {}) {
         }
       }
       const stepStarted = Date.now();
+      const urlBeforeAction = await driver.getCurrentUrl().catch(() => runtimeContext.url);
+      runtimeContext.url = urlBeforeAction;
       emit("step", { index, status: "running", name: stepName, type: step.type });
       const timeout = asBoundedNumber(step.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, "Step timeout");
       // Some imported workflows keep an empty target object on non-element steps.
@@ -862,11 +883,12 @@ async function runWorkflow(rawPayload, deps = {}) {
       if (actionError) {
         const normalized = normalizeError(actionError);
         runtimeContext.stepStatus[step.id || String(index)] = "error";
+        try { const urlAfterFailure = await driver.getCurrentUrl(); runtimeContext.urlChanged = urlAfterFailure !== urlBeforeAction; runtimeContext.url = urlAfterFailure; } catch { runtimeContext.urlChanged = false; }
         emit("step", { index, status: "error", name: stepName, error: normalized.message, errorName: normalized.name, attempts: maxAttempts, durationMs: Date.now() - stepStarted });
         if (step.onError !== "continue") throw actionError;
       } else {
         runtimeContext.stepStatus[step.id || String(index)] = "success";
-        try { runtimeContext.url = await driver.getCurrentUrl(); } catch {}
+        try { const urlAfterAction = await driver.getCurrentUrl(); runtimeContext.urlChanged = urlAfterAction !== urlBeforeAction; runtimeContext.url = urlAfterAction; } catch { runtimeContext.urlChanged = false; }
         emit("step", { index, status: "success", name: stepName, attempts: maxAttempts, durationMs: Date.now() - stepStarted });
       }
     }
@@ -944,5 +966,5 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MAX_WAIT_MS, isHttpUrl,
   asBoundedNumber, validatePayload, substituteVariables, buildLocator, stepRequiresLocator, createElementWaiters,
-  parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, resolveDriverPath, runWorkflow
+  parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, resolveDriverPath, evaluateRuntimeCondition, runWorkflow
 };

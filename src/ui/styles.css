@@ -148,3 +148,139 @@ body{min-width:320px;min-height:100vh}.app-shell{min-width:0;min-height:560px;he
 .nested-json{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.45;min-height:180px;white-space:pre}
 .danger-button{color:var(--danger,#d94b4b)}
 @media(max-width:900px){.output-archive-list{grid-template-columns:minmax(0,1fr)}.output-artifact-row>span{flex-wrap:wrap}}
+
+/* Workflow builder refresh: quiet surfaces, clear hierarchy, and visual algorithm blocks. */
+.app-shell .steps-panel{width:300px;padding:22px 16px 14px;background:var(--surface);border-color:var(--border);gap:0}
+.app-shell .panel-heading h1{font-size:21px;letter-spacing:-.8px}
+.app-shell .panel-heading p{font-size:11px;line-height:1.65;color:var(--text-muted)}
+.app-shell .flow-meta{margin-top:18px;padding:11px 2px;border-color:var(--border);gap:11px;font-size:9px;flex-wrap:wrap}
+.app-shell .workflow-name-wrap{margin-top:15px}
+.app-shell .step-search-wrap{height:38px;display:flex;align-items:center;gap:8px;margin-top:14px;padding:0 10px;border:1px solid var(--border-strong);border-radius:9px;background:var(--surface-raised);color:var(--text-muted)}
+.app-shell .step-search-wrap input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font-size:11px}
+.app-shell .step-search-wrap input::placeholder{color:var(--text-muted)}
+.app-shell .step-search-wrap kbd{padding:2px 5px;border:1px solid var(--border);border-radius:4px;font:9px 'DM Mono',monospace;color:var(--text-muted)}
+.app-shell .step-list{padding:12px 2px 6px;gap:5px;min-height:80px}
+.app-shell .step-card{min-height:54px;padding:9px 8px;border:1px solid transparent;border-radius:9px;gap:9px}
+.app-shell .step-card.selected{background:var(--accent-soft)!important;border-color:color-mix(in srgb,var(--accent) 30%,var(--border))!important;box-shadow:inset 2px 0 var(--accent)!important}
+.app-shell .step-name{font-size:11px;color:var(--text)}
+.app-shell .step-sub{font-size:9px;color:var(--text-muted)}
+.app-shell .step-index{width:25px;height:25px;border-radius:7px;background:var(--surface-raised);border-color:var(--border);color:var(--text-secondary)}
+.app-shell .step-card.selected .step-index{background:var(--accent);border-color:var(--accent);color:white}
+.app-shell .step-card .tiny-icon{opacity:0}
+.app-shell .step-card:hover .tiny-icon,.app-shell .step-card:focus-within .tiny-icon{opacity:1}
+.app-shell .add-step{height:37px;border-radius:9px;margin-top:9px;border-color:var(--border-strong);color:var(--text-secondary);font-size:11px}
+.app-shell .add-step:hover{background:var(--surface-hover);border-color:var(--accent);color:var(--text)}
+.app-shell .panel-footer{border-top:1px solid var(--border);margin-top:14px;padding-top:13px;color:var(--text-muted)}
+.app-shell .editor-panel{background:var(--bg)}
+.app-shell .editor-top{position:sticky;top:0;z-index:4;height:78px;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px);border-color:var(--border);padding:18px clamp(20px,3vw,42px)}
+.app-shell .editor-top h2{font-size:18px;font-weight:600}
+.app-shell .editor-content{width:100%;max-width:850px;margin:0 auto;padding:27px clamp(20px,3vw,42px) 42px;animation:panel-rise .18s ease}
+.app-shell .field-label{font-size:11px;color:var(--text-secondary);margin:18px 0 7px}
+.app-shell .text-input{height:40px;border-radius:9px;background:var(--surface);border-color:var(--border-strong);color:var(--text);font-size:12px}
+.app-shell .text-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.app-shell .text-input::placeholder{color:var(--text-muted)}
+.app-shell .locator-row{gap:8px}
+.app-shell .locator-select{min-height:40px;border-radius:9px;background:var(--surface-raised);border-color:var(--border-strong);color:var(--text-secondary)}
+.app-shell .locator-value{font-family:'DM Mono',monospace;font-size:11px}
+.app-shell .form-card,.app-shell .variables-panel,.app-shell .validation-panel{max-width:none;border:1px solid var(--border);border-radius:13px;background:var(--surface);box-shadow:none}
+.app-shell .form-card{padding:20px;margin-top:20px}
+.app-shell .form-card .section-caption,.app-shell .variables-panel .section-caption{margin-top:0}
+.app-shell .hint{font-size:11px;color:var(--text-muted);line-height:1.65}
+.app-shell .right-panel{width:286px;padding:20px 16px 16px;background:var(--surface);border-color:var(--border)}
+.app-shell .right-heading{font-size:12px;color:var(--text)}
+.app-shell .run-summary,.app-shell .browser-select,.app-shell .console{background:var(--surface-raised);border-color:var(--border);border-radius:11px}
+.app-shell .run-summary{padding:16px}
+.app-shell .summary-label,.app-shell .section-caption,.app-shell .setting-row small{color:var(--text-muted)}
+.app-shell .setting-row{border-color:var(--border)}
+.app-shell .setting-row strong{color:var(--text-secondary);font-size:11px}
+.app-shell .console{background:#101116;color:#e7e7ee}
+.app-shell .console-head{margin-top:22px}
+.app-shell .single-panel{background:var(--bg);color:var(--text)}
+.app-shell .single-panel .panel-heading{max-width:1400px}
+.app-shell .template-card,.app-shell .workflow-library-card,.app-shell .output-archive-card,.app-shell .mini-card,.app-shell .feature-card{border-radius:13px;box-shadow:none}
+.app-shell .template-card:hover,.app-shell .workflow-library-card:hover,.app-shell .mini-card:hover{transform:translateY(-1px);box-shadow:0 8px 24px #0000000b}
+.app-shell .secondary-button{min-height:34px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-raised);color:var(--text-secondary);padding:0 10px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:11px;transition:background .16s,border-color .16s,color .16s}
+.app-shell .secondary-button:hover{background:var(--surface-hover);border-color:var(--accent);color:var(--text)}
+.app-shell .algorithm-card{display:flex;flex-direction:column;gap:2px}
+.app-shell .algorithm-title{display:flex;align-items:flex-start;gap:13px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.app-shell .algorithm-title .section-caption{margin:1px 0 6px}
+.app-shell .algorithm-title h3{margin:0;font-size:16px;letter-spacing:-.35px;font-weight:600;color:var(--text)}
+.app-shell .algorithm-title p{margin:5px 0 0;color:var(--text-muted);font-size:11px;line-height:1.55}
+.app-shell .algorithm-symbol{width:42px;height:42px;display:grid;place-items:center;flex-shrink:0;border:1px solid var(--border);border-radius:11px;background:var(--surface-raised);color:var(--accent)}
+.app-shell .condition-symbol{background:color-mix(in srgb,#8b7cf6 10%,var(--surface));color:#9a8cff;border-color:color-mix(in srgb,#8b7cf6 25%,var(--border))}
+.app-shell .loop-symbol{background:color-mix(in srgb,#2fae8a 9%,var(--surface));color:#38b996;border-color:color-mix(in srgb,#2fae8a 25%,var(--border))}
+.app-shell .upload-symbol{background:color-mix(in srgb,#d99a38 10%,var(--surface));color:#d99a38;border-color:color-mix(in srgb,#d99a38 25%,var(--border))}
+.app-shell .condition-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.app-shell .branch-stack{display:grid;gap:12px;margin-top:18px}
+.app-shell .nested-builder{border:1px solid var(--border);border-radius:11px;background:var(--surface-raised);overflow:hidden}
+.app-shell .nested-builder-head{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.app-shell .nested-builder-head>div{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.app-shell .nested-builder-head strong{font-size:11px;color:var(--text)}
+.app-shell .nested-builder-head span{font-size:10px;color:var(--text-muted)}
+.app-shell .nested-add-select{width:122px;min-width:0;height:32px;min-height:32px;border-radius:7px!important;padding:0 8px!important;font-size:10px}
+.app-shell .nested-add-button{min-height:32px;white-space:nowrap}
+.app-shell .nested-empty{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;min-height:105px;padding:15px;text-align:center;color:var(--text-muted)}
+.app-shell .nested-empty svg{color:var(--accent);opacity:.8}
+.app-shell .nested-empty span{font-size:11px;color:var(--text-secondary)}
+.app-shell .nested-empty small{font-size:10px}
+.app-shell .nested-step-list{display:grid;gap:0;padding:6px 9px}
+.app-shell .nested-step-card{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+.app-shell .nested-step-card:last-child{border-bottom:0}
+.app-shell .nested-step-number{width:22px;height:22px;display:grid;place-items:center;flex-shrink:0;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font:10px 'DM Mono',monospace}
+.app-shell .nested-step-fields{flex:1;min-width:0;display:grid;gap:7px}
+.app-shell .nested-step-fields .text-input{height:34px;min-height:34px;font-size:11px}
+.app-shell .nested-locator-row{display:flex;gap:7px;min-width:0}
+.app-shell .nested-locator-row .locator-select{width:82px;min-height:34px;height:34px;font-size:10px}
+.app-shell .nested-locator-row .locator-value{flex:1;min-width:0}
+.app-shell .nested-step-card .tiny-icon{opacity:1;margin-top:4px}
+.app-shell .file-picker-row{display:flex;align-items:center;gap:8px}
+.app-shell .file-picker-row .text-input{flex:1;min-width:0;font-family:'DM Mono',monospace;font-size:11px}
+.app-shell .file-picker-row .secondary-button{min-height:40px;white-space:nowrap}
+.app-shell .variables-panel{padding:18px;margin-top:20px}
+.app-shell .validation-panel{margin-top:16px;padding:15px}
+.app-shell .editor-bottom{border-color:var(--border);color:var(--text-muted)}
+/* Icons respond to hover, focus and press without competing with reduced-motion preferences. */
+@keyframes icon-float{0%{transform:translateY(0) rotate(0)}45%{transform:translateY(-1.5px) rotate(-4deg)}100%{transform:translateY(0) rotate(0)}}
+@keyframes icon-turn{from{transform:rotate(0)}to{transform:rotate(18deg)}}
+.app-shell button:hover>svg,.app-shell button:focus-visible>svg,.app-shell .rail-item:hover svg,.app-shell .step-card:hover .step-index svg{animation:icon-float .32s ease-out}
+.app-shell button:active>svg{transform:scale(.92)}
+.app-shell .theme-toggle:hover svg,.app-shell button[title*="Refresh"]:hover svg{animation:icon-turn .28s ease-out}
+.app-shell button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:980px){.app-shell .steps-panel{width:100%;max-height:none}.app-shell .step-list{max-height:250px}.app-shell .editor-content{max-width:100%}.app-shell .right-panel{width:100%}}
+@media(max-width:600px){.app-shell .condition-pair{grid-template-columns:1fr}.app-shell .nested-builder-head{flex-wrap:wrap}.app-shell .nested-builder-head>div{flex-basis:100%}.app-shell .nested-add-select{flex:1;width:auto}.app-shell .file-picker-row{align-items:stretch;flex-direction:column}.app-shell .file-picker-row .secondary-button{width:100%}}
+.app-shell :is(.mini-card,.feature-card,.workflow-library-card,.output-archive-card,.template-card):hover svg,.app-shell .brand:hover .brand-mark svg{animation:icon-float .32s ease-out}
+
+/* v0.3.11: monochrome + electric magenta design system, consistent across every app section */
+.app-shell{--bg:#08080b;--surface:#101014;--surface-raised:#17171c;--surface-hover:#202027;--border:#292930;--border-strong:#41414b;--text:#f7f7fa;--text-secondary:#c1c1cb;--text-muted:#858590;--accent:#ff2d9b;--accent-strong:#ff4fb0;--accent-soft:rgba(255,45,155,.13);--positive:#8de6ae;--warning:#f7d56c;--danger:#ff8cae;--shadow:0 14px 38px rgba(0,0,0,.24)}
+.app-shell[data-theme="light"]{--bg:#f7f7f9;--surface:#fff;--surface-raised:#fbfbfd;--surface-hover:#f3eaf0;--border:#e7dfe5;--border-strong:#d6c7d1;--text:#171319;--text-secondary:#49404a;--text-muted:#817580;--accent:#e6007e;--accent-strong:#fa168e;--accent-soft:rgba(230,0,126,.09);--positive:#167e48;--warning:#9a6700;--danger:#c51c5d;--shadow:0 14px 38px rgba(35,8,25,.09)}
+.app-shell .brand-mark{background:var(--accent)!important;color:#fff!important;box-shadow:0 0 0 5px var(--accent-soft)!important}
+.app-shell .version,.app-shell .status-pill,.app-shell .command-trigger kbd{border-color:var(--border-strong)}
+.app-shell .topbar,.app-shell .rail,.app-shell .steps-panel,.app-shell .right-panel{background:var(--surface);border-color:var(--border)}
+.app-shell .editor-panel{background:var(--bg)}
+.app-shell .editor-top{background:var(--surface);border-color:var(--border)}
+.app-shell .form-card,.app-shell .feature-card,.app-shell .warning-card,.app-shell .mini-card,.app-shell .template-card,.app-shell .run-summary,.app-shell .algorithm-card,.app-shell .upload-file-card{background:var(--surface);border-color:var(--border);box-shadow:none}
+.app-shell .text-input,.app-shell .locator-select,.app-shell .browser-select,.app-shell .command-dialog,.app-shell .command-trigger,.app-shell .secondary-button,.app-shell .icon-button,.app-shell .square-button{background:var(--surface-raised);border-color:var(--border-strong);color:var(--text)}
+.app-shell .text-input:focus,.app-shell select:focus-visible,.app-shell input:focus-visible,.app-shell textarea:focus-visible{border-color:var(--accent-strong);box-shadow:0 0 0 3px var(--accent-soft);outline-color:var(--accent)}
+.app-shell .run-button,.app-shell .primary-button,.app-shell .full-run{background:var(--accent)!important;border-color:var(--accent)!important;color:#fff!important;box-shadow:none!important}
+.app-shell .run-button:hover,.app-shell .primary-button:hover,.app-shell .full-run:hover{background:var(--accent-strong)!important;box-shadow:0 8px 24px var(--accent-soft)!important}
+.app-shell .rail-item.active,.app-shell .step-card.selected{background:var(--accent-soft)!important;border-color:color-mix(in srgb,var(--accent) 38%,var(--border))!important;color:var(--accent)!important;box-shadow:inset 3px 0 var(--accent)!important}
+.app-shell .step-card.selected .step-index{background:var(--accent)!important;border-color:var(--accent)!important;color:#fff!important}
+.app-shell .section-caption,.app-shell .eyebrow{color:var(--text-muted)}
+.app-shell .algorithm-symbol,.app-shell .feature-icon,.app-shell .template-card-icon,.app-shell .user-input-dialog-icon{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,var(--border));color:var(--accent)}
+.app-shell .console{background:#09090c;border-color:#29232a}.app-shell .log-line code{color:#f3a7d0}
+.app-shell .condition-help{padding:13px 14px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:12px;background:var(--accent-soft);color:var(--text-secondary)}
+.app-shell .condition-help>svg{color:var(--accent);flex-shrink:0}.app-shell .condition-help b{color:var(--text)}.app-shell .condition-help code{color:var(--accent);font-size:11px}
+.app-shell .branch-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px;align-items:start}
+.app-shell .branch-stack .nested-builder{min-width:0;border:1px solid var(--border);border-radius:13px;padding:13px;background:var(--surface-raised)}
+.app-shell .branch-stack .nested-builder:first-child{border-top:2px solid var(--positive)}.app-shell .branch-stack .nested-builder:last-child{border-top:2px solid var(--danger)}
+.app-shell .nested-step-card{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}.app-shell .nested-step-card:last-child{border-bottom:0}
+.app-shell .nested-step-fields{min-width:0;flex:1;display:grid;gap:8px}.app-shell .nested-step-fields .text-input{min-width:0;width:100%;font-size:12px}.app-shell .nested-step-fields .nested-locator-row{display:flex;gap:6px;min-width:0}.app-shell .nested-step-fields .locator-value{min-width:0;flex:1}
+.app-shell .nested-empty{padding:17px 8px;min-height:96px;border:1px dashed var(--border-strong);border-radius:10px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center}.app-shell .nested-empty svg{color:var(--accent)}.app-shell .nested-empty small{line-height:1.5}
+/* Icons get a small, restrained motion cue on hover, focus, or press. */
+.app-shell button svg,.app-shell .rail-item svg,.app-shell .step-index svg,.app-shell .algorithm-symbol svg{transform-origin:center;transition:transform .2s cubic-bezier(.2,.8,.2,1),color .2s ease,filter .2s ease}
+.app-shell button:hover>svg,.app-shell button:focus-visible>svg,.app-shell .rail-item:hover svg,.app-shell .step-card:hover .step-index svg,.app-shell .mini-card:hover svg,.app-shell .template-card:hover .template-card-icon svg{animation:magenta-icon-pop .38s cubic-bezier(.2,.8,.2,1)}
+.app-shell .rail-item.active svg{filter:drop-shadow(0 0 5px color-mix(in srgb,var(--accent) 35%,transparent))}
+@keyframes magenta-icon-pop{0%{transform:scale(1) rotate(0)}45%{transform:scale(1.16) rotate(-7deg)}75%{transform:scale(.96) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
+.app-shell .step-card,.app-shell .mini-card,.app-shell .template-card,.app-shell .command-result,.app-shell .nested-builder{transition:background .18s ease,border-color .18s ease,transform .18s ease}
+@media(max-width:760px){.app-shell .branch-stack{grid-template-columns:1fr}.app-shell .editor-content{padding-left:18px;padding-right:18px}}
+@media(prefers-reduced-motion:reduce){.app-shell button:hover>svg,.app-shell button:focus-visible>svg,.app-shell .rail-item:hover svg,.app-shell .step-card:hover .step-index svg,.app-shell .mini-card:hover svg,.app-shell .template-card:hover .template-card-icon svg{animation:none!important}}

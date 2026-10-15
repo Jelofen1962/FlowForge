@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createStep, validateWorkflow, type WorkflowStep } from "../src/core/workflow";
 const require = createRequire(import.meta.url);
-const runner = require("../engine/runner.cjs") as { validatePayload: (payload: unknown) => { steps: unknown[] }; stepRequiresLocator: (type: string) => boolean };
+const runner = require("../engine/runner.cjs") as { validatePayload: (payload: unknown) => { steps: unknown[] }; stepRequiresLocator: (type: string) => boolean; evaluateRuntimeCondition: (condition: unknown, context: unknown) => boolean };
 
 describe("advanced browser actions", () => {
   it("recognizes mouse, extraction, assertion, tab and file actions", () => {
@@ -20,6 +20,16 @@ describe("advanced browser actions", () => {
     expect(() => runner.validatePayload({ steps: [{ type: "dragDrop", target: { strategy: "css", value: "#source" } }] })).toThrow(/destination locator/i);
     expect(() => runner.validatePayload({ steps: [{ type: "repeat", repeatCount: 1001, loopSteps: [] }] })).toThrow(/1-1000/i);
     expect(runner.validatePayload({ steps: [{ type: "ifElse", condition: { source: "lastText", operator: "contains", expected: "x" }, thenSteps: [], elseSteps: [] }] }).steps).toHaveLength(1);
+  });
+
+  it("supports URL-change and true/false action-result conditions", () => {
+    const context = { variables: {}, lastText: "", url: "https://example.com/next", urlChanged: true, stepStatus: { "click-1": "success", "click-2": "error", "click-3": "skipped" } };
+    expect(runner.evaluateRuntimeCondition({ source: "urlChanged", operator: "equals", expected: "true" }, context)).toBe(true);
+    expect(runner.evaluateRuntimeCondition({ source: "urlChanged", operator: "falsy" }, { ...context, urlChanged: false })).toBe(true);
+    expect(runner.evaluateRuntimeCondition({ source: "stepStatus", key: "click-1", operator: "truthy" }, context)).toBe(true);
+    expect(runner.evaluateRuntimeCondition({ source: "stepStatus", key: "click-2", operator: "truthy" }, context)).toBe(false);
+    expect(runner.evaluateRuntimeCondition({ source: "stepStatus", key: "click-2", operator: "equals", expected: "error" }, context)).toBe(true);
+    expect(() => runner.validatePayload({ steps: [{ type: "ifElse", condition: { source: "urlChanged", operator: "equals", expected: "true" }, thenSteps: [], elseSteps: [] }] })).not.toThrow();
   });
   it("supports empty locators only for actions that do not target an element", () => {
     expect(runner.stepRequiresLocator("navigate")).toBe(false);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
@@ -155,6 +155,11 @@ async function startEngine(payload) {
 }
 
 handleTrusted("engine:start", async (_event, payload) => startEngine(payload));
+handleTrusted("file:choose", async () => {
+  const result = await dialog.showOpenDialog(win, { title: "Choose file to upload", properties: ["openFile"] });
+  if (result.canceled || !result.filePaths[0]) return { canceled: true };
+  return { canceled: false, path: result.filePaths[0] };
+});
 
 handleTrusted("engine:user-input-response", async (_event, response) => {
   if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No automation is waiting for user input." };
