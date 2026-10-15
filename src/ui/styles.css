@@ -115,3 +115,17 @@ body{min-width:320px;min-height:100vh}.app-shell{min-width:0;min-height:560px;he
 
 .app-shell .add-user-input-step{margin-top:8px;border-style:solid;border-color:color-mix(in srgb,var(--accent) 32%,var(--border));color:var(--accent);background:var(--accent-soft)}
 .app-shell .add-user-input-step:hover{background:var(--accent-soft);border-color:var(--accent)}
+
+/* Multi-workflow library */
+.app-shell .workflow-library-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-width:1400px}
+.app-shell .workflow-library-card{min-width:0;display:flex;flex-direction:column;gap:10px;padding:20px;border:1px solid var(--border);border-radius:16px;background:var(--surface);transition:border-color .18s ease,transform .18s ease}
+.app-shell .workflow-library-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.app-shell .workflow-library-card.is-active{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.app-shell .workflow-library-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.app-shell .workflow-library-card h2{font-size:17px;line-height:1.35;overflow-wrap:anywhere}
+.app-shell .workflow-library-card p{font-size:12px;color:var(--text-muted);overflow-wrap:anywhere;line-height:1.6}
+.app-shell .workflow-library-card .button-row{margin-top:auto;display:flex;flex-wrap:wrap;gap:7px}
+.app-shell .workflow-library-card .button-row .primary-button{flex:1;min-width:120px}
+.app-shell .workflow-library-card .secondary-button{min-width:36px;padding:0 10px}
+@media(max-width:1200px){.app-shell .workflow-library-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.app-shell .workflow-library-grid{grid-template-columns:1fr}.app-shell .workflow-library-card{padding:17px}}

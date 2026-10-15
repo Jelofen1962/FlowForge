@@ -6,7 +6,7 @@ export type LocatorStrategy =
 export type StepType =
   | "click" | "type" | "key" | "navigate"
   | "waitVisible" | "waitClickable" | "wait" | "assertText"
-  | "select" | "userInput" | "screenshot" | "back" | "forward" | "refresh";
+  | "select" | "userInput" | "runWorkflow" | "screenshot" | "back" | "forward" | "refresh";
 
 export type OnErrorPolicy = "stop" | "continue";
 
@@ -56,6 +56,7 @@ export interface WorkflowStep {
   retry?: StepRetry;
   loop?: { mode: "count" | "while"; count?: number; condition?: StepCondition; maxIterations?: number };
   inputs?: UserInputField[];
+  workflowId?: string;
 }
 
 export interface WorkflowGroup {
@@ -92,7 +93,7 @@ const locatorStrategies: LocatorStrategy[] = [
 ];
 const stepTypes: StepType[] = [
   "click", "type", "key", "navigate", "waitVisible", "waitClickable",
-  "wait", "assertText", "select", "userInput", "screenshot", "back", "forward", "refresh"
+  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh"
 ];
 const requiredLocatorTypes = new Set<StepType>([
   "click", "type", "waitVisible", "waitClickable", "assertText", "select"
@@ -116,6 +117,7 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     assertText: "Assert text",
     select: "Select option",
     userInput: "Ask user for inputs",
+    runWorkflow: "Run another workflow",
     screenshot: "Take screenshot",
     back: "Go back",
     forward: "Go forward",
@@ -134,6 +136,7 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     onError: "stop",
     clearFirst: true,
     groupId,
+    workflowId: type === "runWorkflow" ? "" : undefined,
     inputs: type === "userInput" ? [{ id: createId(), title: "Value", placeholder: "Enter a value", required: true, secret: false, target: { strategy: "css", value: "" } }] : undefined
   };
 }
@@ -245,6 +248,7 @@ export function validateWorkflow(input: unknown): ValidationResult {
       }
       if (["wait"].includes(type) && step.ms !== undefined && (!Number.isFinite(step.ms) || (step.ms as number) < 0)) errors.push(`Step ${n} wait duration must be a non-negative number.`);
       if (type === "navigate" && (typeof step.url !== "string" || !isHttpUrl(step.url))) errors.push(`Step ${n} needs a valid http(s) URL.`);
+      if (type === "runWorkflow" && (typeof step.workflowId !== "string" || !step.workflowId.trim())) errors.push(`Step ${n} must select a workflow to run.`);
       if (type === "key" && (typeof step.key !== "string" || !step.key.trim())) errors.push(`Step ${n} needs a key or shortcut.`);
       if (type === "assertText" && typeof step.expected !== "string") errors.push(`Step ${n} needs expected text.`);
       if (type === "type" && typeof step.text !== "string") errors.push(`Step ${n} needs text to type.`);

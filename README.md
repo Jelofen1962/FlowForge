@@ -28,11 +28,13 @@ For a Windows NSIS installer, run `npm run build:win`. See [`docs/RELEASING.md`]
 - Chrome / Edge choice and persistent user-data-directory setting
 - Image optimization toggle and close-browser-after-run setting
 - Local profile settings saved to Electron userData
-- Workflow JSON import/export
+- Multi-workflow local library with create, edit, duplicate, delete, and automatic persistence
+- JSON import/export packages that include referenced sub-workflows and remap workflow IDs on import
+- A `Run another workflow` action that executes reusable sub-workflows in the same browser session, with cycle detection and a maximum nesting depth of 10
 - Live engine log stream
 
 ## Important implementation notes
-This is a working starter scaffold, not a finished all-features product. Read `docs/ROADMAP.md` for the gaps that must be completed before production use. The selector panel currently demonstrates the intended 40% red overlay but is not connected to the browser yet. `disableCss` is currently UI-only and needs CDP network interception. Profile JSON stores configuration, not cookie contents. The `key` step currently sends one Selenium key; implement modifier-chord parsing for combinations such as `CTRL+A`.
+This is a local-first desktop automation application and still needs a complete Windows integration test before production distribution. Read `docs/ROADMAP.md` for remaining gaps. Workflow library data is stored in Electron/Chromium local storage on the current device. JSON packages include referenced sub-workflows; review exported files before sharing because workflow values may contain personal or sensitive data. Nested workflows reuse the active browser session and inherit parent variables, with child variables overriding same-named parent variables. Cycles are rejected and nesting is limited to 10 levels. Browser-side behavior must still be verified against real Chrome/Edge versions.
 
 ## Architecture
 - `electron/main.cjs`: desktop window, IPC, process lifecycle, profile configuration persistence
@@ -50,15 +52,15 @@ The editor now supports:
 
 - Add, reorder, duplicate, disable, and delete workflow steps.
 - Name the workflow and organize steps into editable groups.
-- Store named workflow variables in the workflow document. Variable substitution is intentionally not claimed as implemented; it belongs to the engine phase.
-- Import and export versioned `.flowforge.json` documents. Imports are validated before they replace the current draft.
+- Store named workflow variables in each workflow and substitute `${variableName}` in supported runtime fields.
+- Import and export versioned `.flowforge.json` workflow packages. Imports are validated and added as separate entries in the local workflow library.
 - Automatic local draft saving with a short debounce.
 - Validation for supported action types, locator requirements, URL schemes, timeouts, duplicate IDs, group references, and variable names.
 - Visible validation feedback and prevention of running an invalid or empty workflow.
 
 The editor keeps workflow documents local in the application. Variables are currently plain text in the saved workflow; do not place credentials in them until secret storage and redaction are implemented.
 
-**Verification status:** the workflow schema module passed standalone TypeScript checking and direct validation smoke tests in this environment. Full React/Vite tests and Windows packaging were not verified here because dependency installation timed out. GitHub Actions remains the intended full build/test environment.
+**Verification status:** runner syntax and direct workflow-call smoke tests passed in this environment. The full React/Vite test suite and Windows packaging could not be verified because dependency installation timed out. GitHub Actions remains the intended full build/test environment.
 
 
 ## Phase 3: Selenium Core Engine
@@ -168,3 +170,10 @@ The refreshed interface uses Google Poppins typography, larger controls and spac
 The **Ask user for inputs** action opens a FlowForge dialog while a workflow is running. Add up to 30 titled fields, optionally mark a field required or secret, and map each answer to a webpage element using a CSS, XPath, ID, name, class, or tag locator. On Continue, FlowForge fills each mapped element and resumes the workflow. Secret input values are not written to the run log. Workflow exports still contain the field definitions and target locators, but not values entered into the runtime dialog.
 
 **Wait until visible** and **Wait until clickable** re-query the locator on each polling attempt. This handles modern pages that replace elements during rendering and avoids waiting against a stale element reference. The configured step timeout is used for the entire wait, with a descriptive timeout error.
+
+
+## Multi-workflow library and reusable sub-workflows
+
+Open **Workflows** in the left navigation to create, reopen, duplicate, export, import, or delete workflows. Edits are saved locally. Add the **Run another workflow** action to call a saved workflow from another workflow. It reuses the current Selenium browser session instead of launching another browser. The runner checks references, rejects cycles, limits nesting to 10 levels, inherits parent variables, and allows a child workflow's own variables to override inherited values. Exporting produces a `.flowforge.json` package containing the selected workflow and its transitive sub-workflow dependencies; importing remaps IDs to avoid collisions with workflows already in the library.
+
+**Sharing note:** workflow JSON is not encrypted. Inspect it for passwords, personal data, or other secrets before sharing. A single legacy workflow JSON file cannot resolve `Run another workflow` references on its own; import the complete FlowForge package.

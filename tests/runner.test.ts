@@ -81,6 +81,14 @@ describe("Selenium runner validation", () => {
     expect(() => runner.validatePayload({ steps: [{ ...validInput, inputs: [] }] })).toThrow(/between 1 and 30/i);
   });
 
+
+  it("validates workflow-call references against the supplied workflow library", () => {
+    const child = { version: 1, name: "Child", startUrl: "https://example.com", browser: "chrome", steps: [{ type: "navigate", url: "https://example.com" }], groups: [], variables: [] };
+    expect(runner.validatePayload({ steps: [{ type: "runWorkflow", workflowId: "child" }], workflowLibrary: { child } }).steps).toHaveLength(1);
+    expect(() => runner.validatePayload({ steps: [{ type: "runWorkflow", workflowId: "missing" }], workflowLibrary: {} })).toThrow(/not in the supplied library/i);
+    expect(() => runner.validatePayload({ steps: [{ type: "runWorkflow", workflowId: "" }], workflowLibrary: { child } })).toThrow(/select a workflow/i);
+  });
+
   it("accepts a valid click workflow and normalizes browser choice", () => {
     const result = runner.validatePayload({
       browser: "edge",

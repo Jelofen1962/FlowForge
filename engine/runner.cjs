@@ -15,7 +15,7 @@ const MAX_WAIT_MS = 300_000;
 const LOCATOR_NAMES = new Set(["xpath", "css", "id", "name", "linkText", "className", "tagName"]);
 const STEP_TYPES = new Set([
   "click", "type", "key", "navigate", "waitVisible", "waitClickable", "wait",
-  "assertText", "select", "userInput", "screenshot", "back", "forward", "refresh"
+  "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh"
 ]);
 const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select"]);
 
@@ -106,6 +106,8 @@ function validatePayload(payload) {
       }
     }
     if (step.type === "navigate" && !isHttpUrl(step.url)) throw new Error(`Step ${i + 1} needs a valid http(s) URL.`);
+    if (step.type === "runWorkflow" && (typeof step.workflowId !== "string" || !step.workflowId.trim())) throw new Error(`Step ${i + 1} must select a workflow to run.`);
+    if (step.type === "runWorkflow" && (!payload.workflowLibrary || typeof payload.workflowLibrary !== "object" || !payload.workflowLibrary[step.workflowId])) throw new Error(`Step ${i + 1} references a workflow that is not in the supplied library.`);
     if (step.type === "key" && (typeof step.key !== "string" || !step.key.trim())) throw new Error(`Step ${i + 1} needs a key or shortcut.`);
     if (step.type === "userInput") {
       if (!Array.isArray(step.inputs) || step.inputs.length < 1 || step.inputs.length > 30) throw new Error(`Step ${i + 1} must have between 1 and 30 user input fields.`);
@@ -288,6 +290,72 @@ async function runWorkflow(rawPayload, deps = {}) {
     pendingUserInputs.set(requestId, { resolve: values => { clearTimeout(timer); resolve(values); }, reject: error => { clearTimeout(timer); reject(error); }, timer });
     emit("user-input-request", { requestId, stepIndex: index, stepName: step.name || "User input", fields });
   });
+  const executeNestedWorkflow = async (workflowId, depth = 1, stack = [], inheritedVariables = variables) => {
+    if (depth > 10) throw new Error("Nested workflow depth exceeds the limit of 10.");
+    if (stack.includes(workflowId)) throw new Error(`Nested workflow cycle detected: ${[...stack, workflowId].join(" -> ")}`);
+    const library = payload.workflowLibrary && typeof payload.workflowLibrary === "object" ? payload.workflowLibrary : {};
+    const child = library[workflowId];
+    if (!child || !Array.isArray(child.steps)) throw new Error(`Referenced workflow "${workflowId}" was not found in the workflow library.`);
+    validatePayload({ ...child, workflowLibrary: library });
+    const childVariables = { ...inheritedVariables, ...Object.fromEntries((child.variables || []).map(v => [v.name, String(v.value ?? "")])) };
+    const nestedRuntimeContext = { variables: childVariables, lastText: "", url: await driver.getCurrentUrl().catch(() => ""), stepStatus: {} };
+    emit("subworkflow", { status: "started", workflowId, name: child.name || workflowId, depth });
+    try {
+      if (typeof child.startUrl === "string" && child.startUrl.trim()) {
+        const childStartUrl = substituteVariables(child.startUrl, childVariables);
+        if (!isHttpUrl(childStartUrl)) throw new Error(`Workflow "${child.name || workflowId}" start URL must use http or https.`);
+        await driver.get(childStartUrl);
+        nestedRuntimeContext.url = childStartUrl;
+      }
+      for (let childIndex = 0; childIndex < child.steps.length; childIndex++) {
+        if (stopRequested) throw new Error("Automation stopped.");
+        const nested = child.steps[childIndex];
+        if (!nested || typeof nested !== "object" || !STEP_TYPES.has(nested.type)) throw new Error(`Workflow "${child.name || workflowId}" has an invalid action at step ${childIndex + 1}.`);
+        if (nested.disabled) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "skipped"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "skipped" }); continue; }
+        if (nested.condition) {
+          let conditionPasses;
+          try { conditionPasses = evaluateRuntimeCondition(nested.condition, nestedRuntimeContext); }
+          catch (conditionError) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; if (nested.onError === "continue") { emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "error", error: normalizeError(conditionError).message }); continue; } throw conditionError; }
+          if (!conditionPasses) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "skipped"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "skipped", reason: "condition-false" }); continue; }
+        }
+        if (nested.type === "runWorkflow") {
+          try { await executeNestedWorkflow(nested.workflowId, depth + 1, [...stack, workflowId], childVariables); nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "success"; }
+          catch (nestedCallError) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; if (nested.onError === "continue") { emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name, status: "error", error: normalizeError(nestedCallError).message }); continue; } throw nestedCallError; }
+          continue;
+        }
+        const nestedTimeout = asBoundedNumber(nested.timeout, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, "Nested step timeout");
+        const nestedBy = stepRequiresLocator(nested.type) ? buildLocator(By, { strategy: nested.target?.strategy, value: substituteVariables(nested.target?.value, childVariables) }) : null;
+        const nestedWaiters = createElementWaiters(driver, nestedBy, nestedTimeout, nested.target ? `${nested.target.strategy}=${nested.target.value}` : "element");
+        emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "running", type: nested.type });
+        try {
+          await runWithRetry(async () => {
+          switch (nested.type) {
+            case "navigate": { const url = substituteVariables(nested.url, childVariables); if (!isHttpUrl(url)) throw new Error("Navigation URL must use http or https."); await driver.get(url); break; }
+            case "click": await (await nestedWaiters.clickable()).click(); break;
+            case "type": { const el = await nestedWaiters.visible(); if (nested.clearFirst !== false) await el.clear(); await el.sendKeys(substituteVariables(nested.text ?? "", childVariables)); break; }
+            case "key": { const seq = parseKeySequence(substituteVariables(nested.key, childVariables), Key); const actions = driver.actions(); let modifierDown = false; for (const key of seq) { if ([Key.CONTROL,Key.SHIFT,Key.ALT,Key.COMMAND,Key.META].includes(key)) { actions.keyDown(key); modifierDown = true; } else actions.sendKeys(key); } if (modifierDown) for (const key of seq.filter(k=>[Key.CONTROL,Key.SHIFT,Key.ALT,Key.COMMAND,Key.META].includes(k)).reverse()) actions.keyUp(key); await actions.perform(); break; }
+            case "wait": await new Promise(resolve => setTimeout(resolve, asBoundedNumber(nested.ms, 1000, MAX_WAIT_MS, "Nested wait duration"))); break;
+            case "waitVisible": await nestedWaiters.visible(); break;
+            case "waitClickable": await nestedWaiters.clickable(); break;
+            case "assertText": { const el = await nestedWaiters.visible(); const actual = await el.getText(); nestedRuntimeContext.lastText = actual; const expected = substituteVariables(nested.expected ?? "", childVariables); if (!actual.includes(expected)) throw new Error(`Text assertion failed. Expected to contain "${expected}".`); break; }
+            case "select": { const el = await nestedWaiters.clickable(); await new Select(el).selectByValue(substituteVariables(nested.text ?? "", childVariables)); break; }
+            case "userInput": { const values = await requestUserInput(nested, childIndex); for (const field of nested.inputs || []) { const value = String(values[field.id] ?? ""); if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`); if (!value && field.required === false) continue; const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, childVariables) }); const el = await driver.wait(async()=>{try { const found=await driver.findElement(fieldBy); return await found.isDisplayed()?found:false;} catch{return false;}}, nestedTimeout, `Input target "${field.title}" did not become visible`, 200); await el.clear(); await el.sendKeys(value); } break; }
+            case "back": await driver.navigate().back(); break;
+            case "forward": await driver.navigate().forward(); break;
+            case "refresh": await driver.navigate().refresh(); break;
+            case "screenshot": { const image = await driver.takeScreenshot(); const out = path.resolve(payload.screenshotDirectory || process.cwd()); await fs.mkdir(out,{recursive:true}); await fs.writeFile(path.join(out,`flowforge-sub-${Date.now()}-${childIndex+1}.png`),image,"base64"); break; }
+            default: throw new Error(`Unsupported nested action: ${nested.type}`);
+          }
+          }, nested.retry || {}, info => emit("subworkflow-step-retry", { workflowId, index: childIndex, name: nested.name || nested.type, ...info }));
+          nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "success";
+          nestedRuntimeContext.url = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
+          emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "success" });
+        } catch (error) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "error", error: normalizeError(error).message }); if (nested.onError === "continue") continue; throw error; }
+      }
+      emit("subworkflow", { status: "success", workflowId, name: child.name || workflowId, depth });
+    } catch (error) { emit("subworkflow", { status: "error", workflowId, name: child.name || workflowId, depth, error: normalizeError(error).message }); throw error; }
+  };
+
   const quit = async () => {
     if (!driver) return;
     if (!quitPromise) quitPromise = driver.quit().catch(() => {});
@@ -525,6 +593,10 @@ async function runWorkflow(rawPayload, deps = {}) {
             await actions.perform();
             break;
           }
+          case "runWorkflow": {
+            await executeNestedWorkflow(step.workflowId, 1, payload.currentWorkflowId ? [payload.currentWorkflowId] : [], variables);
+            break;
+          }
           case "userInput": {
             const values = await requestUserInput(step, index);
             for (const field of step.inputs) {
@@ -645,17 +717,23 @@ async function runWorkflow(rawPayload, deps = {}) {
 }
 
 if (require.main === module) {
-  let payload;
-  try {
-    payload = JSON.parse(process.env.FLOWFORGE_PAYLOAD || "{}");
-  } catch {
-    emit("error", { message: "FLOWFORGE_PAYLOAD is not valid JSON.", name: "SyntaxError" });
-    process.exitCode = 1;
-  }
-  if (payload) runWorkflow(payload).catch(error => {
-    emit("error", normalizeError(error));
-    process.exitCode = 1;
-  });
+  (async () => {
+    let payload;
+    const payloadPath = process.env.FLOWFORGE_PAYLOAD_FILE;
+    try {
+      const raw = payloadPath ? await fs.readFile(payloadPath, "utf8") : (process.env.FLOWFORGE_PAYLOAD || "{}");
+      payload = JSON.parse(raw);
+    } catch (error) {
+      emit("error", { message: `Workflow payload could not be read or parsed: ${normalizeError(error).message}`, name: "SyntaxError" });
+      process.exitCode = 1;
+    } finally {
+      if (payloadPath) await fs.unlink(payloadPath).catch(() => {});
+    }
+    if (payload) runWorkflow(payload).catch(error => {
+      emit("error", normalizeError(error));
+      process.exitCode = 1;
+    });
+  })();
 }
 
 module.exports = {

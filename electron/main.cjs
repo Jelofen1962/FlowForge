@@ -6,6 +6,7 @@ const fs = require("node:fs/promises");
 let win;
 let engine = null;
 let engineStopping = false;
+let enginePayloadPath = null;
 let stdoutBuffer = "";
 const isDev = !app.isPackaged;
 
@@ -76,6 +77,9 @@ function finishEngine(code, signal) {
   sendToRenderer("engine:finished", { code: typeof code === "number" ? code : 1, signal: signal || null, stopped: engineStopping });
   engine = null;
   engineStopping = false;
+  const payloadPath = enginePayloadPath;
+  enginePayloadPath = null;
+  if (payloadPath) fs.unlink(payloadPath).catch(() => {});
 }
 
 app.whenReady().then(createWindow);
@@ -111,11 +115,18 @@ async function startEngine(payload) {
     return { ok: false, error: "Workflow payload could not be serialized." };
   }
   const script = path.join(__dirname, "../engine/runner.cjs");
+  const payloadPath = path.join(app.getPath("userData"), `engine-payload-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  try {
+    await fs.writeFile(payloadPath, encoded, { encoding: "utf8", mode: 0o600, flag: "wx" });
+  } catch (error) {
+    return { ok: false, error: `Could not prepare workflow payload: ${error instanceof Error ? error.message : String(error)}` };
+  }
   engineStopping = false;
   stdoutBuffer = "";
+  enginePayloadPath = payloadPath;
   try {
     engine = spawn(process.execPath, [script], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", FLOWFORGE_PAYLOAD: encoded },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", FLOWFORGE_PAYLOAD_FILE: payloadPath },
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true
     });
@@ -132,6 +143,8 @@ async function startEngine(payload) {
     return { ok: true };
   } catch (error) {
     engine = null;
+    enginePayloadPath = null;
+    await fs.unlink(payloadPath).catch(() => {});
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

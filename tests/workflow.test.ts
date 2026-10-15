@@ -36,6 +36,13 @@ describe("workflow validation", () => {
     expect(validateWorkflow({ ...valid, steps: [validStep] }).valid).toBe(true);
     expect(validateWorkflow({ ...valid, steps: [{ ...validStep, inputs: [{ ...validStep.inputs[0], target: { strategy: "css" as const, value: "" } }] }] }).errors.some(error => /target element locator/.test(error))).toBe(true);
   });
+
+  it("requires a referenced workflow id for workflow-call steps", () => {
+    const base = { id: "call-1", name: "Run sub-workflow", type: "runWorkflow" as const };
+    expect(validateWorkflow({ ...valid, steps: [base] }).errors.some(error => /select a workflow/i.test(error))).toBe(true);
+    expect(validateWorkflow({ ...valid, steps: [{ ...base, workflowId: "wf-2" }] }).valid).toBe(true);
+  });
+
   it("rejects invalid variable names and duplicate names", () => {
     const result = validateWorkflow({...valid, variables:[
       {id:"v1",name:"bad-name",value:"x"},

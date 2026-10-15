@@ -187,10 +187,13 @@ The package includes trusted-frame IPC validation, navigation and popup restrict
 - [x] Add a searchable command palette, opened with `Ctrl+K` or `Cmd+K`, with actions for run/stop, new workflow, import/export, navigation, and adding common steps.
 - [x] Add a reusable template library with website smoke-check, form-entry, and search-page starter workflows. Templates use example URLs and selectors and must be adapted before use.
 - [x] Add visible keyboard focus styles, dialog semantics, accessible labels for the command palette, and `Escape` dismissal.
+- [x] Add a local multi-workflow library with create, edit, duplicate, delete, and autosave.
+- [x] Add a `Run another workflow` action that reuses the current browser session and supports nested calls with cycle detection and a depth limit.
+- [x] Export dependency-complete JSON packages and import them with remapped workflow IDs; reject dangling references and package cycles.
 - [x] Update release and feature documentation to distinguish implemented first-pass functionality from unverified integration.
-- [ ] Verify command palette interactions and template workflows with the full Vitest suite in CI.
+- [ ] Verify library UI interactions and sub-workflow actions with the full Vitest suite in CI.
 - [ ] Perform keyboard-only and screen-reader checks on Windows.
 
 ### Capability status and known gaps
 
-The command palette is a searchable action list; it does not yet implement arrow-key selection or a full focus trap. Template examples are generic scaffolds, not production-tested site-specific workflows. The Browser tab still includes a selector demo and explanatory text; the complete recorder UI experience requires further end-to-end validation. Phase 5 nested loops, pause/resume, breakpoints, and rerun-failed-step are not complete. Phase 6 session JSON is not encrypted. Phase 7 run history is local renderer storage, not an audit log. The installer is unsigned, and live Windows CI results must be checked in GitHub Actions before distribution.
+The workflow library and sub-workflow engine are implemented as a first pass; full UI tests and real Chrome/Edge Windows integration remain outstanding. The command palette is a searchable action list; it does not yet implement arrow-key selection or a full focus trap. Template examples are generic scaffolds, not production-tested site-specific workflows. The Browser tab still includes a selector demo and explanatory text; the complete recorder UI experience requires further end-to-end validation. Phase 5 nested loops, pause/resume, breakpoints, and rerun-failed-step are not complete. Phase 6 session JSON is not encrypted. Phase 7 run history is local renderer storage, not an audit log. The installer is unsigned, and live Windows CI results must be checked in GitHub Actions before distribution.
