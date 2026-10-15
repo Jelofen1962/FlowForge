@@ -5,7 +5,7 @@ import { validateSessionSnapshot } from "../core/session";
 import {
   Activity, AppWindow, ArrowDown, ArrowUp, Braces, Check, ChevronDown, CircleHelp, Clock3,
   Code2, Cookie, Copy, FilePlus2, FolderOpen, Globe2, GripVertical, Layers3, MousePointer2,
-  Play, Plus, Save, Settings2, ShieldCheck, Square, Terminal, Trash2, Zap, Search, FileText, BookTemplate
+  Play, Plus, Save, Settings2, ShieldCheck, Square, Terminal, Trash2, Zap, Search, FileText, BookTemplate, Sun, Moon
 } from "lucide-react";
 
 type Target = { strategy: string; value: string };
@@ -31,6 +31,7 @@ export default function App(){
   const [saveState,setSaveState]=useState("Saved locally");
   const [selected,setSelected]=useState(starter[0].id);
   const [tab,setTab]=useState("workflow");
+  const [theme,setTheme]=useState<"dark"|"light">(()=>{try{return localStorage.getItem("flowforge.theme.v1")==="light"?"light":"dark"}catch{return "dark"}});
   const [commandOpen,setCommandOpen]=useState(false);
   const [commandQuery,setCommandQuery]=useState("");
   const commandInputRef=useRef<HTMLInputElement|null>(null);
@@ -54,6 +55,7 @@ export default function App(){
   const current=steps.find(s=>s.id===selected) || steps[0];
   const workflowDocument = useMemo(() => ({version:1 as const,name:workflowName,startUrl,browser:browser as "chrome"|"edge",steps,groups,variables}), [workflowName,startUrl,browser,steps,groups,variables]);
   const validation = useMemo(() => validateWorkflow(workflowDocument), [workflowDocument]);
+  useEffect(()=>{try{localStorage.setItem("flowforge.theme.v1",theme)}catch{}},[theme]);
   useEffect(()=>{
     try { const raw=localStorage.getItem("flowforge.workflow.v1"); if(raw){ const doc=normalizeWorkflow(JSON.parse(raw)); setWorkflowName(doc.name); setStartUrl(doc.startUrl); setBrowser(doc.browser); setSteps((doc.steps.length?doc.steps:[]) as unknown as Step[]); setGroups(doc.groups); setVariables(doc.variables); if(doc.steps[0])setSelected(doc.steps[0].id); } }
     catch { setLogs(old=>[...old,"Saved draft could not be loaded; the sample workflow remains available."]); }
@@ -167,11 +169,11 @@ export default function App(){
   useEffect(()=>{const onKeyDown=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setCommandOpen(open=>!open);setCommandQuery("");}else if(event.key==="Escape"){setCommandOpen(false);}};window.addEventListener("keydown",onKeyDown);return()=>window.removeEventListener("keydown",onKeyDown)},[]);
   useEffect(()=>{if(commandOpen)commandInputRef.current?.focus()},[commandOpen]);
   const title=useMemo(()=>current?.name||"No step selected",[current]);
-  return <div className="app-shell">
+  return <div className="app-shell" data-theme={theme}>
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Zap size={17}/></div><span>flowforge</span><span className="version">DESKTOP</span></div>
       <div className="top-center"><span className="live-dot"/><span>LOCAL AUTOMATION ENGINE</span><span className="top-sep">/</span><span className="muted">{workflowName} · {saveState}</span></div>
-      <div className="top-actions"><button className="command-trigger" onClick={()=>{setCommandOpen(true);setCommandQuery("")}} aria-label="Open command palette"><Search size={14}/><span>Commands</span><kbd>Ctrl K</kbd></button><input aria-label="Recorder URL" className="recorder-url" value={recordUrl} onChange={e=>setRecordUrl(e.target.value)} placeholder="https://example.com" /><button className="icon-button" title="Import workflow" onClick={importWorkflow}><FolderOpen size={16}/></button><button className="icon-button" title="Export workflow" onClick={exportWorkflow}><Save size={16}/></button><button className="icon-button" title="Start visual recorder" onClick={startRecorder} disabled={running}><MousePointer2 size={15}/>{recording?"Recording":"Record"}</button>{recording&&<button className="icon-button" title="Stop recorder" onClick={stopRecorder}><Square size={14}/></button>}<button className="run-button" onClick={run} disabled={running||!validation.valid||steps.length===0}><Play size={14} fill="currentColor"/>{running?"Running":"Run workflow"}</button><button className="stop-button" onClick={()=>window.flowforge.stop()} disabled={!running}><Square size={13} fill="currentColor"/></button></div>
+      <div className="top-actions"><button className="theme-toggle icon-button" title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} onClick={()=>setTheme(value=>value === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={17}/> : <Moon size={17}/>}</button><button className="command-trigger" onClick={()=>{setCommandOpen(true);setCommandQuery("")}} aria-label="Open command palette"><Search size={14}/><span>Commands</span><kbd>Ctrl K</kbd></button><input aria-label="Recorder URL" className="recorder-url" value={recordUrl} onChange={e=>setRecordUrl(e.target.value)} placeholder="https://example.com" /><button className="icon-button" title="Import workflow" onClick={importWorkflow}><FolderOpen size={16}/></button><button className="icon-button" title="Export workflow" onClick={exportWorkflow}><Save size={16}/></button><button className="icon-button" title="Start visual recorder" onClick={startRecorder} disabled={running}><MousePointer2 size={15}/>{recording?"Recording":"Record"}</button>{recording&&<button className="icon-button" title="Stop recorder" onClick={stopRecorder}><Square size={14}/></button>}<button className="run-button" onClick={run} disabled={running||!validation.valid||steps.length===0}><Play size={14} fill="currentColor"/>{running?"Running":"Run workflow"}</button><button className="stop-button" onClick={()=>window.flowforge.stop()} disabled={!running}><Square size={13} fill="currentColor"/></button></div>
     </header>
     <div className="workspace">
       <aside className="rail">

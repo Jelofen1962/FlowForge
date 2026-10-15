@@ -158,3 +158,7 @@ Push to `main` or `master` to trigger the Automatic Windows Release workflow. Af
 
 FlowForge checks for a local ChromeDriver at `C:\WebDriver\chromedriver\chromedriver.exe` before asking Selenium Manager to resolve a driver. For Microsoft Edge, it checks `C:\WebDriver\msedgedriver\msedgedriver.exe`. You can override these paths with `FLOWFORGE_CHROMEDRIVER_PATH` or `FLOWFORGE_EDGEDRIVER_PATH`. The driver should match the installed browser version. If no local driver is found, FlowForge falls back to Selenium Manager.
 
+
+## UI refresh (October 2026)
+
+The refreshed interface uses Google Poppins typography, larger controls and spacing, layered monochrome surfaces with indigo/cyan accents, animated Lucide SVG interactions, and responsive panel layouts for narrower windows. Use the sun/moon control in the top toolbar to switch between dark and light themes; the preference is saved locally in the renderer. Motion is reduced automatically when the operating system requests reduced motion. The Google Font is loaded remotely, so the system font fallback is used if the machine is offline.
