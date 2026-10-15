@@ -23,7 +23,11 @@ For a Windows NSIS installer, run `npm run build:win`. See [`docs/RELEASING.md`]
 
 ## Current starter functionality
 - Step list with add, delete, reorder, disable, and per-step error policy
-- Selenium actions: navigate, click, type, keyboard key, fixed wait, wait-visible, wait-clickable, assert text, select option, screenshot, back, forward, refresh
+- Browser actions: navigate, click, type, key sequences, hover, right-click, double-click, drag-and-drop, scroll-to, page scroll, waits, select, upload file, wait for download, browser history, tabs, frames, and alert handling
+- Data actions: extract element text/attributes/input values/tables, save text, capture element images, and take page screenshots
+- Assertions: text, URL, page title, element existence/count, and exact attribute values
+- Control flow: conditions, if/else branches, repeat, list loops, bounded while loops, break, continue, retries, and reusable nested workflows
+- Per-workflow output archives: each run can package screenshots, extracted text/data, CSV tables, saved text, image captures, and downloaded files into a ZIP; the Outputs panel previews supported files and can open, reveal, or delete archives
 - XPath, CSS, ID, name, link text, class name, and tag name locator strategies
 - Chrome / Edge choice and persistent user-data-directory setting
 - Image optimization toggle and close-browser-after-run setting
@@ -40,7 +44,8 @@ This is a local-first desktop automation application and still needs a complete 
 - `electron/main.cjs`: desktop window, IPC, process lifecycle, profile configuration persistence
 - `electron/preload.cjs`: narrow, context-isolated IPC API
 - `src/ui`: React interface
-- `engine/runner.cjs`: independent Selenium execution process
+- `engine/runner.cjs`: independent Selenium execution process and artifact collector
+- `engine/zip.cjs`: dependency-free ZIP archive writer for per-run outputs
 - `docs/ROADMAP.md`: planned production capabilities
 
 ## Safety
@@ -75,7 +80,7 @@ Create variables in the workflow and reference them as `${variableName}` in URLs
 
 - Timeouts are bounded to 120 seconds; fixed waits are bounded to 5 minutes.
 - Locator-based actions wait for an element to be located and visible; click/select additionally wait for the element to be enabled.
-- Screenshot paths are reduced to a filename and written to the configured screenshot directory (or the process working directory).
+- Screenshots and other artifacts are written to the current run's output directory and included in its per-workflow ZIP archive.
 - `disableCss` blocks CSS requests through Chromium DevTools when supported. This is experimental and may break pages.
 - `onError: "continue"` allows the next step to run; other values stop the workflow.
 - Browser driver resolution depends on Selenium Manager and an installed Chrome or Edge browser.
@@ -105,7 +110,7 @@ Workflow steps may now include a `condition` object. Example:
 
 Supported sources are `variable`, `lastText`, `url`, and `stepStatus`. Operators include `equals`, `notEquals`, `contains`, `notContains`, `matches`, `greaterThan`, `lessThan`, `truthy`, and `falsy`. Conditions that evaluate false skip the step and emit a structured `skipped` event. Unknown variables/step IDs and malformed regular expressions fail explicitly.
 
-The control-flow module also exposes bounded `runCountedLoop` and `withRetry` helpers plus execution records. These are foundational APIs: loops are not yet represented as nested blocks in the editor, and retries are not yet automatically applied around all Selenium actions.
+The control-flow module exposes bounded loop and retry helpers. The editor now supports `ifElse`, `repeat`, `loopList`, and `while` actions with nested step arrays edited as JSON rather than a visual block canvas. Retry settings are applied around top-level and nested Selenium actions; retries should be used cautiously for side-effecting actions.
 
 
 ### Browser session snapshots
@@ -177,3 +182,10 @@ The **Ask user for inputs** action opens a FlowForge dialog while a workflow is 
 Open **Workflows** in the left navigation to create, reopen, duplicate, export, import, or delete workflows. Edits are saved locally. Add the **Run another workflow** action to call a saved workflow from another workflow. It reuses the current Selenium browser session instead of launching another browser. The runner checks references, rejects cycles, limits nesting to 10 levels, inherits parent variables, and allows a child workflow's own variables to override inherited values. Exporting produces a `.flowforge.json` package containing the selected workflow and its transitive sub-workflow dependencies; importing remaps IDs to avoid collisions with workflows already in the library.
 
 **Sharing note:** workflow JSON is not encrypted. Inspect it for passwords, personal data, or other secrets before sharing. A single legacy workflow JSON file cannot resolve `Run another workflow` references on its own; import the complete FlowForge package.
+
+
+## Advanced actions and output archives
+
+See [`docs/ADVANCED-ACTIONS-AND-OUTPUTS.md`](docs/ADVANCED-ACTIONS-AND-OUTPUTS.md) for the expanded action catalog, control-flow block format, output archive behavior, size limits, and remaining integration boundaries. Open **Outputs** in the left rail to browse the current workflow's run ZIPs, preview text/image artifacts, open an archive in the system ZIP viewer, reveal it in Explorer, or delete it with its preview files. Output data is stored locally under Electron user data at `outputs/<workflow-id>/`.
+
+Nested `ifElse`, `repeat`, `loopList`, and `while` bodies are currently edited as JSON step arrays in the editor, not with a visual block canvas. `saveImage` stores an element screenshot as PNG. Download detection expects the browser's configured download directory and supports a filename-substring filter. Review output archives before sharing because they can contain personal data.

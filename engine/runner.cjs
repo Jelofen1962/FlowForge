@@ -15,9 +15,13 @@ const MAX_WAIT_MS = 300_000;
 const LOCATOR_NAMES = new Set(["xpath", "css", "id", "name", "linkText", "className", "tagName"]);
 const STEP_TYPES = new Set([
   "click", "type", "key", "navigate", "waitVisible", "waitClickable", "wait",
-  "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh"
+  "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh",
+  "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
+  "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
+  "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
+  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop"
 ]);
-const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select"]);
+const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select", "hover", "rightClick", "doubleClick", "scrollTo", "uploadFile", "extractText", "extractAttribute", "extractValue", "extractTable", "saveImage", "assertExists", "assertCount", "assertAttribute", "switchFrame", "dragDrop"]);
 
 function stepRequiresLocator(stepType) {
   return LOCATOR_STEP_TYPES.has(stepType);
@@ -81,7 +85,8 @@ function buildBlockedUrlPatterns(optimizations = {}) {
   return [...new Set(patterns)];
 }
 
-function validatePayload(payload) {
+function validatePayload(payload, depth = 0) {
+  if (depth > 10) throw new Error("Nested control-flow blocks exceed the depth limit of 10.");
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("Engine payload must be an object.");
   }
@@ -100,12 +105,35 @@ function validatePayload(payload) {
       if (step.retry.delayMs !== undefined && (!Number.isFinite(step.retry.delayMs) || step.retry.delayMs < 0 || step.retry.delayMs > 30_000)) throw new Error(`Step ${i + 1} retry delay must be between 0 and 30000 ms.`);
     }
     if (step.type === "wait") asBoundedNumber(step.ms, 1000, MAX_WAIT_MS, `Step ${i + 1} wait duration`);
+    if (step.type === "dragDrop" && (!step.target2 || !LOCATOR_NAMES.has(step.target2.strategy) || typeof step.target2.value !== "string" || !step.target2.value.trim())) throw new Error(`Step ${i + 1} needs a destination locator for drag and drop.`);
+    if (["extractAttribute", "assertAttribute"].includes(step.type) && (typeof step.attribute !== "string" || !step.attribute.trim())) throw new Error(`Step ${i + 1} needs an attribute name.`);
+    if (["extractText", "extractAttribute", "extractValue", "extractTable"].includes(step.type) && step.outputName !== undefined && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} output variable must be a valid identifier.`);
+    if (step.type === "uploadFile" && (typeof step.filePath !== "string" || !step.filePath.trim())) throw new Error(`Step ${i + 1} needs a file path.`);
+    if (["assertUrl", "assertTitle"].includes(step.type) && (typeof step.expected !== "string" || !step.expected.trim())) throw new Error(`Step ${i + 1} needs an expected value.`);
+    if (step.type === "repeat" && (!Number.isInteger(step.repeatCount) || step.repeatCount < 1 || step.repeatCount > 1000 || !Array.isArray(step.loopSteps))) throw new Error(`Step ${i + 1} repeat count must be 1-1000 and include loopSteps.`);
+    if (step.type === "loopList" && (typeof step.listExpression !== "string" || !step.listExpression.trim() || !Array.isArray(step.loopSteps))) throw new Error(`Step ${i + 1} needs listExpression and loopSteps.`);
+    if (step.type === "loopList" && step.itemVariable !== undefined && (typeof step.itemVariable !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.itemVariable))) throw new Error(`Step ${i + 1} item variable must be a valid identifier.`);
+    if (step.condition !== undefined) {
+      const condition = step.condition;
+      if (!condition || typeof condition !== "object" || !["variable", "lastText", "url", "stepStatus"].includes(condition.source) || !["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(condition.operator)) throw new Error(`Step ${i + 1} has an invalid condition.`);
+      if (["variable", "stepStatus"].includes(condition.source) && (typeof condition.key !== "string" || !condition.key.trim())) throw new Error(`Step ${i + 1} condition needs a key.`);
+      if (condition.expected !== undefined && typeof condition.expected !== "string") throw new Error(`Step ${i + 1} condition expected value must be text.`);
+    }
+    const nestedStepArrays = step.type === "ifElse" ? [step.thenSteps, step.elseSteps] : ["repeat", "loopList", "while"].includes(step.type) ? [step.loopSteps] : [];
+    for (const nestedSteps of nestedStepArrays) {
+      if (!Array.isArray(nestedSteps)) continue;
+      if (nestedSteps.length > 10_000) throw new Error(`Step ${i + 1} nested block exceeds the 10,000-step safety limit.`);
+      validatePayload({ steps: nestedSteps, browser, workflowLibrary: payload.workflowLibrary }, depth + 1);
+    }
+    if (step.type === "while" && (!step.condition || !Array.isArray(step.loopSteps) || !Number.isInteger(step.repeatCount) || step.repeatCount < 1 || step.repeatCount > 1000)) throw new Error(`Step ${i + 1} while loop needs a condition, nested steps, and a 1-1000 iteration limit.`);
+    if (step.type === "ifElse" && (!step.condition || !Array.isArray(step.thenSteps) || !Array.isArray(step.elseSteps))) throw new Error(`Step ${i + 1} needs a condition and thenSteps/elseSteps.`);
     if (stepRequiresLocator(step.type)) {
       if (!step.target || !LOCATOR_NAMES.has(step.target.strategy) || typeof step.target.value !== "string" || !step.target.value.trim()) {
         throw new Error(`Step ${i + 1} (${step.type}) needs a supported locator and a non-empty locator value.`);
       }
     }
     if (step.type === "navigate" && !isHttpUrl(step.url)) throw new Error(`Step ${i + 1} needs a valid http(s) URL.`);
+    if (step.type === "openTab" && step.url !== undefined && step.url !== "about:blank" && !isHttpUrl(step.url)) throw new Error(`Step ${i + 1} new-tab URL must use http(s) or about:blank.`);
     if (step.type === "runWorkflow" && (typeof step.workflowId !== "string" || !step.workflowId.trim())) throw new Error(`Step ${i + 1} must select a workflow to run.`);
     if (step.type === "runWorkflow" && (!payload.workflowLibrary || typeof payload.workflowLibrary !== "object" || !payload.workflowLibrary[step.workflowId])) throw new Error(`Step ${i + 1} references a workflow that is not in the supplied library.`);
     if (step.type === "key" && (typeof step.key !== "string" || !step.key.trim())) throw new Error(`Step ${i + 1} needs a key or shortcut.`);
@@ -266,11 +294,37 @@ async function runWorkflow(rawPayload, deps = {}) {
   let driver;
   let stopRequested = false;
   let recording = false;
-  const runtimeContext = { variables: Object.fromEntries((payload.variables || []).map(v => [v.name, String(v.value ?? "")])), lastText: "", url: payload.startUrl || "", stepStatus: {} };
+  const runtimeContext = { variables, lastText: "", url: payload.startUrl || "", stepStatus: {} };
   let recorderMode = payload.mode === "recorder";
   let lastRecorderMessage = null;
   let quitPromise;
   const pendingUserInputs = new Map();
+  const outputDirectory = path.resolve(payload.outputDirectory || payload.screenshotDirectory || path.join(process.cwd(), "flowforge-outputs"));
+  const outputArchivePath = typeof payload.outputArchivePath === "string" ? path.resolve(payload.outputArchivePath) : null;
+  const outputManifestPath = typeof payload.outputManifestPath === "string" ? path.resolve(payload.outputManifestPath) : null;
+  const outputArtifacts = [];
+  const safeOutputName = (name, fallback = "output") => {
+    const base = path.basename(String(name || fallback)).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\.\.+/g, ".").slice(0, 150);
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(base)) return `_${base}`;
+    return base || fallback;
+  };
+  const writeArtifact = async (name, data, contentType = "application/octet-stream") => {
+    await fs.mkdir(outputDirectory, { recursive: true });
+    let filename = safeOutputName(name);
+    if (!path.extname(filename)) filename += contentType.startsWith("text/") ? ".txt" : contentType === "application/json" ? ".json" : ".bin";
+    let target = path.join(outputDirectory, filename);
+    if (!target.startsWith(outputDirectory + path.sep)) throw new Error("Output filename is not allowed.");
+    if (await fs.stat(target).then(() => true, () => false)) {
+      const ext = path.extname(filename), stem = path.basename(filename, ext);
+      filename = `${stem}-${Date.now()}${ext}`; target = path.join(outputDirectory, filename);
+    }
+    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+    if (buffer.length > 100 * 1024 * 1024) throw new Error("Output artifact exceeds the 100 MB per-file limit.");
+    await fs.writeFile(target, buffer);
+    const artifact = { name: filename, contentType, size: buffer.length, createdAt: new Date().toISOString() };
+    outputArtifacts.push(artifact); emit("output-artifact", artifact);
+    return target;
+  };
 
   const stop = () => {
     stopRequested = true;
@@ -339,19 +393,53 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "waitClickable": await nestedWaiters.clickable(); break;
             case "assertText": { const el = await nestedWaiters.visible(); const actual = await el.getText(); nestedRuntimeContext.lastText = actual; const expected = substituteVariables(nested.expected ?? "", childVariables); if (!actual.includes(expected)) throw new Error(`Text assertion failed. Expected to contain "${expected}".`); break; }
             case "select": { const el = await nestedWaiters.clickable(); await new Select(el).selectByValue(substituteVariables(nested.text ?? "", childVariables)); break; }
+            case "hover": await driver.actions({ async: true }).move({ origin: await nestedWaiters.visible() }).perform(); break;
+            case "rightClick": await driver.actions({ async: true }).contextClick(await nestedWaiters.clickable()).perform(); break;
+            case "doubleClick": await driver.actions({ async: true }).doubleClick(await nestedWaiters.clickable()).perform(); break;
+            case "scrollTo": await driver.executeScript("arguments[0].scrollIntoView({behavior:'instant',block:'center'});", await nestedWaiters.visible()); break;
+            case "scroll": await driver.executeScript("window.scrollBy(0, arguments[0]);", Number(nested.scrollAmount ?? nested.ms ?? 600)); break;
+            case "dragDrop": { const source = await nestedWaiters.visible(); const destBy = buildLocator(By, { strategy: nested.target2.strategy, value: substituteVariables(nested.target2.value, childVariables) }); const dest = await driver.wait(async()=>{try{const e=await driver.findElement(destBy);return await e.isDisplayed()?e:false}catch{return false}}, nestedTimeout, "Drag destination not visible", 200); await driver.actions({async:true}).dragAndDrop(source,dest).perform(); break; }
+            case "uploadFile": { const file = path.resolve(substituteVariables(nested.filePath, childVariables)); await fs.access(file); await (await nestedWaiters.visible()).sendKeys(file); break; }
+            case "extractText": { const value=await (await nestedWaiters.visible()).getText(); nestedRuntimeContext.lastText=value; childVariables[nested.outputName||"extractedText"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`text-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
+            case "extractAttribute": { const value=String(await (await nestedWaiters.visible()).getAttribute(substituteVariables(nested.attribute,childVariables))??""); childVariables[nested.outputName||"extractedAttribute"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`attribute-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
+            case "extractValue": { const el=await nestedWaiters.visible(); const value=String(await driver.executeScript("return arguments[0].value ?? '';",el)??""); childVariables[nested.outputName||"extractedValue"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`value-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
+            case "extractTable": { const table=await nestedWaiters.visible(); const rows=await table.findElements(By.css("tr")); const values=[]; for(const row of rows){const cells=await row.findElements(By.css("th,td"));values.push(await Promise.all(cells.map(cell=>cell.getText())))} const csv=values.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n"); await writeArtifact(`${safeOutputName(nested.outputName||`table-${childIndex+1}`)}.csv`,csv,"text/csv; charset=utf-8"); childVariables[nested.outputName||"extractedTable"]=JSON.stringify(values); break; }
+            case "saveText": await writeArtifact(`${safeOutputName(nested.outputName||`text-${childIndex+1}`)}.txt`,substituteVariables(nested.text||"",childVariables),"text/plain; charset=utf-8"); break;
+            case "saveImage": { const el=await nestedWaiters.visible(); const image=await el.takeScreenshot(); await writeArtifact(`${safeOutputName(nested.outputName||`image-${childIndex+1}`)}.png`,Buffer.from(image,"base64"),"image/png"); break; }
+            case "assertUrl": { const actual=await driver.getCurrentUrl(); const expected=substituteVariables(nested.expected||nested.url||"",childVariables); if(!actual.includes(expected)) throw new Error(`URL assertion failed: expected to contain ${expected}`); break; }
+            case "assertExists": await nestedWaiters.locate(); break;
+            case "assertCount": { const count=(await driver.findElements(nestedBy)).length; if(count!==Number(nested.expected)) throw new Error(`Element count assertion failed: expected ${nested.expected}, got ${count}`); break; }
+            case "assertTitle": { const title=await driver.getTitle(); const expected=substituteVariables(nested.expected||"",childVariables); if(!title.includes(expected)) throw new Error(`Title assertion failed: expected to contain ${expected}`); break; }
+            case "assertAttribute": { const actual=String(await (await nestedWaiters.visible()).getAttribute(substituteVariables(nested.attribute,childVariables))??""); const expected=substituteVariables(nested.expected||"",childVariables); if(actual!==expected) throw new Error(`Attribute assertion failed: ${actual} !== ${expected}`); break; }
+            case "alertAccept": await driver.switchTo().alert().accept(); break;
+            case "alertDismiss": await driver.switchTo().alert().dismiss(); break;
+            case "openTab": { const url=substituteVariables(nested.url||"about:blank",childVariables); await driver.switchTo().newWindow("tab"); if(url!=="about:blank") { if(!isHttpUrl(url)) throw new Error("New tab URL must use http(s)"); await driver.get(url); } break; }
+            case "closeTab": { await driver.close(); const hs=await driver.getAllWindowHandles(); if(!hs.length) throw new Error("No browser tabs remain"); await driver.switchTo().window(hs[0]); break; }
+            case "switchWindow": { const hs=await driver.getAllWindowHandles(); const idx=Number(nested.ms||0); if(idx<0||idx>=hs.length) throw new Error("Requested browser tab index does not exist"); await driver.switchTo().window(hs[idx]); break; }
+            case "switchFrame": await driver.switchTo().frame(await nestedWaiters.visible()); break;
+            case "switchFrameDefault": await driver.switchTo().defaultContent(); break;
+            case "waitDownload": { const start=Date.now(); let found=null; const expected=substituteVariables(nested.expected||nested.text||"",childVariables); while(Date.now()-start<nestedTimeout){for(const name of await fs.readdir(outputDirectory).catch(()=>[])){if(!name.endsWith(".crdownload")&&(!expected||name.includes(expected))){found=name;break}}if(found)break;await new Promise(r=>setTimeout(r,250))}if(!found)throw new Error("Timed out waiting for download"); break; }
+            case "while": { if(!Array.isArray(nested.loopSteps))throw new Error("While loop needs nested steps"); const max=Math.max(1,Math.min(1000,Number(nested.repeatCount)||100)); const inlineId=`__nested_while_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline while",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]}; try{for(let r=0;r<max&&!stopRequested&&evaluateRuntimeCondition(nested.condition,nestedRuntimeContext);r++){childVariables.iteration=String(r+1);try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables);nestedRuntimeContext.url=await driver.getCurrentUrl().catch(()=>nestedRuntimeContext.url)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]}break; }
+            case "breakLoop": { const error = new Error("Break loop requested."); error.flowControl = "break"; throw error; }
+            case "continueLoop": { const error = new Error("Continue loop requested."); error.flowControl = "continue"; throw error; }
+            case "ifElse": { const branch=evaluateRuntimeCondition(nested.condition,nestedRuntimeContext)?nested.thenSteps:nested.elseSteps; if(!Array.isArray(branch))throw new Error("If/else requires branch arrays"); const inlineId=`__nested_if_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline branch",startUrl:"",browser:browserName,steps:branch,groups:[],variables:[]}; try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}finally{delete lib[inlineId]} break; }
+            case "repeat": { if(!Array.isArray(nested.loopSteps))throw new Error("Repeat requires nested steps"); const count=Math.max(1,Math.min(1000,Number(nested.repeatCount)||1)); const inlineId=`__nested_repeat_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline repeat",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]}; try{for(let r=0;r<count&&!stopRequested;r++){childVariables.iteration=String(r+1);try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]} break; }
+            case "loopList": { if(!Array.isArray(nested.loopSteps))throw new Error("List loop requires nested steps");let items;const raw=substituteVariables(nested.listExpression||"",childVariables);try{const v=JSON.parse(raw);items=Array.isArray(v)?v:String(raw).split(",")}catch{items=String(raw).split(",")}if(items.length>1000)throw new Error("List loop max is 1000");const inlineId=`__nested_list_${Date.now()}_${childIndex}`;const lib=payload.workflowLibrary||(payload.workflowLibrary={});try{for(const item of items){childVariables[nested.itemVariable||"item"]=String(item);lib[inlineId]={version:1,name:"Inline list item",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]};try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]}break; }
             case "userInput": { const values = await requestUserInput(nested, childIndex); for (const field of nested.inputs || []) { const value = String(values[field.id] ?? ""); if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`); if (!value && field.required === false) continue; const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, childVariables) }); const el = await driver.wait(async()=>{try { const found=await driver.findElement(fieldBy); return await found.isDisplayed()?found:false;} catch{return false;}}, nestedTimeout, `Input target "${field.title}" did not become visible`, 200); await el.clear(); await el.sendKeys(value); } break; }
             case "back": await driver.navigate().back(); break;
             case "forward": await driver.navigate().forward(); break;
             case "refresh": await driver.navigate().refresh(); break;
-            case "screenshot": { const image = await driver.takeScreenshot(); const out = path.resolve(payload.screenshotDirectory || process.cwd()); await fs.mkdir(out,{recursive:true}); await fs.writeFile(path.join(out,`flowforge-sub-${Date.now()}-${childIndex+1}.png`),image,"base64"); break; }
+            case "screenshot": { const image = await driver.takeScreenshot(); await writeArtifact(`${safeOutputName(nested.outputName || `sub-screenshot-${childIndex+1}`)}.png`, Buffer.from(image,"base64"), "image/png"); break; }
             default: throw new Error(`Unsupported nested action: ${nested.type}`);
           }
           }, nested.retry || {}, info => emit("subworkflow-step-retry", { workflowId, index: childIndex, name: nested.name || nested.type, ...info }));
           nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "success";
           nestedRuntimeContext.url = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
           emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "success" });
-        } catch (error) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "error", error: normalizeError(error).message }); if (nested.onError === "continue") continue; throw error; }
+        } catch (error) { nestedRuntimeContext.stepStatus[nested.id || String(childIndex)] = "error"; emit("subworkflow-step", { workflowId, index: childIndex, name: nested.name || nested.type, status: "error", error: normalizeError(error).message }); if (error && error.flowControl) throw error; if (nested.onError === "continue") continue; throw error; }
       }
+      for (const [name, value] of Object.entries(childVariables)) inheritedVariables[name] = value;
+      nestedRuntimeContext.url = await driver.getCurrentUrl().catch(() => nestedRuntimeContext.url);
       emit("subworkflow", { status: "success", workflowId, name: child.name || workflowId, depth });
     } catch (error) { emit("subworkflow", { status: "error", workflowId, name: child.name || workflowId, depth, error: normalizeError(error).message }); throw error; }
   };
@@ -363,6 +451,7 @@ async function runWorkflow(rawPayload, deps = {}) {
   };
 
   try {
+    await fs.mkdir(outputDirectory, { recursive: true });
     if (driverFactory) {
       driver = await driverFactory({ browserName, payload });
     } else {
@@ -371,9 +460,14 @@ async function runWorkflow(rawPayload, deps = {}) {
         const userDataDir = String(profile.userDataDir).trim();
         if (userDataDir) options.addArguments(`--user-data-dir=${userDataDir}`);
       }
-      if (optimizations.disableImages) {
-        options.setUserPreferences({ "profile.managed_default_content_settings.images": 2 });
-      }
+      const browserPrefs = {
+        "download.default_directory": outputDirectory,
+        "download.prompt_for_download": false,
+        "download.directory_upgrade": true,
+        "safebrowsing.enabled": true,
+        ...(optimizations.disableImages ? { "profile.managed_default_content_settings.images": 2 } : {})
+      };
+      options.setUserPreferences(browserPrefs);
       const builder = new Builder().forBrowser(browserName === "edge" ? "MicrosoftEdge" : "chrome");
       if (optimizations.pageLoadStrategy !== "normal") builder.setCapability("pageLoadStrategy", optimizations.pageLoadStrategy);
       if (browserName === "edge") builder.setEdgeOptions(options);
@@ -642,15 +736,104 @@ async function runWorkflow(rawPayload, deps = {}) {
             await select.selectByValue(value);
             break;
           }
+          case "hover": {
+            const element = await visible(); await driver.actions({ async: true }).move({ origin: element }).perform(); break;
+          }
+          case "rightClick": {
+            const element = await clickable(); await driver.actions({ async: true }).contextClick(element).perform(); break;
+          }
+          case "doubleClick": {
+            const element = await clickable(); await driver.actions({ async: true }).doubleClick(element).perform(); break;
+          }
+          case "dragDrop": {
+            const source = await visible(); const destinationBy = buildLocator(By, { strategy: step.target2.strategy, value: substituteVariables(step.target2.value, variables) });
+            const destination = await driver.wait(async () => { try { const el = await driver.findElement(destinationBy); return await el.isDisplayed() ? el : false; } catch { return false; } }, timeout, "Drag destination did not become visible", 200);
+            await driver.actions({ async: true }).dragAndDrop(source, destination).perform(); break;
+          }
+          case "scrollTo": { const element = await visible(); await driver.executeScript("arguments[0].scrollIntoView({behavior:'instant',block:'center',inline:'nearest'});", element); break; }
+          case "scroll": { const amount = Math.max(-10000, Math.min(10000, Number(step.scrollAmount ?? step.ms ?? 600))); await driver.executeScript("window.scrollBy({top: arguments[0], left: 0, behavior: 'instant'});", amount); break; }
+          case "uploadFile": { const file = path.resolve(substituteVariables(step.filePath, variables)); await fs.access(file); const element = await visible(); await element.sendKeys(file); break; }
+          case "waitDownload": {
+            const started = Date.now(); const limit = asBoundedNumber(step.timeout, 30000, 300000, "Download timeout"); const expected = substituteVariables(step.expected || step.text || "", variables);
+            let completed = null;
+            while (Date.now() - started < limit) {
+              const files = await fs.readdir(outputDirectory).catch(() => []);
+              let candidate = null;
+              for (const name of files) {
+                if (name.endsWith(".crdownload") || name.endsWith(".tmp") || name === "manifest.json" || outputArtifacts.some(artifact => artifact.name === name) || (expected && !name.includes(expected))) continue;
+                if (await fs.stat(path.join(outputDirectory, name)).then(st => st.isFile(), () => false)) { candidate = name; break; }
+              }
+              if (candidate) { const full = path.join(outputDirectory, candidate); const stat = await fs.stat(full); if (stat.size > 100 * 1024 * 1024) throw new Error("Downloaded file exceeds the 100 MB output limit."); if (stat.size > 0) { completed = candidate; if (!outputArtifacts.some(a => a.name === completed)) { outputArtifacts.push({ name: completed, contentType: "application/octet-stream", size: stat.size, createdAt: new Date().toISOString() }); } break; } }
+              await new Promise(resolve => setTimeout(resolve, 250));
+            }
+            if (!completed) throw new Error(`Download did not finish within ${limit}ms${expected ? ` for ${expected}` : ""}.`); emit("output-artifact", outputArtifacts.find(a => a.name === completed)); break;
+          }
+          case "extractText": {
+            const value = await (await visible()).getText(); runtimeContext.lastText = value; const name = safeOutputName(step.outputName || `text-${index + 1}`);
+            runtimeContext.variables[step.outputName || "extractedText"] = value; variables[step.outputName || "extractedText"] = value; await writeArtifact(name.endsWith(".txt") ? name : `${name}.txt`, value, "text/plain; charset=utf-8"); emit("extracted", { index, kind: "text", variable: step.outputName || "extractedText", length: value.length }); break;
+          }
+          case "extractAttribute": {
+            const value = await (await visible()).getAttribute(substituteVariables(step.attribute, variables)); const actual = value ?? ""; runtimeContext.variables[step.outputName || "extractedAttribute"] = actual; variables[step.outputName || "extractedAttribute"] = actual;
+            await writeArtifact(`${safeOutputName(step.outputName || `attribute-${index + 1}`)}.txt`, actual, "text/plain; charset=utf-8"); break;
+          }
+          case "extractValue": {
+            const element = await visible(); const value = await driver.executeScript("return arguments[0].value ?? '';", element); const actual = String(value ?? "");
+            runtimeContext.variables[step.outputName || "extractedValue"] = actual; variables[step.outputName || "extractedValue"] = actual; await writeArtifact(`${safeOutputName(step.outputName || `value-${index + 1}`)}.txt`, actual, "text/plain; charset=utf-8"); break;
+          }
+          case "extractTable": {
+            const table = await visible(); const rows = await table.findElements(By.css("tr")); const values = [];
+            for (const row of rows) { const cells = await row.findElements(By.css("th,td")); values.push(await Promise.all(cells.map(cell => cell.getText()))); }
+            const csv = values.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+            await writeArtifact(`${safeOutputName(step.outputName || `table-${index + 1}`)}.csv`, csv, "text/csv; charset=utf-8"); runtimeContext.variables[step.outputName || "extractedTable"] = JSON.stringify(values); variables[step.outputName || "extractedTable"] = JSON.stringify(values); break;
+          }
+          case "saveText": { const text = substituteVariables(step.text || "", variables); await writeArtifact(`${safeOutputName(step.outputName || `text-${index + 1}`)}.txt`, text, "text/plain; charset=utf-8"); break; }
+          case "saveImage": { const element = await visible(); let image; try { image = await element.takeScreenshot(); } catch { image = await driver.takeScreenshot(); }
+            await writeArtifact(`${safeOutputName(step.outputName || `image-${index + 1}`)}.png`, Buffer.from(image, "base64"), "image/png"); break; }
+          case "assertUrl": { const actual = await driver.getCurrentUrl(); const expected = substituteVariables(step.expected || step.url || "", variables); if (!actual.includes(expected)) throw new Error(`URL assertion failed: expected URL to contain "${expected}", got "${actual}".`); break; }
+          case "assertExists": { await locate(); break; }
+          case "assertCount": { const elements = await driver.findElements(by); const expected = Number(step.expected); if (!Number.isInteger(expected) || elements.length !== expected) throw new Error(`Element count assertion failed: expected ${step.expected}, got ${elements.length}.`); break; }
+          case "assertTitle": { const actual = await driver.getTitle(); const expected = substituteVariables(step.expected || "", variables); if (!actual.includes(expected)) throw new Error(`Title assertion failed: expected title to contain "${expected}", got "${actual}".`); break; }
+          case "assertAttribute": { const actual = await (await visible()).getAttribute(substituteVariables(step.attribute, variables)); const expected = substituteVariables(step.expected || "", variables); if (String(actual ?? "") !== expected) throw new Error(`Attribute assertion failed for ${step.attribute}: expected "${expected}", got "${actual ?? ""}".`); break; }
+          case "alertAccept": await driver.switchTo().alert().accept(); break;
+          case "alertDismiss": await driver.switchTo().alert().dismiss(); break;
+          case "openTab": { const url = substituteVariables(step.url || "about:blank", variables); if (url !== "about:blank" && !isHttpUrl(url)) throw new Error("New tab URL must use http(s) or about:blank."); await driver.switchTo().newWindow("tab"); if (url !== "about:blank") await driver.get(url); break; }
+          case "closeTab": { await driver.close(); const handles = await driver.getAllWindowHandles(); if (handles.length) await driver.switchTo().window(handles[0]); else throw new Error("No browser tabs remain open."); break; }
+          case "switchWindow": { const handles = await driver.getAllWindowHandles(); const requested = Number(step.ms ?? 0); if (!Number.isInteger(requested) || requested < 0 || requested >= handles.length) throw new Error(`Tab index must be between 0 and ${Math.max(0, handles.length - 1)}.`); await driver.switchTo().window(handles[requested]); break; }
+          case "switchFrame": { const frame = await visible(); await driver.switchTo().frame(frame); break; }
+          case "switchFrameDefault": await driver.switchTo().defaultContent(); break;
+          case "breakLoop": { const error = new Error("Break loop can only be used inside a loop block."); error.flowControl = "break"; throw error; }
+          case "continueLoop": { const error = new Error("Continue loop can only be used inside a loop block."); error.flowControl = "continue"; throw error; }
+          case "ifElse": {
+            const passes = evaluateRuntimeCondition(step.condition, runtimeContext); const branch = passes ? step.thenSteps : step.elseSteps;
+            if (!Array.isArray(branch)) throw new Error("If/else action needs an array of branch steps.");
+            const inlineId = `__inline_${Date.now()}_${index}`; const library = payload.workflowLibrary || (payload.workflowLibrary = {});
+            library[inlineId] = { version: 1, name: `${step.name || "If/else"} branch`, startUrl: "", browser: browserName, steps: branch, groups: [], variables: [] };
+            try { await executeNestedWorkflow(inlineId, 1, payload.currentWorkflowId ? [payload.currentWorkflowId] : [], variables); } finally { delete library[inlineId]; }
+            emit("control-flow", { type: "ifElse", branch: passes ? "then" : "else", index }); break;
+          }
+          case "repeat": {
+            const count = Math.max(1, Math.min(1000, Math.floor(Number(step.repeatCount) || 1))); if (!Array.isArray(step.loopSteps)) throw new Error("Repeat action needs loopSteps.");
+            const inlineId = `__repeat_${Date.now()}_${index}`; const library = payload.workflowLibrary || (payload.workflowLibrary = {});
+            library[inlineId] = { version: 1, name: `${step.name || "Repeat"} iteration`, startUrl: "", browser: browserName, steps: step.loopSteps, groups: [], variables: [] };
+            try { for (let iteration = 0; iteration < count && !stopRequested; iteration++) { runtimeContext.variables.iteration = String(iteration + 1); try { await executeNestedWorkflow(inlineId, 1, payload.currentWorkflowId ? [payload.currentWorkflowId] : [], runtimeContext.variables); } catch (error) { if (error && error.flowControl === "break") break; if (error && error.flowControl === "continue") continue; throw error; } } } finally { delete library[inlineId]; }
+            break;
+          }
+          case "loopList": {
+            if (!Array.isArray(step.loopSteps)) throw new Error("Loop over list needs loopSteps."); const rawList = substituteVariables(step.listExpression || "", variables); let items;
+            try { const parsed = JSON.parse(rawList); items = Array.isArray(parsed) ? parsed : String(rawList).split(","); } catch { items = String(rawList).split(","); }
+            if (items.length > 1000) throw new Error("Loop list is limited to 1000 items."); const inlineId = `__list_${Date.now()}_${index}`; const library = payload.workflowLibrary || (payload.workflowLibrary = {});
+            try { for (let itemIndex = 0; itemIndex < items.length && !stopRequested; itemIndex++) { const item = items[itemIndex]; runtimeContext.variables[step.itemVariable || "item"] = String(item); library[inlineId] = { version: 1, name: `${step.name || "List loop"} item`, startUrl: "", browser: browserName, steps: step.loopSteps, groups: [], variables: [] }; try { await executeNestedWorkflow(inlineId, 1, payload.currentWorkflowId ? [payload.currentWorkflowId] : [], runtimeContext.variables); } catch (error) { if (error && error.flowControl === "break") break; if (error && error.flowControl === "continue") continue; throw error; } } } finally { delete library[inlineId]; } break;
+          }
+          case "while": {
+            if (!Array.isArray(step.loopSteps)) throw new Error("While loop needs nested steps."); const max = Math.max(1, Math.min(1000, Number(step.repeatCount) || 100)); const inlineId = `__while_${Date.now()}_${index}`; const library = payload.workflowLibrary || (payload.workflowLibrary = {});
+            library[inlineId] = { version: 1, name: `${step.name || "While"} iteration`, startUrl: "", browser: browserName, steps: step.loopSteps, groups: [], variables: [] };
+            try { for (let iteration = 0; iteration < max && !stopRequested && evaluateRuntimeCondition(step.condition, runtimeContext); iteration++) { runtimeContext.variables.iteration = String(iteration + 1); try { await executeNestedWorkflow(inlineId, 1, payload.currentWorkflowId ? [payload.currentWorkflowId] : [], runtimeContext.variables); runtimeContext.url = await driver.getCurrentUrl().catch(() => runtimeContext.url); } catch (error) { if (error && error.flowControl === "break") break; if (error && error.flowControl === "continue") continue; throw error; } } } finally { delete library[inlineId]; } break;
+          }
           case "screenshot": {
             const image = await driver.takeScreenshot();
-            const outputDir = path.resolve(payload.screenshotDirectory || process.cwd());
-            await fs.mkdir(outputDir, { recursive: true });
-            const requested = typeof step.path === "string" ? path.basename(step.path) : "";
-            const filename = requested && requested.toLowerCase().endsWith(".png")
-              ? requested : `flowforge-${new Date().toISOString().replace(/[:.]/g, "-")}-${index + 1}.png`;
-            const outputPath = path.join(outputDir, filename);
-            await fs.writeFile(outputPath, image, "base64");
+            const requested = typeof step.outputName === "string" ? safeOutputName(step.outputName) : `screenshot-${index + 1}`;
+            const filename = requested.toLowerCase().endsWith(".png") ? requested : `${requested}.png`;
+            const outputPath = await writeArtifact(filename, Buffer.from(image, "base64"), "image/png");
             emit("screenshot", { index, path: outputPath });
             break;
           }
@@ -712,6 +895,28 @@ async function runWorkflow(rawPayload, deps = {}) {
     process.exitCode = 1;
   } finally {
     await quit();
+    try {
+      await fs.mkdir(outputDirectory, { recursive: true });
+      const knownArtifacts = new Set(outputArtifacts.map(item => item.name));
+      for (const name of await fs.readdir(outputDirectory).catch(() => [])) {
+        if (name === "manifest.json" || name.endsWith(".crdownload") || name.endsWith(".tmp") || knownArtifacts.has(name)) continue;
+        const artifactPath = path.join(outputDirectory, name);
+        const stat = await fs.stat(artifactPath).catch(() => null);
+        if (!stat || !stat.isFile()) continue;
+        if (stat.size > 100 * 1024 * 1024) { await fs.unlink(artifactPath).catch(() => {}); emit("notice", { level: "warning", message: `Output file ${name} exceeded the 100 MB limit and was excluded from the run archive.` }); continue; }
+        const ext = path.extname(name).toLowerCase();
+        const contentType = ({ ".txt": "text/plain", ".csv": "text/csv", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".pdf": "application/pdf" })[ext] || "application/octet-stream";
+        outputArtifacts.push({ name, contentType, size: stat.size, createdAt: stat.mtime.toISOString() });
+      }
+      const manifest = { workflowId: payload.currentWorkflowId || null, workflowName: payload.workflowName || "Workflow", runId: payload.runId || path.basename(outputDirectory), createdAt: new Date().toISOString(), artifacts: outputArtifacts };
+      await fs.writeFile(path.join(outputDirectory, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
+      if (outputArchivePath) {
+        const { createZipFromDirectory } = require("./zip.cjs");
+        const archived = await createZipFromDirectory(outputDirectory, outputArchivePath);
+        if (outputManifestPath) await fs.writeFile(outputManifestPath, JSON.stringify({ ...manifest, archiveName: path.basename(outputArchivePath), archivePath: outputArchivePath, archiveSize: (await fs.stat(outputArchivePath)).size, fileCount: archived.fileCount }, null, 2), "utf8");
+        emit("output-archive", { path: outputArchivePath, name: path.basename(outputArchivePath), workflowId: payload.currentWorkflowId || null, workflowName: payload.workflowName || "Workflow", fileCount: archived.fileCount, artifacts: outputArtifacts });
+      }
+    } catch (outputError) { emit("notice", { level: "warning", message: `Could not package workflow outputs: ${normalizeError(outputError).message}` }); }
     if (typeof process !== "undefined") process.removeListener("SIGTERM", stop);
   }
 }

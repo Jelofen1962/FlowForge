@@ -105,9 +105,14 @@ async function startEngine(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, error: "Invalid automation payload." };
   }
+  const safeWorkflowKey = String(payload.currentWorkflowId || payload.workflowName || "default").replace(/[^a-z0-9_-]/gi, "_").slice(0, 80) || "default";
+  const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 8)}`;
+  const workflowOutputRoot = path.join(app.getPath("userData"), "outputs", safeWorkflowKey);
+  const outputDirectory = path.join(workflowOutputRoot, runId);
+  const outputArchivePath = path.join(workflowOutputRoot, `${runId}.zip`);
   let encoded;
   try {
-    encoded = JSON.stringify({ ...payload, screenshotDirectory: payload.screenshotDirectory || path.join(app.getPath("userData"), "screenshots") });
+    encoded = JSON.stringify({ ...payload, runId, workflowName: String(payload.workflowName || "Workflow"), outputDirectory, outputArchivePath, screenshotDirectory: outputDirectory });
     if (Buffer.byteLength(encoded, "utf8") > 5_000_000) {
       return { ok: false, error: "Workflow payload exceeds the 5 MB limit." };
     }
@@ -225,6 +230,62 @@ handleTrusted("profile:list", async () => {
   const dir = path.join(app.getPath("userData"), "profiles");
   await fs.mkdir(dir, { recursive: true });
   return (await fs.readdir(dir)).filter(file => file.endsWith(".json"));
+});
+
+const outputRoot = () => path.join(app.getPath("userData"), "outputs");
+const safeOutputKey = value => String(value || "default").replace(/[^a-z0-9_-]/gi, "_").slice(0, 80) || "default";
+handleTrusted("outputs:list", async (_event, workflowId) => {
+  const key = safeOutputKey(workflowId);
+  const dir = path.join(outputRoot(), key);
+  await fs.mkdir(dir, { recursive: true });
+  const names = (await fs.readdir(dir)).filter(name => name.endsWith(".zip")).sort().reverse();
+  const results = [];
+  for (const name of names) {
+    const archivePath = path.join(dir, name);
+    const runId = name.slice(0, -4);
+    const runDir = path.join(dir, runId);
+    const stat = await fs.stat(archivePath).catch(() => null);
+    if (!stat || !stat.isFile()) continue;
+    let manifest = { artifacts: [] };
+    try { manifest = JSON.parse(await fs.readFile(path.join(runDir, "manifest.json"), "utf8")); } catch { /* Keep an archive visible even if its manifest is missing. */ }
+    results.push({ name, path: archivePath, size: stat.size, modifiedAt: stat.mtime.toISOString(), workflowName: manifest.workflowName || "Workflow", runId: manifest.runId || runId, artifacts: Array.isArray(manifest.artifacts) ? manifest.artifacts : [] });
+  }
+  return results;
+});
+handleTrusted("outputs:open", async (_event, workflowId, archiveName) => {
+  const dir = path.join(outputRoot(), safeOutputKey(workflowId));
+  if (typeof archiveName !== "string" || path.basename(archiveName) !== archiveName || !archiveName.endsWith(".zip")) return { ok: false, error: "Invalid output archive name." };
+  const target = path.join(dir, archiveName);
+  const stat = await fs.stat(target).catch(() => null);
+  if (!stat || !stat.isFile()) return { ok: false, error: "Output archive was not found." };
+  const error = await shell.openPath(target);
+  return error ? { ok: false, error } : { ok: true };
+});
+handleTrusted("outputs:reveal", async (_event, workflowId, archiveName) => {
+  const dir = path.join(outputRoot(), safeOutputKey(workflowId));
+  if (typeof archiveName !== "string" || path.basename(archiveName) !== archiveName || !archiveName.endsWith(".zip")) return { ok: false, error: "Invalid output archive name." };
+  const target = path.join(dir, archiveName);
+  if (!(await fs.stat(target).catch(() => null))) return { ok: false, error: "Output archive was not found." };
+  shell.showItemInFolder(target); return { ok: true };
+});
+handleTrusted("outputs:delete", async (_event, workflowId, archiveName) => {
+  const dir = path.join(outputRoot(), safeOutputKey(workflowId));
+  if (typeof archiveName !== "string" || path.basename(archiveName) !== archiveName || !archiveName.endsWith(".zip")) return { ok: false, error: "Invalid output archive name." };
+  const target = path.join(dir, archiveName); const runDir = path.join(dir, archiveName.slice(0, -4));
+  await fs.unlink(target).catch(() => {}); await fs.rm(runDir, { recursive: true, force: true }).catch(() => {});
+  return { ok: true };
+});
+handleTrusted("outputs:read", async (_event, workflowId, archiveName, artifactName) => {
+  const dir = path.join(outputRoot(), safeOutputKey(workflowId));
+  if (typeof archiveName !== "string" || path.basename(archiveName) !== archiveName || !archiveName.endsWith(".zip") || typeof artifactName !== "string" || path.basename(artifactName) !== artifactName) return { ok: false, error: "Invalid output artifact reference." };
+  const file = path.join(dir, archiveName.slice(0, -4), artifactName);
+  const stat = await fs.stat(file).catch(() => null);
+  if (!stat || !stat.isFile()) return { ok: false, error: "Output artifact was not found." };
+  if (stat.size > 10 * 1024 * 1024) return { ok: false, error: "Preview is limited to 10 MB. Open the ZIP to view this artifact." };
+  const data = await fs.readFile(file);
+  const ext = path.extname(file).toLowerCase();
+  const mime = ({ ".txt": "text/plain", ".csv": "text/csv", ".json": "application/json", ".html": "text/html", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" })[ext] || "application/octet-stream";
+  return { ok: true, name: artifactName, mime, data: data.toString("base64"), text: mime.startsWith("text/") || mime === "application/json" ? data.toString("utf8") : undefined };
 });
 
 handleTrusted("open:external", (_event, url) => {

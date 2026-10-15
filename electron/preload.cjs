@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld("flowforge", {
   recorderNavigate: url => ipcRenderer.invoke("recorder:navigate", url),
   saveProfile: profile => ipcRenderer.invoke("profile:save", profile),
   listProfiles: () => ipcRenderer.invoke("profile:list"),
+  listOutputs: workflowId => ipcRenderer.invoke("outputs:list", workflowId),
+  openOutput: (workflowId, archiveName) => ipcRenderer.invoke("outputs:open", workflowId, archiveName),
+  revealOutput: (workflowId, archiveName) => ipcRenderer.invoke("outputs:reveal", workflowId, archiveName),
+  deleteOutput: (workflowId, archiveName) => ipcRenderer.invoke("outputs:delete", workflowId, archiveName),
+  readOutput: (workflowId, archiveName, artifactName) => ipcRenderer.invoke("outputs:read", workflowId, archiveName, artifactName),
   openExternal: url => ipcRenderer.invoke("open:external", url),
   onLog: callback => subscribe("engine:log", callback),
   onFinished: callback => subscribe("engine:finished", callback)

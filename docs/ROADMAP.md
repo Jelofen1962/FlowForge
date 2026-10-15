@@ -197,3 +197,10 @@ The package includes trusted-frame IPC validation, navigation and popup restrict
 ### Capability status and known gaps
 
 The workflow library and sub-workflow engine are implemented as a first pass; full UI tests and real Chrome/Edge Windows integration remain outstanding. The command palette is a searchable action list; it does not yet implement arrow-key selection or a full focus trap. Template examples are generic scaffolds, not production-tested site-specific workflows. The Browser tab still includes a selector demo and explanatory text; the complete recorder UI experience requires further end-to-end validation. Phase 5 nested loops, pause/resume, breakpoints, and rerun-failed-step are not complete. Phase 6 session JSON is not encrypted. Phase 7 run history is local renderer storage, not an audit log. The installer is unsigned, and live Windows CI results must be checked in GitHub Actions before distribution.
+
+
+## Advanced action and output pass (October 2026)
+
+Implemented first-pass actions for hover/right-click/double-click/drag-drop/scroll, upload and download waiting, text/attribute/value/table extraction, text/image/screenshot saving, URL/title/existence/count/attribute assertions, tab/frame/alert control, if/else, repeat/list/while loops, and break/continue. Outputs are collected into per-workflow ZIP archives and managed from the Outputs panel.
+
+Remaining validation: full Vitest and TypeScript checks with installed dependencies; live Chrome and Edge integration; browser download behavior across browser versions; output retention and disk-quota policy; nested-block visual editor; prompt text and alert handling; accessibility/UX tests; Windows packaging and installer smoke tests.

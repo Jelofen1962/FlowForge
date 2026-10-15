@@ -6,7 +6,12 @@ export type LocatorStrategy =
 export type StepType =
   | "click" | "type" | "key" | "navigate"
   | "waitVisible" | "waitClickable" | "wait" | "assertText"
-  | "select" | "userInput" | "runWorkflow" | "screenshot" | "back" | "forward" | "refresh";
+  | "select" | "userInput" | "runWorkflow" | "screenshot" | "back" | "forward" | "refresh"
+  | "hover" | "rightClick" | "doubleClick" | "dragDrop" | "scrollTo" | "scroll"
+  | "uploadFile" | "waitDownload" | "extractText" | "extractAttribute" | "extractValue" | "extractTable" | "saveText" | "saveImage"
+  | "assertUrl" | "assertExists" | "assertCount" | "assertTitle" | "assertAttribute"
+  | "alertAccept" | "alertDismiss" | "openTab" | "closeTab" | "switchWindow" | "switchFrame" | "switchFrameDefault"
+  | "ifElse" | "repeat" | "loopList" | "while" | "breakLoop" | "continueLoop";
 
 export type OnErrorPolicy = "stop" | "continue";
 
@@ -57,6 +62,17 @@ export interface WorkflowStep {
   loop?: { mode: "count" | "while"; count?: number; condition?: StepCondition; maxIterations?: number };
   inputs?: UserInputField[];
   workflowId?: string;
+  target2?: Locator;
+  attribute?: string;
+  outputName?: string;
+  filePath?: string;
+  scrollAmount?: number;
+  repeatCount?: number;
+  listExpression?: string;
+  itemVariable?: string;
+  thenSteps?: WorkflowStep[];
+  elseSteps?: WorkflowStep[];
+  loopSteps?: WorkflowStep[];
 }
 
 export interface WorkflowGroup {
@@ -93,10 +109,16 @@ const locatorStrategies: LocatorStrategy[] = [
 ];
 const stepTypes: StepType[] = [
   "click", "type", "key", "navigate", "waitVisible", "waitClickable",
-  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh"
+  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh",
+  "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
+  "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
+  "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
+  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop"
 ];
 const requiredLocatorTypes = new Set<StepType>([
-  "click", "type", "waitVisible", "waitClickable", "assertText", "select"
+  "click", "type", "waitVisible", "waitClickable", "assertText", "select", "hover", "rightClick", "doubleClick",
+  "scrollTo", "uploadFile", "extractText", "extractAttribute", "extractValue", "extractTable", "saveImage",
+  "assertExists", "assertCount", "assertAttribute", "switchFrame", "dragDrop"
 ]);
 
 export function createId(): string {
@@ -121,7 +143,14 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     screenshot: "Take screenshot",
     back: "Go back",
     forward: "Go forward",
-    refresh: "Refresh page"
+    refresh: "Refresh page", hover: "Hover over element", rightClick: "Right-click element", doubleClick: "Double-click element",
+    dragDrop: "Drag and drop", scrollTo: "Scroll to element", scroll: "Scroll page", uploadFile: "Upload file",
+    waitDownload: "Wait for download", extractText: "Extract element text", extractAttribute: "Extract attribute",
+    extractValue: "Extract input value", extractTable: "Extract table to CSV", saveText: "Save text output", saveImage: "Save image from element",
+    assertUrl: "Assert current URL", assertExists: "Assert element exists", assertCount: "Assert element count",
+    assertTitle: "Assert page title", assertAttribute: "Assert attribute", alertAccept: "Accept browser alert", alertDismiss: "Dismiss browser alert",
+    openTab: "Open new tab", closeTab: "Close current tab", switchWindow: "Switch browser tab", switchFrame: "Switch into frame", switchFrameDefault: "Return to main page from frame",
+    ifElse: "If / else block", repeat: "Repeat steps", loopList: "Loop over list", while: "While condition is true", breakLoop: "Break loop", continueLoop: "Continue loop"
   };
   return {
     id: createId(),
@@ -137,7 +166,16 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     clearFirst: true,
     groupId,
     workflowId: type === "runWorkflow" ? "" : undefined,
-    inputs: type === "userInput" ? [{ id: createId(), title: "Value", placeholder: "Enter a value", required: true, secret: false, target: { strategy: "css", value: "" } }] : undefined
+    inputs: type === "userInput" ? [{ id: createId(), title: "Value", placeholder: "Enter a value", required: true, secret: false, target: { strategy: "css", value: "" } }] : undefined,
+    outputName: ["saveText", "saveImage", "extractText", "extractAttribute", "extractValue", "extractTable"].includes(type) ? "result" : undefined,
+    attribute: type === "extractAttribute" || type === "assertAttribute" ? "href" : undefined,
+    scrollAmount: type === "scroll" ? 600 : undefined,
+    repeatCount: type === "repeat" ? 2 : type === "while" ? 100 : undefined,
+    itemVariable: type === "loopList" ? "item" : undefined,
+    listExpression: type === "loopList" ? "one,two,three" : undefined,
+    thenSteps: type === "ifElse" ? [] : undefined,
+    elseSteps: type === "ifElse" ? [] : undefined,
+    loopSteps: type === "repeat" || type === "loopList" || type === "while" ? [] : undefined
   };
 }
 
@@ -246,13 +284,33 @@ export function validateWorkflow(input: unknown): ValidationResult {
         if (!step.retry || !Number.isInteger(step.retry.attempts) || step.retry.attempts < 1 || step.retry.attempts > 10) errors.push(`Step ${n} retry attempts must be an integer from 1 to 10.`);
         if (step.retry && step.retry.delayMs !== undefined && (!Number.isFinite(step.retry.delayMs) || step.retry.delayMs < 0 || step.retry.delayMs > 30000)) errors.push(`Step ${n} retry delay must be between 0 and 30000 ms.`);
       }
+      if (step.condition !== undefined) {
+        const condition = step.condition;
+        if (!condition || !["variable", "lastText", "url", "stepStatus"].includes(condition.source) || !["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(condition.operator)) errors.push(`Step ${n} has an invalid condition.`);
+        if (condition && ["variable", "stepStatus"].includes(condition.source) && (!condition.key || !condition.key.trim())) errors.push(`Step ${n} condition needs a key.`);
+      }
       if (["wait"].includes(type) && step.ms !== undefined && (!Number.isFinite(step.ms) || (step.ms as number) < 0)) errors.push(`Step ${n} wait duration must be a non-negative number.`);
       if (type === "navigate" && (typeof step.url !== "string" || !isHttpUrl(step.url))) errors.push(`Step ${n} needs a valid http(s) URL.`);
+      if (type === "openTab" && step.url !== undefined && step.url !== "about:blank" && (typeof step.url !== "string" || !isHttpUrl(step.url))) errors.push(`Step ${n} new-tab URL must use http(s) or about:blank.`);
       if (type === "runWorkflow" && (typeof step.workflowId !== "string" || !step.workflowId.trim())) errors.push(`Step ${n} must select a workflow to run.`);
       if (type === "key" && (typeof step.key !== "string" || !step.key.trim())) errors.push(`Step ${n} needs a key or shortcut.`);
       if (type === "assertText" && typeof step.expected !== "string") errors.push(`Step ${n} needs expected text.`);
+      if (["assertUrl", "assertTitle"].includes(type) && (typeof step.expected !== "string" || !step.expected.trim())) errors.push(`Step ${n} needs an expected value.`);
       if (type === "type" && typeof step.text !== "string") errors.push(`Step ${n} needs text to type.`);
       if (type === "select" && typeof step.text !== "string") errors.push(`Step ${n} needs an option value.`);
+      if (["extractAttribute", "assertAttribute"].includes(type) && (!step.attribute || !step.attribute.trim())) errors.push(`Step ${n} needs an attribute name.`);
+      if (["extractText", "extractAttribute", "extractValue", "extractTable"].includes(type) && step.outputName !== undefined && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) errors.push(`Step ${n} output variable must start with a letter or underscore and contain only letters, numbers, and underscores.`);
+      if (type === "dragDrop") {
+        const target2 = step.target2 as Partial<Locator> | undefined;
+        if (!target2 || !locatorStrategies.includes(target2.strategy as LocatorStrategy) || typeof target2.value !== "string" || !target2.value.trim()) errors.push(`Step ${n} needs a destination locator for drag and drop.`);
+      }
+      if (type === "uploadFile" && (typeof step.filePath !== "string" || !step.filePath.trim())) errors.push(`Step ${n} needs a file path to upload.`);
+      if (type === "waitDownload" && step.timeout !== undefined && (!Number.isFinite(step.timeout) || (step.timeout as number) < 1)) errors.push(`Step ${n} download timeout must be positive.`);
+      if (type === "repeat" && (!Number.isInteger(step.repeatCount) || (step.repeatCount as number) < 1 || (step.repeatCount as number) > 1000)) errors.push(`Step ${n} repeat count must be between 1 and 1000.`);
+      if (type === "loopList" && (!Array.isArray(step.loopSteps) || typeof step.listExpression !== "string" || !step.listExpression.trim())) errors.push(`Step ${n} needs a list and nested steps.`);
+      if (type === "loopList" && step.itemVariable !== undefined && (typeof step.itemVariable !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.itemVariable))) errors.push(`Step ${n} item variable must be a valid identifier.`);
+      if (type === "while" && (!step.condition || !Array.isArray(step.loopSteps) || !Number.isInteger(step.repeatCount) || (step.repeatCount as number) < 1 || (step.repeatCount as number) > 1000)) errors.push(`Step ${n} while loop needs a condition, nested steps, and a 1-1000 iteration limit.`);
+      if (type === "ifElse" && (!step.condition || !Array.isArray(step.thenSteps) || !Array.isArray(step.elseSteps))) errors.push(`Step ${n} needs a condition and then/else step arrays.`);
       if (type === "userInput") {
         if (!Array.isArray(step.inputs) || step.inputs.length < 1 || step.inputs.length > 30) errors.push(`Step ${n} must have between 1 and 30 user input fields.`);
         else step.inputs.forEach((field, fieldIndex) => {

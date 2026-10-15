@@ -1,6 +1,6 @@
 {
   "name": "flowforge-automation",
-  "version": "0.3.0",
+  "version": "0.3.9",
   "private": true,
   "description": "Windows desktop GUI for Selenium browser automation",
   "main": "electron/main.cjs",
