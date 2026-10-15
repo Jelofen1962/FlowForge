@@ -19,7 +19,7 @@ describe("advanced browser actions", () => {
   it("validates drag-and-drop destination and bounded control-flow blocks", () => {
     expect(() => runner.validatePayload({ steps: [{ type: "dragDrop", target: { strategy: "css", value: "#source" } }] })).toThrow(/destination locator/i);
     expect(() => runner.validatePayload({ steps: [{ type: "repeat", repeatCount: 1001, loopSteps: [] }] })).toThrow(/1-1000/i);
-    expect(() => runner.validatePayload({ steps: [{ type: "ifElse", condition: { source: "lastText", operator: "contains", expected: "x" }, thenSteps: [], elseSteps: [] }] }).steps).toHaveLength(1);
+    expect(runner.validatePayload({ steps: [{ type: "ifElse", condition: { source: "lastText", operator: "contains", expected: "x" }, thenSteps: [], elseSteps: [] }] }).steps).toHaveLength(1);
   });
   it("supports empty locators only for actions that do not target an element", () => {
     expect(runner.stepRequiresLocator("navigate")).toBe(false);
