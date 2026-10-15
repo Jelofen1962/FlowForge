@@ -108,7 +108,7 @@ function validatePayload(payload) {
     if (step.type === "navigate" && !isHttpUrl(step.url)) throw new Error(`Step ${i + 1} needs a valid http(s) URL.`);
     if (step.type === "key" && (typeof step.key !== "string" || !step.key.trim())) throw new Error(`Step ${i + 1} needs a key or shortcut.`);
     if (step.type === "userInput") {
-      if (!Array.isArray(step.inputs) || step.inputs.length < 1) throw new Error(`Step ${i + 1} needs at least one user input field.`);
+      if (!Array.isArray(step.inputs) || step.inputs.length < 1 || step.inputs.length > 30) throw new Error(`Step ${i + 1} must have between 1 and 30 user input fields.`);
       for (let fieldIndex = 0; fieldIndex < step.inputs.length; fieldIndex++) {
         const field = step.inputs[fieldIndex];
         if (!field || typeof field !== "object" || typeof field.id !== "string" || !field.id.trim() || typeof field.title !== "string" || !field.title.trim()) throw new Error(`Step ${i + 1} input ${fieldIndex + 1} needs an id and title.`);

@@ -250,7 +250,7 @@ export function validateWorkflow(input: unknown): ValidationResult {
       if (type === "type" && typeof step.text !== "string") errors.push(`Step ${n} needs text to type.`);
       if (type === "select" && typeof step.text !== "string") errors.push(`Step ${n} needs an option value.`);
       if (type === "userInput") {
-        if (!Array.isArray(step.inputs) || step.inputs.length < 1) errors.push(`Step ${n} needs at least one user input field.`);
+        if (!Array.isArray(step.inputs) || step.inputs.length < 1 || step.inputs.length > 30) errors.push(`Step ${n} must have between 1 and 30 user input fields.`);
         else step.inputs.forEach((field, fieldIndex) => {
           const label = `Step ${n} input ${fieldIndex + 1}`;
           if (!field || typeof field !== "object") { errors.push(`${label} must be an object.`); return; }
