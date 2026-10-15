@@ -11,6 +11,7 @@ const runner = require("../engine/runner.cjs") as {
   normalizeOptimizations: (value?: Record<string, unknown>) => { disableImages:boolean; disableCss:boolean; disableFonts:boolean; disableMedia:boolean; pageLoadStrategy:string };
   buildBlockedUrlPatterns: (value?: Record<string, unknown>) => string[];
   stepRequiresLocator: (stepType: string) => boolean;
+  createElementWaiters: (driver: any, by: unknown, timeout: number, description?: string) => { locate: () => Promise<any>; visible: () => Promise<any>; clickable: () => Promise<any> };
   resolveDriverPath: (browserName: string, env?: Record<string, string>, existsSync?: (path: string) => boolean, platform?: string) => string | null;
 };
 
@@ -58,6 +59,26 @@ describe("Selenium runner validation", () => {
     expect(() => runner.validatePayload({ steps: [{ type: "click" }] })).toThrow(/locator/);
     expect(() => runner.validatePayload({ steps: [{ type: "navigate", url: "file:///etc/passwd" }] })).toThrow(/http\(s\)/);
     expect(() => runner.validatePayload({ steps: [], browser: "firefox" })).toThrow(/Unsupported browser/);
+  });
+
+  it("wait-until methods re-query dynamic elements and require visible/enabled state", async () => {
+    let lookups = 0;
+    const element = { isDisplayed: async () => true, isEnabled: async () => true };
+    const fakeDriver = { findElement: async () => { lookups++; return element; }, wait: async (condition: () => Promise<any>) => condition() };
+    const waits = runner.createElementWaiters(fakeDriver, { selector: "#submit" }, 100, "css=#submit");
+    expect(await waits.visible()).toBe(element);
+    expect(await waits.clickable()).toBe(element);
+    expect(lookups).toBe(2);
+  });
+
+  it("validates user input fields and their destination locators", () => {
+    const validInput = { type: "userInput", name: "Ask for details", inputs: [
+      { id: "email", title: "Email address", required: true, secret: false, target: { strategy: "css", value: "#email" } },
+      { id: "password", title: "Password", required: true, secret: true, target: { strategy: "id", value: "password" } }
+    ] };
+    expect(runner.validatePayload({ steps: [validInput] }).steps).toHaveLength(1);
+    expect(() => runner.validatePayload({ steps: [{ ...validInput, inputs: [{ id: "email", title: "Email", target: { strategy: "css", value: " " } }] }] })).toThrow(/target locator/i);
+    expect(() => runner.validatePayload({ steps: [{ ...validInput, inputs: [] }] })).toThrow(/between 1 and 30/i);
   });
 
   it("accepts a valid click workflow and normalizes browser choice", () => {

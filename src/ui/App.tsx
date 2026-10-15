@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createId, normalizeWorkflow, validateWorkflow, type WorkflowGroup, type WorkflowVariable } from "../core/workflow";
+import { createId, normalizeWorkflow, validateWorkflow, type WorkflowGroup, type WorkflowVariable, type UserInputField } from "../core/workflow";
 import { parseRecorderMessage, selectionToLocator, type RecorderSelection } from "../core/recorder";
 import { validateSessionSnapshot } from "../core/session";
 import {
@@ -9,9 +9,10 @@ import {
 } from "lucide-react";
 
 type Target = { strategy: string; value: string };
-type Step = { id:string; name:string; type:string; target:Target; url?:string; text?:string; key?:string; ms?:number; timeout?:number; expected?:string; disabled?:boolean; onError?:string; clearFirst?:boolean; groupId?:string; retry?:{attempts:number;delayMs:number} };
+type Step = { id:string; name:string; type:string; target:Target; url?:string; text?:string; key?:string; ms?:number; timeout?:number; expected?:string; disabled?:boolean; onError?:string; clearFirst?:boolean; groupId?:string; retry?:{attempts:number;delayMs:number}; inputs?:UserInputField[] };
+type UserInputPrompt = { requestId:string; stepName:string; fields:Array<{id:string;title:string;placeholder:string;required:boolean;secret:boolean}>; values:Record<string,string>; error?:string };
 type RunRecord = { id:string; workflow:string; startedAt:string; endedAt?:string; status:"running"|"success"|"failed"|"stopped"|"interrupted"; totalSteps:number; successfulSteps:number; failedSteps:number; skippedSteps:number; error?:string; durationMs?:number };
-const makeStep = (type="click"):Step => ({ id:crypto.randomUUID(), name: ({click:"Click element",type:"Type text",waitVisible:"Wait until visible",waitClickable:"Wait until clickable",navigate:"Navigate to URL",key:"Keyboard shortcut",wait:"Pause"} as Record<string,string>)[type] || "New step", type, target:{strategy:"xpath",value:""}, url:"https://example.com", text:"", key:"ENTER", ms:1000, timeout:10000, onError:"stop", clearFirst:true });
+const makeStep = (type="click"):Step => ({ id:crypto.randomUUID(), name: ({click:"Click element",type:"Type text",waitVisible:"Wait until visible",waitClickable:"Wait until clickable",navigate:"Navigate to URL",key:"Keyboard shortcut",wait:"Pause",userInput:"Ask user for inputs"} as Record<string,string>)[type] || "New step", type, target:{strategy:"xpath",value:""}, url:"https://example.com", text:"", key:"ENTER", ms:1000, timeout:10000, onError:"stop", clearFirst:true, inputs:type==="userInput"?[{id:crypto.randomUUID(),title:"Value",placeholder:"Enter a value",required:true,secret:false,target:{strategy:"css",value:""}}]:undefined });
 const starter:Step[] = [
   {...makeStep("navigate"), name:"Open website", url:"https://example.com"},
   {...makeStep("waitVisible"), name:"Wait for heading", target:{strategy:"css",value:"h1"}, timeout:10000},
@@ -21,7 +22,7 @@ const starter:Step[] = [
 const stepTypes = [
   ["click","Click element"],["type","Type text"],["key","Keyboard shortcut"],["navigate","Navigate to URL"],
   ["waitVisible","Wait until visible"],["waitClickable","Wait until clickable"],["wait","Wait / pause"],
-  ["assertText","Assert text"],["select","Select option"],["screenshot","Take screenshot"],["back","Go back"],["forward","Go forward"],["refresh","Refresh page"]
+  ["assertText","Assert text"],["select","Select option"],["userInput","Ask user for inputs"],["screenshot","Take screenshot"],["back","Go back"],["forward","Go forward"],["refresh","Refresh page"]
 ];
 export default function App(){
   const [steps,setSteps]=useState<Step[]>(starter);
@@ -33,6 +34,7 @@ export default function App(){
   const [tab,setTab]=useState("workflow");
   const [theme,setTheme]=useState<"dark"|"light">(()=>{try{return localStorage.getItem("flowforge.theme.v1")==="light"?"light":"dark"}catch{return "dark"}});
   const [commandOpen,setCommandOpen]=useState(false);
+  const [userInputPrompt,setUserInputPrompt]=useState<UserInputPrompt|null>(null);
   const [commandQuery,setCommandQuery]=useState("");
   const commandInputRef=useRef<HTMLInputElement|null>(null);
   const [browser,setBrowser]=useState("chrome");
@@ -74,7 +76,12 @@ export default function App(){
         : p.type === "performance" ? `Performance: total ${p.data.totalDurationMs} ms; navigation ${p.data.navigationDurationMs ?? "n/a"} ms; DOM ready ${p.data.domContentLoadedMs ?? "n/a"} ms; load ${p.data.loadEventMs ?? "n/a"} ms; ${p.data.resourceCount ?? "n/a"} resources; ${p.data.transferBytes ?? "n/a"} transfer bytes.`
         : p.type === "step" && p.data.durationMs !== undefined ? `${p.data.status}: step ${p.data.index+1} (${p.data.name}) in ${p.data.durationMs} ms${p.data.attempts>1?` after ${p.data.attempts} attempts`:""}.`
         : line.trim();
-      setLogs(old=>[...old, safeLine].slice(-300));
+      if(p.type === "user-input-request" && p.data && typeof p.data.requestId === "string" && Array.isArray(p.data.fields)) {
+        setUserInputPrompt({ requestId:p.data.requestId, stepName:String(p.data.stepName||"User input"), fields:p.data.fields, values:Object.fromEntries(p.data.fields.map((field:{id:string})=>[field.id,""])) });
+        setLogs(old=>[...old,`Waiting for user input: ${String(p.data.stepName||"User input")}.`].slice(-300));
+      } else {
+        setLogs(old=>[...old, safeLine].slice(-300));
+      }
       if(p.type === "session-export" && p.data) {
         const json=JSON.stringify(p.data,null,2); const blob=new Blob([json],{type:"application/json"}); const a=document.createElement("a"); const url=URL.createObjectURL(blob); a.href=url; a.download=`flowforge-session-${new Date().toISOString().replace(/[:.]/g,"-")}.json`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(url),1000);
         setLogs(old=>[...old,`Session snapshot exported for ${p.data.origin}. Treat the file as a password-equivalent secret.`].slice(-300));
@@ -91,6 +98,7 @@ export default function App(){
         setRunHistory(items=>items.map(item=>item.id!==id?item:{...item,endedAt,status:(p.data.stopped?"stopped":p.data.success&&item.failedSteps===0?"success":"failed") as RunRecord["status"],durationMs:Math.max(0,Date.parse(endedAt)-Date.parse(item.startedAt))}));
         activeRunId.current=null;
       }
+      if(p.type==="error") setUserInputPrompt(null);
       if(p.type==="error" && activeRunId.current) {
         const id=activeRunId.current; const endedAt=new Date().toISOString();
         setRunHistory(items=>items.map(item=>item.id!==id?item:{...item,endedAt,status:"failed" as RunRecord["status"],error:String(p.data?.message||"Engine error"),durationMs:Math.max(0,Date.parse(endedAt)-Date.parse(item.startedAt))}));
@@ -107,11 +115,20 @@ export default function App(){
       }
       if(p.type==="recorder" && p.data?.status==="stopped")setRecording(false);
     }catch{}});
-    const done=window.flowforge.onFinished(r=>{setRunning(false);setLogs(old=>[...old,`Engine exited (${r.code}).`]);if(activeRunId.current){const id=activeRunId.current;const endedAt=new Date().toISOString();setRunHistory(items=>items.map(item=>item.id!==id?item:{...item,endedAt,status:(r.stopped?"stopped":r.code===0?"success":"interrupted") as RunRecord["status"],error:r.code===0?item.error:`Runner exited with code ${r.code}`,durationMs:Math.max(0,Date.parse(endedAt)-Date.parse(item.startedAt))}));activeRunId.current=null;}});
+    const done=window.flowforge.onFinished(r=>{setRunning(false);setUserInputPrompt(null);setLogs(old=>[...old,`Engine exited (${r.code}).`]);if(activeRunId.current){const id=activeRunId.current;const endedAt=new Date().toISOString();setRunHistory(items=>items.map(item=>item.id!==id?item:{...item,endedAt,status:(r.stopped?"stopped":r.code===0?"success":"interrupted") as RunRecord["status"],error:r.code===0?item.error:`Runner exited with code ${r.code}`,durationMs:Math.max(0,Date.parse(endedAt)-Date.parse(item.startedAt))}));activeRunId.current=null;}});
     return ()=>{off();done()};
   },[steps]);
   useEffect(()=>{try{localStorage.setItem("flowforge.runHistory.v1",JSON.stringify(runHistory.slice(0,50)))}catch{}},[runHistory]);
   const update=(patch:Partial<Step>)=>setSteps(all=>all.map(s=>s.id===selected?{...s,...patch}:s));
+  const submitUserInput=async()=>{
+    if(!userInputPrompt)return;
+    const missing=userInputPrompt.fields.find(field=>field.required&&!String(userInputPrompt.values[field.id]||"").trim());
+    if(missing){setUserInputPrompt(prompt=>prompt?{...prompt,error:`${missing.title} is required.`}:prompt);return;}
+    const result=await window.flowforge.respondUserInput({requestId:userInputPrompt.requestId,values:userInputPrompt.values});
+    if(!result.ok){setUserInputPrompt(prompt=>prompt?{...prompt,error:result.error||"Could not send input."}:prompt);return;}
+    setUserInputPrompt(null);
+  };
+  const cancelUserInput=async()=>{if(!userInputPrompt)return;await window.flowforge.respondUserInput({requestId:userInputPrompt.requestId,cancel:true});setUserInputPrompt(null)};
   const addStep=(type="click")=>{const s=makeStep(type);setSteps(all=>[...all,s]);setSelected(s.id);setTab("workflow")};
   const duplicateStep=()=>{if(!current)return;const clone={...current,id:createId(),name:`${current.name} copy`,target:{...current.target}};const i=steps.findIndex(s=>s.id===current.id);const next=[...steps];next.splice(i+1,0,clone);setSteps(next);setSelected(clone.id)};
   const addGroup=()=>{const group={id:createId(),name:`Group ${groups.length+1}`,collapsed:false};setGroups(all=>[...all,group]);setLogs(old=>[...old,`Created ${group.name}.`])};
@@ -156,6 +173,7 @@ export default function App(){
     {label:"New workflow",detail:"Start with one navigation step",run:newWorkflow},
     {label:"Add click step",detail:"Insert a click action",run:()=>{addStep("click");setCommandOpen(false)}},
     {label:"Add type step",detail:"Insert a type-text action",run:()=>{addStep("type");setCommandOpen(false)}},
+    {label:"Add user input step",detail:"Prompt the user and fill mapped webpage elements",run:()=>{addStep("userInput");setCommandOpen(false)}},
     {label:"Import workflow",detail:"Open a FlowForge JSON file",run:()=>{setCommandOpen(false);importWorkflow()}},
     {label:"Export workflow",detail:"Save the current workflow as JSON",run:()=>{setCommandOpen(false);exportWorkflow()}},
     {label:"Open templates",detail:"Browse reusable workflow starters",run:()=>{setTab("templates");setCommandOpen(false);setCommandQuery("")}},
@@ -199,6 +217,7 @@ export default function App(){
             </div>)}
           </div>
           <button className="add-step" onClick={()=>addStep()}><Plus size={15}/> Add step</button>
+          <button className="add-step add-user-input-step" onClick={()=>addStep("userInput")}><Braces size={15}/> Add user input step</button>
           <div className="panel-footer"><ShieldCheck size={14}/><span>Runs locally on your machine</span></div>
         </section>
         <main className="editor-panel">
@@ -215,7 +234,8 @@ export default function App(){
             </>}
             {current.type==="type"&&<><label className="field-label">Text to type</label><textarea className="text-input textarea" value={current.text||""} onChange={e=>update({text:e.target.value})}/><label className="check-row"><input type="checkbox" checked={current.clearFirst!==false} onChange={e=>update({clearFirst:e.target.checked})}/> Clear field before typing</label></>}
             {current.type==="key"&&<><label className="field-label">Key / shortcut</label><input className="text-input" value={current.key||""} onChange={e=>update({key:e.target.value})} placeholder="ENTER or CONTROL + A"/><div className="hint">Selenium key names are supported, e.g. ENTER, TAB, ESCAPE.</div></>}
-            {current.type==="wait"&&<><label className="field-label">Duration (milliseconds)</label><input className="text-input" type="number" value={current.ms||1000} onChange={e=>update({ms:Number(e.target.value)})}/></>}
+            {current.type==="wait"&&<><label className="field-label">Duration (milliseconds)</label><input className="text-input" type="number" min="0" max="300000" value={current.ms??1000} onChange={e=>update({ms:Math.max(0,Math.min(300000,Number(e.target.value)||0))})}/></>}
+            {current.type==="userInput"&&<section className="user-input-config"><div className="section-caption">POP-UP INPUT FIELDS</div><p className="hint">When this step runs, FlowForge opens a dialog for the user. Each answer is typed into its mapped webpage element.</p>{(current.inputs||[]).map((field,index)=><div className="input-field-config" key={field.id}><div className="input-field-heading"><strong>Input {index+1}</strong><button className="tiny-icon always-visible" title="Remove input" disabled={(current.inputs||[]).length<=1} onClick={()=>update({inputs:(current.inputs||[]).filter(item=>item.id!==field.id)})}><Trash2 size={13}/></button></div><label className="field-label">Input title</label><input className="text-input" value={field.title} placeholder="e.g. Account email" onChange={e=>update({inputs:(current.inputs||[]).map(item=>item.id===field.id?{...item,title:e.target.value}:item)})}/><label className="field-label">Placeholder text</label><input className="text-input" value={field.placeholder||""} placeholder="Shown inside the pop-up" onChange={e=>update({inputs:(current.inputs||[]).map(item=>item.id===field.id?{...item,placeholder:e.target.value}:item)})}/><label className="field-label">Destination element</label><div className="locator-row"><select className="locator-select" aria-label={`Input ${index+1} locator strategy`} value={field.target?.strategy||"css"} onChange={e=>update({inputs:(current.inputs||[]).map(item=>item.id===field.id?{...item,target:{...item.target,strategy:e.target.value as UserInputField["target"]["strategy"]}}:item)})}>{["css","xpath","id","name","className","tagName"].map(strategy=><option key={strategy}>{strategy}</option>)}</select><input className="text-input locator-value" aria-label={`Input ${index+1} destination locator`} value={field.target?.value||""} placeholder="#email or //input[@name='email']" onChange={e=>update({inputs:(current.inputs||[]).map(item=>item.id===field.id?{...item,target:{...item.target,value:e.target.value}}:item)})}/></div><div className="input-field-options"><label className="check-row"><input type="checkbox" checked={field.required!==false} onChange={e=>update({inputs:(current.inputs||[]).map(item=>item.id===field.id?{...item,required:e.target.checked}:item)})}/> Required</label><label className="check-row"><input type="checkbox" checked={field.secret===true} onChange={e=>update({inputs:(current.inputs||[]).map(item=>item.id===field.id?{...item,secret:e.target.checked}:item)})}/> Hide value in pop-up</label></div></div>)}<button className="secondary-button" onClick={()=>update({inputs:[...(current.inputs||[]),{id:createId(),title:`Input ${(current.inputs||[]).length+1}`,placeholder:"Enter a value",required:true,secret:false,target:{strategy:"css",value:""}}]})}><Plus size={13}/> Add another input</button></section>}
             {current.type==="assertText"&&<><label className="field-label">Expected text includes</label><input className="text-input" value={current.expected||""} onChange={e=>update({expected:e.target.value})}/></>}
             {current.type==="select"&&<><label className="field-label">Option value</label><input className="text-input" value={current.text||""} onChange={e=>update({text:e.target.value})}/></>}
             {current.type!=="navigate"&&<><label className="field-label">Timeout (ms)</label><input className="text-input" type="number" value={current.timeout||10000} onChange={e=>update({timeout:Number(e.target.value)})}/></>}
@@ -244,6 +264,7 @@ export default function App(){
       {tab==="history"&&<main className="single-panel"><div className="panel-heading"><div><div className="eyebrow">EXECUTION DIAGNOSTICS</div><h1>Run history</h1><p>Recent automation outcomes are stored locally on this device.</p></div><button className="secondary-button" onClick={()=>{setRunHistory([]);activeRunId.current=null}}>Clear history</button></div>{runHistory.length===0?<div className="empty-state">No runs recorded yet. Run a workflow to start building history.</div>:<div className="history-list">{runHistory.map(item=><article className="form-card" key={item.id}><div className="history-title-row"><strong>{item.workflow}</strong><span className={`status-pill ${item.status}`}>{item.status.toUpperCase()}</span></div><div className="hint">Started {new Date(item.startedAt).toLocaleString()} · {item.durationMs===undefined?"In progress":`${(item.durationMs/1000).toFixed(1)}s`}</div><div className="history-stats"><span>{item.successfulSteps} succeeded</span><span>{item.failedSteps} failed</span><span>{item.skippedSteps} skipped</span><span>{item.totalSteps} total</span></div>{item.error&&<div className="validation-item">{item.error}</div>}</article>)}</div>}</main>}
       {tab==="logs"&&<main className="single-panel"><div className="panel-heading"><div><div className="eyebrow">DIAGNOSTICS</div><h1>Engine logs</h1><p>Live output from the local Selenium runner.</p></div><button className="secondary-button" onClick={()=>setLogs([])}>Clear logs</button></div><div className="console large-console">{logs.map((l,i)=><div key={i} className="log-line"><span>{String(i+1).padStart(3,"0")}</span><code>{l}</code></div>)}</div></main>}
     </div>
+    {userInputPrompt&&<div className="user-input-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)void cancelUserInput()}}><section className="user-input-dialog" role="dialog" aria-modal="true" aria-labelledby="user-input-dialog-title"><div className="user-input-dialog-icon"><Braces size={22}/></div><div className="eyebrow">FLOWFORGE NEEDS YOUR INPUT</div><h2 id="user-input-dialog-title">{userInputPrompt.stepName}</h2><p className="user-input-intro">Enter the values below. FlowForge will place each value into its configured webpage field and continue the workflow.</p><form onSubmit={event=>{event.preventDefault();void submitUserInput()}}>{userInputPrompt.fields.map(field=><label className="prompt-field" key={field.id}><span>{field.title}{field.required&&<b> *</b>}</span><input autoFocus={userInputPrompt.fields[0]?.id===field.id} type={field.secret?"password":"text"} value={userInputPrompt.values[field.id]||""} placeholder={field.placeholder||"Enter a value"} required={field.required} onChange={event=>setUserInputPrompt(prompt=>prompt?{...prompt,values:{...prompt.values,[field.id]:event.target.value},error:undefined}:prompt)}/></label>)}{userInputPrompt.error&&<div className="user-input-error" role="alert">{userInputPrompt.error}</div>}<div className="user-input-actions"><button className="secondary-button" type="button" onClick={()=>void cancelUserInput()}>Cancel workflow step</button><button className="primary-button" type="submit"><Check size={15}/> Continue workflow</button></div></form><div className="user-input-footnote"><ShieldCheck size={13}/> Values are sent only to the local FlowForge engine and are not added to run logs.</div></section></div>}
     {commandOpen&&<div className="command-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setCommandOpen(false)}}><section className="command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-title"><div className="command-search-row"><Search size={17}/><input ref={commandInputRef} value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Search commands…" aria-label="Search commands" onKeyDown={event=>{if(event.key==="Enter"&&filteredCommands[0]){event.preventDefault();filteredCommands[0].run()}}}/><kbd>ESC</kbd></div><div className="command-dialog-title" id="command-title">COMMAND PALETTE</div><div className="command-results" role="listbox" aria-label="Commands">{filteredCommands.length?filteredCommands.map(item=><button className="command-result" key={item.label} onClick={item.run} role="option"><span><strong>{item.label}</strong><small>{item.detail}</small></span><span className="command-enter">↵</span></button>):<div className="command-empty">No matching commands.</div>}</div><div className="command-footer"><span><kbd>Ctrl K</kbd> toggle palette</span><span><kbd>Enter</kbd> run first match</span><span><kbd>Esc</kbd> close</span></div></section></div>}
     <footer className="statusbar"><span><span className="live-dot"/> Ready</span><span>SELENIUM WEBDRIVER <b>·</b> REACT <b>·</b> ELECTRON</span><span>v0.3.0</span></footer>
   </div>

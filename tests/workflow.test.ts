@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeWorkflow, serializeWorkflow, validateWorkflow, type WorkflowDocument } from "../src/core/workflow";
+import { createStep, normalizeWorkflow, serializeWorkflow, validateWorkflow, type WorkflowDocument } from "../src/core/workflow";
 const valid: WorkflowDocument = {
   version: 1, name: "Test workflow", startUrl: "https://example.com", browser: "chrome",
   steps: [{ id: "step-1", name: "Open site", type: "navigate", url: "https://example.com" }], groups: [], variables: []
@@ -28,6 +28,13 @@ describe("workflow validation", () => {
     const result = validateWorkflow({...valid, steps: [{id:"s1",name:"Click",type:"click",target:{strategy:"css",value:""}}]});
     expect(result.valid).toBe(false);
     expect(result.errors.some(x => x.includes("non-empty locator"))).toBe(true);
+  });
+  it("creates user-input steps and validates every field destination", () => {
+    const step = createStep("userInput");
+    expect(step.inputs).toHaveLength(1);
+    const validStep = { ...step, inputs: [{ id: "email", title: "Email address", required: true, secret: false, target: { strategy: "css" as const, value: "#email" } }] };
+    expect(validateWorkflow({ ...valid, steps: [validStep] }).valid).toBe(true);
+    expect(validateWorkflow({ ...valid, steps: [{ ...validStep, inputs: [{ ...validStep.inputs[0], target: { strategy: "css" as const, value: "" } }] }] }).errors.some(error => /target element locator/.test(error))).toBe(true);
   });
   it("rejects invalid variable names and duplicate names", () => {
     const result = validateWorkflow({...valid, variables:[

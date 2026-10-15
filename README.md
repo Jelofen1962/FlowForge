@@ -162,3 +162,9 @@ FlowForge checks for a local ChromeDriver at `C:\WebDriver\chromedriver\chromedr
 ## UI refresh (October 2026)
 
 The refreshed interface uses Google Poppins typography, larger controls and spacing, layered monochrome surfaces with indigo/cyan accents, animated Lucide SVG interactions, and responsive panel layouts for narrower windows. Use the sun/moon control in the top toolbar to switch between dark and light themes; the preference is saved locally in the renderer. Motion is reduced automatically when the operating system requests reduced motion. The Google Font is loaded remotely, so the system font fallback is used if the machine is offline.
+
+## User-input steps and robust waits
+
+The **Ask user for inputs** action opens a FlowForge dialog while a workflow is running. Add up to 30 titled fields, optionally mark a field required or secret, and map each answer to a webpage element using a CSS, XPath, ID, name, class, or tag locator. On Continue, FlowForge fills each mapped element and resumes the workflow. Secret input values are not written to the run log. Workflow exports still contain the field definitions and target locators, but not values entered into the runtime dialog.
+
+**Wait until visible** and **Wait until clickable** re-query the locator on each polling attempt. This handles modern pages that replace elements during rendering and avoids waiting against a stale element reference. The configured step timeout is used for the entire wait, with a descriptive timeout error.

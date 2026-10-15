@@ -15,7 +15,7 @@ const MAX_WAIT_MS = 300_000;
 const LOCATOR_NAMES = new Set(["xpath", "css", "id", "name", "linkText", "className", "tagName"]);
 const STEP_TYPES = new Set([
   "click", "type", "key", "navigate", "waitVisible", "waitClickable", "wait",
-  "assertText", "select", "screenshot", "back", "forward", "refresh"
+  "assertText", "select", "userInput", "screenshot", "back", "forward", "refresh"
 ]);
 const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select"]);
 
@@ -107,6 +107,16 @@ function validatePayload(payload) {
     }
     if (step.type === "navigate" && !isHttpUrl(step.url)) throw new Error(`Step ${i + 1} needs a valid http(s) URL.`);
     if (step.type === "key" && (typeof step.key !== "string" || !step.key.trim())) throw new Error(`Step ${i + 1} needs a key or shortcut.`);
+    if (step.type === "userInput") {
+      if (!Array.isArray(step.inputs) || step.inputs.length < 1) throw new Error(`Step ${i + 1} needs at least one user input field.`);
+      for (let fieldIndex = 0; fieldIndex < step.inputs.length; fieldIndex++) {
+        const field = step.inputs[fieldIndex];
+        if (!field || typeof field !== "object" || typeof field.id !== "string" || !field.id.trim() || typeof field.title !== "string" || !field.title.trim()) throw new Error(`Step ${i + 1} input ${fieldIndex + 1} needs an id and title.`);
+        if (!field.target || !LOCATOR_NAMES.has(field.target.strategy) || typeof field.target.value !== "string" || !field.target.value.trim()) throw new Error(`Step ${i + 1} input "${field.title}" needs a valid target locator.`);
+        if (field.required !== undefined && typeof field.required !== "boolean") throw new Error(`Step ${i + 1} input "${field.title}" required must be boolean.`);
+        if (field.secret !== undefined && typeof field.secret !== "boolean") throw new Error(`Step ${i + 1} input "${field.title}" secret must be boolean.`);
+      }
+    }
   }
   return { ...payload, browser, optimizations: normalizeOptimizations(payload.optimizations) };
 }
@@ -132,6 +142,28 @@ function buildLocator(By, target) {
   const factory = strategies[target.strategy];
   if (!factory) throw new Error(`Unsupported locator strategy: ${String(target.strategy)}`);
   return factory(target.value);
+}
+
+
+function createElementWaiters(driver, by, timeout, locatorDescription = "element") {
+  const locate = () => driver.wait(async () => {
+    try { return await driver.findElement(by); } catch { return false; }
+  }, timeout, `Timed out after ${timeout}ms locating ${locatorDescription}`, 200);
+  const visible = () => driver.wait(async () => {
+    try {
+      const element = await driver.findElement(by);
+      return await element.isDisplayed() ? element : false;
+    } catch { return false; }
+  }, timeout, `Element ${locatorDescription} did not become visible within ${timeout}ms`, 200);
+  const clickable = () => driver.wait(async () => {
+    try {
+      const element = await driver.findElement(by);
+      if (!(await element.isDisplayed())) return false;
+      if (!(await element.isEnabled())) return false;
+      return element;
+    } catch { return false; }
+  }, timeout, `Element ${locatorDescription} did not become clickable within ${timeout}ms`, 200);
+  return { locate, visible, clickable };
 }
 
 function parseKeySequence(raw, Key) {
@@ -236,8 +268,26 @@ async function runWorkflow(rawPayload, deps = {}) {
   let recorderMode = payload.mode === "recorder";
   let lastRecorderMessage = null;
   let quitPromise;
+  const pendingUserInputs = new Map();
 
-  const stop = () => { stopRequested = true; };
+  const stop = () => {
+    stopRequested = true;
+    for (const [requestId, pending] of pendingUserInputs) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("Automation stopped while waiting for user input."));
+      pendingUserInputs.delete(requestId);
+    }
+  };
+  const requestUserInput = (step, index) => new Promise((resolve, reject) => {
+    const requestId = require("node:crypto").randomUUID();
+    const fields = step.inputs.map(field => ({ id: field.id, title: field.title, placeholder: field.placeholder || "", required: field.required !== false, secret: field.secret === true }));
+    const timer = setTimeout(() => {
+      pendingUserInputs.delete(requestId);
+      reject(new Error("Timed out waiting for user input (10 minutes)."));
+    }, 10 * 60 * 1000);
+    pendingUserInputs.set(requestId, { resolve: values => { clearTimeout(timer); resolve(values); }, reject: error => { clearTimeout(timer); reject(error); }, timer });
+    emit("user-input-request", { requestId, stepIndex: index, stepName: step.name || "User input", fields });
+  });
   const quit = async () => {
     if (!driver) return;
     if (!quitPromise) quitPromise = driver.quit().catch(() => {});
@@ -306,7 +356,15 @@ async function runWorkflow(rawPayload, deps = {}) {
           let command;
           try { command = JSON.parse(line); } catch { emit("error", { message: "Invalid engine control JSON.", name: "SyntaxError" }); continue; }
           try {
-            if (command.type === "recorder:start") {
+            if (command.type === "user-input:response" || command.type === "user-input:cancel") {
+              const pending = pendingUserInputs.get(command.requestId);
+              if (pending) {
+                pendingUserInputs.delete(command.requestId);
+                if (command.type === "user-input:cancel") pending.reject(new Error("User cancelled the input dialog."));
+                else if (!command.values || typeof command.values !== "object" || Array.isArray(command.values)) pending.reject(new Error("User input response is malformed."));
+                else pending.resolve(command.values);
+              }
+            } else if (command.type === "recorder:start") {
               const bridgePath = path.join(__dirname, "recorder-bridge.js");
               const source = await fs.readFile(bridgePath, "utf8");
               await driver.executeScript(source);
@@ -426,17 +484,8 @@ async function runWorkflow(rawPayload, deps = {}) {
         strategy: step.target.strategy,
         value: substituteVariables(step.target.value, variables)
       }) : null;
-      const locate = () => driver.wait(until.elementLocated(by), timeout, `Timed out after ${timeout}ms locating ${step.target?.strategy}=${step.target?.value}`, 200);
-      const visible = async () => {
-        const element = await locate();
-        await driver.wait(until.elementIsVisible(element), timeout, `Element did not become visible within ${timeout}ms`, 200);
-        return element;
-      };
-      const clickable = async () => {
-        const element = await visible();
-        await driver.wait(until.elementIsEnabled(element), timeout, `Element did not become enabled within ${timeout}ms`, 200);
-        return element;
-      };
+      // Re-query on every poll so dynamic pages can replace nodes while waiting.
+      const { locate, visible, clickable } = createElementWaiters(driver, by, timeout, step.target ? `${step.target.strategy}=${step.target.value}` : "element");
 
       const executeStepAction = async () => {
         switch (step.type) {
@@ -474,6 +523,21 @@ async function runWorkflow(rawPayload, deps = {}) {
               }
             }
             await actions.perform();
+            break;
+          }
+          case "userInput": {
+            const values = await requestUserInput(step, index);
+            for (const field of step.inputs) {
+              const value = values[field.id] === undefined || values[field.id] === null ? "" : String(values[field.id]);
+              if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`);
+              if (!value && field.required === false) continue;
+              const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, variables) });
+              const element = await driver.wait(async () => {
+                try { const found = await driver.findElement(fieldBy); return await found.isDisplayed() ? found : false; } catch { return false; }
+              }, timeout, `Input target "${field.title}" did not become visible within ${timeout}ms`, 200);
+              await element.clear();
+              await element.sendKeys(value);
+            }
             break;
           }
           case "wait":
@@ -596,6 +660,6 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MAX_WAIT_MS, isHttpUrl,
-  asBoundedNumber, validatePayload, substituteVariables, buildLocator, stepRequiresLocator,
+  asBoundedNumber, validatePayload, substituteVariables, buildLocator, stepRequiresLocator, createElementWaiters,
   parseKeySequence, normalizeError, runWithRetry, normalizeOptimizations, buildBlockedUrlPatterns, resolveDriverPath, runWorkflow
 };

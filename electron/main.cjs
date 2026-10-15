@@ -138,6 +138,19 @@ async function startEngine(payload) {
 
 handleTrusted("engine:start", async (_event, payload) => startEngine(payload));
 
+handleTrusted("engine:user-input-response", async (_event, response) => {
+  if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No automation is waiting for user input." };
+  if (!response || typeof response.requestId !== "string" || !response.requestId.trim()) return { ok: false, error: "Invalid user input response." };
+  const cancel = response.cancel === true;
+  const values = response.values && typeof response.values === "object" && !Array.isArray(response.values) ? response.values : {};
+  let encoded;
+  try { encoded = JSON.stringify({ type: cancel ? "user-input:cancel" : "user-input:response", requestId: response.requestId, values }); }
+  catch { return { ok: false, error: "User input response could not be serialized." }; }
+  if (Buffer.byteLength(encoded, "utf8") > 100_000) return { ok: false, error: "User input response exceeds the 100 KB limit." };
+  engine.stdin.write(encoded + "\n");
+  return { ok: true };
+});
+
 handleTrusted("recorder:start", async (_event, options = {}) => {
   if (engine) return { ok: false, error: "A browser session is already running. Stop it before starting the recorder." };
   const startUrl = typeof options.startUrl === "string" ? options.startUrl : "https://example.com";

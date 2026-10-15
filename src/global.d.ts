@@ -3,6 +3,7 @@ declare global {
     flowforge: {
       start: (payload: unknown) => Promise<{ ok: boolean; error?: string }>;
       stop: () => Promise<{ ok: boolean; error?: string }>;
+      respondUserInput: (response: { requestId: string; values?: Record<string, string>; cancel?: boolean }) => Promise<{ ok: boolean; error?: string }>;
       sessionExport: () => Promise<{ ok: boolean; error?: string }>;
       sessionImport: (snapshot: unknown) => Promise<{ ok: boolean; error?: string }>;
       recorderStart: (options?: { startUrl?: string; browser?: string; profile?: unknown }) => Promise<{ ok: boolean; error?: string }>;

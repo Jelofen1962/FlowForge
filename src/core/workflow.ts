@@ -6,7 +6,7 @@ export type LocatorStrategy =
 export type StepType =
   | "click" | "type" | "key" | "navigate"
   | "waitVisible" | "waitClickable" | "wait" | "assertText"
-  | "select" | "screenshot" | "back" | "forward" | "refresh";
+  | "select" | "userInput" | "screenshot" | "back" | "forward" | "refresh";
 
 export type OnErrorPolicy = "stop" | "continue";
 
@@ -28,6 +28,15 @@ export interface StepRetry {
   delayMs: number;
 }
 
+export interface UserInputField {
+  id: string;
+  title: string;
+  placeholder?: string;
+  required?: boolean;
+  secret?: boolean;
+  target: Locator;
+}
+
 export interface WorkflowStep {
   id: string;
   name: string;
@@ -46,6 +55,7 @@ export interface WorkflowStep {
   condition?: StepCondition;
   retry?: StepRetry;
   loop?: { mode: "count" | "while"; count?: number; condition?: StepCondition; maxIterations?: number };
+  inputs?: UserInputField[];
 }
 
 export interface WorkflowGroup {
@@ -82,7 +92,7 @@ const locatorStrategies: LocatorStrategy[] = [
 ];
 const stepTypes: StepType[] = [
   "click", "type", "key", "navigate", "waitVisible", "waitClickable",
-  "wait", "assertText", "select", "screenshot", "back", "forward", "refresh"
+  "wait", "assertText", "select", "userInput", "screenshot", "back", "forward", "refresh"
 ];
 const requiredLocatorTypes = new Set<StepType>([
   "click", "type", "waitVisible", "waitClickable", "assertText", "select"
@@ -105,6 +115,7 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     wait: "Wait / pause",
     assertText: "Assert text",
     select: "Select option",
+    userInput: "Ask user for inputs",
     screenshot: "Take screenshot",
     back: "Go back",
     forward: "Go forward",
@@ -122,7 +133,8 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     timeout: 10000,
     onError: "stop",
     clearFirst: true,
-    groupId
+    groupId,
+    inputs: type === "userInput" ? [{ id: createId(), title: "Value", placeholder: "Enter a value", required: true, secret: false, target: { strategy: "css", value: "" } }] : undefined
   };
 }
 
@@ -237,6 +249,20 @@ export function validateWorkflow(input: unknown): ValidationResult {
       if (type === "assertText" && typeof step.expected !== "string") errors.push(`Step ${n} needs expected text.`);
       if (type === "type" && typeof step.text !== "string") errors.push(`Step ${n} needs text to type.`);
       if (type === "select" && typeof step.text !== "string") errors.push(`Step ${n} needs an option value.`);
+      if (type === "userInput") {
+        if (!Array.isArray(step.inputs) || step.inputs.length < 1) errors.push(`Step ${n} needs at least one user input field.`);
+        else step.inputs.forEach((field, fieldIndex) => {
+          const label = `Step ${n} input ${fieldIndex + 1}`;
+          if (!field || typeof field !== "object") { errors.push(`${label} must be an object.`); return; }
+          if (typeof field.id !== "string" || !field.id.trim()) errors.push(`${label} needs an id.`);
+          if (typeof field.title !== "string" || !field.title.trim()) errors.push(`${label} needs a title.`);
+          if (field.placeholder !== undefined && typeof field.placeholder !== "string") errors.push(`${label} placeholder must be text.`);
+          if (field.required !== undefined && typeof field.required !== "boolean") errors.push(`${label} required must be true or false.`);
+          if (field.secret !== undefined && typeof field.secret !== "boolean") errors.push(`${label} secret must be true or false.`);
+          const target = field.target as Partial<Locator> | undefined;
+          if (!target || !locatorStrategies.includes(target.strategy as LocatorStrategy) || typeof target.value !== "string" || !target.value.trim()) errors.push(`${label} needs a valid target element locator.`);
+        });
+      }
       if (requiredLocatorTypes.has(type)) {
         const target = step.target as Partial<Locator> | undefined;
         if (!target || !locatorStrategies.includes(target.strategy as LocatorStrategy) || typeof target.value !== "string" || !target.value.trim()) {
