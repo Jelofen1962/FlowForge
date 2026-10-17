@@ -1,227 +1,836 @@
-<!-- Maintainer: Amirreza Taati (Jelofen1962) | GitHub: https://github.com/Jelofen1962 | Telegram: https://t.me/Jelofen1962 -->
-# FlowForge Desktop
+<!--
+  Maintainer: Amirreza Taati (Jelofen1962)
+  GitHub: https://github.com/Jelofen1962
+  Telegram: https://t.me/Jelofen1962
+-->
 
-**Maintainer:** Amirreza Taati, aka **Jelofen1962**  
-**GitHub:** https://github.com/Jelofen1962  
-**Telegram:** https://t.me/Jelofen1962
+**Maintainer / نگه‌دارنده:** Amirreza Taati, aka **Jelofen1962**  
+**GitHub:** [github.com/Jelofen1962](https://github.com/Jelofen1962) · **Telegram:** [t.me/Jelofen1962](https://t.me/Jelofen1962)
 
-A Windows-first, local desktop GUI for building sequential browser automations. Built with Electron, React, TypeScript, and Selenium WebDriver. The browser is a real Chrome or Edge process, not an iframe.
+# FlowForge
+
+**A Windows desktop application for building, configuring, and running browser automation workflows without writing automation scripts by hand.**
+
+FlowForge provides a visual workflow editor backed by Selenium WebDriver, with configurable browser actions, control flow, variables, session management, execution logs, and workflow output artifacts.
+
+<!-- Replace Jelofen1962/FlowForge with the actual GitHub repository path. -->
+
+[![CI](https://github.com/Jelofen1962/FlowForge/actions/workflows/ci.yml/badge.svg)](https://github.com/Jelofen1962/FlowForge/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/Jelofen1962/FlowForge)](https://github.com/Jelofen1962/FlowForge/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/Jelofen1962/FlowForge?style=flat)](https://github.com/Jelofen1962/FlowForge/stargazers)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7%2B-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Selenium](https://img.shields.io/badge/Selenium-WebDriver-43B02A?logo=selenium&logoColor=white)](https://www.selenium.dev/)
+
+> **Project status:** Active development. Review the latest GitHub Actions results and release notes before using a build in production.
+
+---
+
+## Table of Contents
+
+- [About](#about)
+- [Features](#features)
+- [Persian, RTL, and Fonts](#persian-rtl-and-fonts)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [GitHub Release Updates](#github-release-updates)
+- [Workflow Model](#workflow-model)
+- [Testing and Quality Checks](#testing-and-quality-checks)
+- [Building for Windows](#building-for-windows)
+- [Project Structure](#project-structure)
+- [Security](#security)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+- [Maintainer](#maintainer)
+
+---
+
+## About
+
+Browser automation is useful for repetitive browser-based tasks, smoke testing, data-entry procedures, and other routine interactions. However, writing and maintaining browser automation scripts can require programming knowledge and make simple workflows difficult to inspect or modify.
+
+FlowForge addresses this problem with a desktop workflow editor. Users configure actions visually, arrange them in sequence, set action-specific parameters, and execute the resulting workflow through a local automation engine.
+
+### Design goals
+
+- **Visual workflow authoring:** Configure browser actions through an editor rather than writing a script for every task.
+- **Explicit execution behavior:** Configure retries, delays, error handling, and control flow.
+- **Local execution:** Run automation on the user's machine.
+- **Inspectable results:** Review engine output and workflow execution status.
+- **Maintainable architecture:** Keep the desktop shell, UI, workflow model, automation engine, and tests in separate areas of the repository.
+
+FlowForge is a desktop application, not a hosted automation service. Its browser execution and local file operations run within the capabilities and permissions of the installed application.
+
+## Features
+
+### Workflow editor
+
+- Create and edit multi-step workflows.
+- Configure individual action types and their parameters.
+- Organize steps into groups.
+- Move, duplicate, enable, and disable steps where supported by the editor.
+- Configure retry attempts, retry delays, and error behavior.
+- Search for steps and access common commands.
+
+### Browser automation
+
+- Navigate to URLs.
+- Interact with browser elements.
+- Enter text into fields.
+- Wait for elements and page conditions.
+- Configure browser targets and page-load behavior.
+- Use supported selectors and action-specific options.
+- Record supported browser interactions through the recording functionality.
+
+The exact actions available depend on the workflow action catalog and automation engine implementation.
+
+### Workflow logic and data
+
+- Configure conditional execution and control flow.
+- Work with workflow variables.
+- Collect and transform values using supported actions.
+- Configure user-input steps.
+- Use regular-expression-based text transformations where supported.
+- Inspect execution results through the engine output panel.
+
+### Browser and session options
+
+- Configure browser optimization settings.
+- Enable headless execution where supported by the installed build and browser configuration.
+- Save and reuse session data through the supported session functionality.
+- Configure recurring workflow jobs and application startup behavior where supported by the installed build.
+
+### Desktop experience
+
+- Windows desktop application built with Electron.
+- Light and dark themes.
+- English and Persian interface support, including right-to-left layout.
+- Resizable and collapsible workspace panels.
+- Keyboard shortcuts and command palette.
+- Local workflow editing and execution.
+
+### Outputs
+
+- Review execution logs.
+- Inspect generated workflow output artifacts.
+- Export and import workflows through the supported workflow formats.
+- Diagnose failed actions using the available execution information.
+
+> Feature availability can vary by version. Consult the source code, release notes, and tests when relying on a specific action or scheduling behavior.
+
+## Screenshots
+
+### Dark editor
+
+![FlowForge dark editor](assets/01-dark-editor.png)
+
+### Light editor
+
+![FlowForge light editor](assets/02-light-editor.png)
+
+### Resizable and collapsible workspace
+
+![FlowForge resize and hide panels](assets/03-resize-and-hide.png)
+
+### Focus mode
+
+![FlowForge focus mode](assets/04-focus-mode.png)
+
+### Command palette
+
+![FlowForge command palette](assets/05-palette.png)
+
+A Persian RTL screenshot can be added as `assets/06-persian-rtl.png` when available.
+
+---
+
+## Persian, RTL, and Fonts
+
+FlowForge includes English and Persian interface support. Persian mode should use right-to-left layout for navigation and form flow while preserving the natural left-to-right direction of URLs, code, selectors, file paths, and technical identifiers.
+
+- `assets/fa.ttf` is the local font for Persian and Arabic-script UI text.
+- `assets/emoji.ttf` is reserved for emoji glyphs only. Its CSS `@font-face` declaration should use a restricted `unicode-range` so ordinary Persian, Latin, punctuation, and numeric characters continue to use their normal font stacks.
+- Verify both light and dark themes at narrow widths, including sidebars, dialogs, settings, inputs, dropdowns, and workflow editors.
+- Prefer logical CSS properties such as `margin-inline-start`, `padding-inline-end`, and `border-inline-start` for direction-aware layouts.
+
+A Persian RTL screenshot can be added as `assets/06-persian-rtl.png` when available.
+
+---
+
+## Architecture
+
+FlowForge separates its desktop application shell, renderer UI, workflow model, and browser automation engine.
+
+```mermaid
+flowchart TD
+    User[User]
+    UI[React Renderer]
+    Model[Workflow Model]
+    Flow[Control Flow]
+    Bridge[Electron Preload Bridge]
+    Main[Electron Main Process]
+    Runner[Selenium Workflow Runner]
+    Browser[Chrome or Edge]
+    Output[Execution Logs and Artifacts]
+    Tests[Vitest Test Suite]
+
+    User --> UI
+    UI --> Model
+    UI --> Bridge
+    Bridge --> Main
+    Main --> Runner
+    Model --> Flow
+    Flow --> Runner
+    Runner --> Browser
+    Runner --> Output
+    Tests -. verifies .-> Model
+    Tests -. verifies .-> Flow
+    Tests -. verifies .-> Runner
+```
+
+### Component responsibilities
+
+| Component | Responsibility |
+|---|---|
+| React renderer | Workflow editing, configuration forms, navigation, and execution feedback |
+| Workflow model | Workflow definitions, steps, and associated configuration |
+| Control-flow module | Conditional and sequential workflow behavior |
+| Electron preload | Exposes the approved interface between renderer and desktop process |
+| Electron main process | Desktop lifecycle, privileged operations, and application integration |
+| Selenium runner | Executes browser automation actions |
+| Output subsystem | Collects supported logs and generated artifacts |
+| Vitest | Exercises workflow, runner, control-flow, session, and related functionality |
+
+### Execution lifecycle
+
+1. The user creates or opens a workflow.
+2. The renderer updates the workflow definition.
+3. The user starts execution.
+4. The desktop application passes the request through its supported integration layer.
+5. The automation engine processes workflow steps and interacts with the configured browser.
+6. Execution results and supported output artifacts are made available to the application.
+
+The application is designed for local execution. The exact persistence and communication behavior should be verified against the implementation of the relevant Electron IPC handlers.
+
+---
+
+## Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Electron 33 | Desktop application runtime |
+| React 18 | Renderer UI |
+| TypeScript 5.7+ | Typed UI and workflow modules |
+| Selenium WebDriver 4 | Browser automation |
+| Node.js 20+ | Development runtime and desktop-side JavaScript |
+| Vite 6 | Renderer development server and production bundling |
+| Vitest 2 | Unit and component-related tests |
+| Testing Library | UI testing utilities |
+| jsdom | DOM environment for tests |
+| electron-builder | Windows installer packaging |
+| NSIS | Windows installer target |
+
+The project uses npm for dependency management and defines development, testing, type-checking, and packaging commands in `package.json`.
+
+**Database:** No external database is required by the documented setup. Workflow persistence and session storage should be understood from the corresponding implementation before depending on a particular storage format.
+
+**External API keys:** No API key is required for the standard local desktop workflow described here.
+
+---
 
 ## Requirements
-- Windows 10/11
-- Node.js 20+
-- Google Chrome and/or Microsoft Edge installed
-- A working Selenium-compatible driver setup. Recent Selenium Manager versions can discover/download drivers automatically when the machine can access the driver endpoints.
 
-## Run in development
-```powershell
+### Development environment
+
+- Windows is the primary target for desktop packaging.
+- Node.js 20 or later.
+- npm, included with Node.js.
+- Git.
+- A supported Windows environment for building and running the Windows installer.
+
+### Browser automation
+
+- A supported browser, such as Google Chrome or Microsoft Edge.
+- A compatible WebDriver/browser setup for the selected target and Selenium configuration.
+- Network access to the sites the workflow needs to visit.
+
+Browser driver acquisition and compatibility depend on the Selenium configuration and installed browser version.
+
+### Verify the environment
+
+```bash
+node --version
+npm --version
+git --version
+```
+
+Confirm that Node.js reports version 20 or later.
+
+---
+
+## Getting Started
+
+### 1. Clone the repository
+
+Replace the repository URL with the actual GitHub URL.
+
+```bash
+git clone https://github.com/Jelofen1962/FlowForge.git
+cd FlowForge
+```
+
+### 2. Install dependencies
+
+```bash
 npm install
+```
+
+### 3. Verify the release configuration
+
+```bash
+npm run verify:release
+```
+
+This runs the repository's release-configuration verification script.
+
+### 4. Run the application in development
+
+```bash
 npm run dev
 ```
 
-## Build UI
-```powershell
+The development script starts the Vite development server on `127.0.0.1:5173`, waits for it to become available, and then launches Electron.
+
+### 5. Run the test suite
+
+```bash
+npm test
+```
+
+### 6. Build the renderer
+
+```bash
 npm run build
-npm start
-```
-For a Windows NSIS installer, run `npm run build:win`. See [`docs/RELEASING.md`](docs/RELEASING.md) for the release checklist and tag workflow.
-
-## Current starter functionality
-- Step list with add, delete, reorder, disable, and per-step error policy
-- Browser actions: navigate, click, type, key sequences, hover, right-click, double-click, drag-and-drop, scroll-to, page scroll, waits, select, upload file, wait for download, browser history, tabs, frames, and alert handling
-- Data actions: extract element text/attributes/input values/tables, save text, capture element images, and take page screenshots
-- Assertions: text, URL, page title, element existence/count, and exact attribute values
-- Control flow: visual if/else branches, repeat-N blocks, list loops, bounded while loops, break, continue, retries, and reusable nested workflows. Nested branch/loop actions can be added and configured in place without hand-editing JSON.
-- Per-workflow output archives: each run can package screenshots, extracted text/data, CSV tables, saved text, image captures, and downloaded files into a ZIP; the Outputs panel previews supported files and can open, reveal, or delete archives
-- Native file picker for upload actions, plus XPath, CSS, ID, name, link text, class name, and tag name locator strategies
-- Chrome / Edge choice and persistent user-data-directory setting
-- Image optimization toggle and close-browser-after-run setting
-- Local profile settings saved to Electron userData
-- Multi-workflow local library with create, edit, duplicate, delete, and automatic persistence
-- JSON import/export packages that include referenced sub-workflows and remap workflow IDs on import
-- A `Run another workflow` action that executes reusable sub-workflows in the same browser session, with cycle detection and a maximum nesting depth of 10
-- Searchable workflow step list, theme-consistent panels, subtle hover/focus icon motion, and live engine log stream
-
-## Important implementation notes
-This is a local-first desktop automation application and still needs a complete Windows integration test before production distribution. Read `docs/ROADMAP.md` for remaining gaps. Workflow library data is stored in Electron/Chromium local storage on the current device. JSON packages include referenced sub-workflows; review exported files before sharing because workflow values may contain personal or sensitive data. Nested workflows reuse the active browser session and inherit parent variables, with child variables overriding same-named parent variables. Cycles are rejected and nesting is limited to 10 levels. Browser-side behavior must still be verified against real Chrome/Edge versions.
-
-## Architecture
-- `electron/main.cjs`: desktop window, IPC, process lifecycle, profile configuration persistence
-- `electron/preload.cjs`: narrow, context-isolated IPC API
-- `src/ui`: React interface
-- `engine/runner.cjs`: independent Selenium execution process and artifact collector
-- `engine/zip.cjs`: dependency-free ZIP archive writer for per-run outputs
-- `docs/ROADMAP.md`: planned production capabilities
-
-## Safety
-Use only on websites and accounts you are authorized to automate. Persistent browser profiles can contain authentication tokens and sensitive cookies. Keep profile directories private and never commit them to source control.
-
-## Phase 2: Workflow editor
-
-The editor now supports:
-
-- Add, reorder, duplicate, disable, and delete workflow steps.
-- Name the workflow and organize steps into editable groups.
-- Store named workflow variables in each workflow and substitute `${variableName}` in supported runtime fields.
-- Import and export versioned `.flowforge.json` workflow packages. Imports are validated and added as separate entries in the local workflow library.
-- Automatic local draft saving with a short debounce.
-- Validation for supported action types, locator requirements, URL schemes, timeouts, duplicate IDs, group references, and variable names.
-- Visible validation feedback and prevention of running an invalid or empty workflow.
-
-The editor keeps workflow documents local in the application. Variables are currently plain text in the saved workflow; do not place credentials in them until secret storage and redaction are implemented.
-
-**Verification status:** runner syntax and direct workflow-call smoke tests passed in this environment. The full React/Vite test suite and Windows packaging could not be verified because dependency installation timed out. GitHub Actions remains the intended full build/test environment.
-
-
-## Phase 3: Selenium Core Engine
-
-The engine runs in a separate Node process and emits newline-delimited JSON events. Supported actions include navigation, click, typing, key sequences (for example `CTRL+A`), explicit visibility/clickability waits, fixed waits, text assertions, native select-by-value, screenshots, and browser history controls.
-
-### Workflow variables
-
-Create variables in the workflow and reference them as `${variableName}` in URLs, locator values, typed text, key sequences, and assertion text. Undefined variables fail the step with an actionable error rather than silently becoming an empty string.
-
-### Engine behavior
-
-- Timeouts are bounded to 120 seconds; fixed waits are bounded to 5 minutes.
-- Locator-based actions wait for an element to be located and visible; click/select additionally wait for the element to be enabled.
-- Screenshots and other artifacts are written to the current run's output directory and included in its per-workflow ZIP archive.
-- `disableCss` blocks CSS requests through Chromium DevTools when supported. This is experimental and may break pages.
-- `onError: "continue"` allows the next step to run; other values stop the workflow.
-- Browser driver resolution depends on Selenium Manager and an installed Chrome or Edge browser.
-
-Run `npm test` to run unit tests. These tests cover engine validation and helper functions without opening a real browser. Browser integration still needs a Windows GitHub Actions run against an installed browser before release.
-
-
-## Phase 4: Visual Browser Recorder
-
-The Selenium-controlled browser receives `engine/recorder-bridge.js` when recorder mode is started. Hovering an element highlights it with a red 40%-opacity overlay; clicking selects one target and emits a `FLOWFORGE_RECORDER_V1` message with CSS and XPath locators. The bridge cleans up its overlay after selection.
-
-The engine control channel supports `recorder:start`, `recorder:stop`, and `navigate` commands. Renderer code should validate incoming selection messages with `parseRecorderMessage` from `src/core/recorder.ts` before converting the target to a workflow locator. This phase establishes the real-browser bridge and selector contract; it does not yet claim complete record-all-actions capture or automatic UI insertion.
-
-
-## Phase 5: Control Flow and Debugging foundations
-
-Workflow steps may now include a `condition` object. Example:
-
-```json
-{
-  "source": "variable",
-  "key": "accountStatus",
-  "operator": "equals",
-  "expected": "active"
-}
 ```
 
-Supported sources are `variable`, `lastText`, `url`, and `stepStatus`. Operators include `equals`, `notEquals`, `contains`, `notContains`, `matches`, `greaterThan`, `lessThan`, `truthy`, and `falsy`. Conditions that evaluate false skip the step and emit a structured `skipped` event. Unknown variables/step IDs and malformed regular expressions fail explicitly.
+The production renderer bundle is generated by Vite.
 
-The control-flow module exposes bounded loop and retry helpers. The editor now supports `ifElse`, `repeat`, `loopList`, and `while` actions with nested step arrays edited as JSON rather than a visual block canvas. Retry settings are applied around top-level and nested Selenium actions; retries should be used cautiously for side-effecting actions.
+### 7. Build the Windows installer
 
+```bash
+npm run build:win
+```
 
-### Browser session snapshots
+The Windows NSIS installer is generated in the configured `release/` output directory.
 
-Open **Profiles** and start a browser session (the recorder keeps a session open), then export or import a versioned JSON snapshot for the current site origin. Snapshots include cookies and that origin's local/session storage, not passwords, cache, or other origins. Expired cookies are skipped and rejected cookies are counted in the engine output.
+---
 
-**Security note:** snapshots are plain JSON and may contain active login credentials. Keep them out of source control and store them securely. Encryption and Windows Credential Manager integration are not included yet.
+## Configuration
 
+### Environment variables
 
-## Phase 7: Reliability, Recovery & Run History
+The standard scripts shown in `package.json` do not require an `.env` file or a third-party API key.
 
-Steps can be configured for 1–10 total attempts with a delay between retries. The runner emits structured retry events and retains the selected `stop` or `continue` error policy. The **Run history** panel stores the latest 50 local run summaries, including status, elapsed time, and succeeded/failed/skipped step counts.
+Do not add undocumented environment variables and assume the application will consume them. Configuration should follow the actual implementation and the relevant Electron or runner interfaces.
 
-Retry repeats the complete action. Use it only for actions that are safe to repeat, since clicks and form submissions can have side effects. Run history is local renderer storage, not an encrypted or tamper-proof audit log. Pause/resume, rerun-failed-step, and full browser integration validation remain future work.
+For local development, the following values describe the Vite development endpoint already used by the development script:
 
+| Setting | Value | Purpose |
+|---|---|---|
+| Development host | `127.0.0.1` | Local Vite binding |
+| Development port | `5173` | Renderer development server |
+| Node.js version | `20+` | Runtime requirement |
 
-## Phase 8: Optimization Engine
+The development host and port are configured in the npm scripts and Vite setup rather than being documented here as supported `.env` variables.
 
-The **Optimizations** controls can disable images, stylesheets, web fonts, and common audio/video files. Chromium DevTools URL blocking is configured before the first navigation when supported. The page-load strategy can be `normal` (default), `eager` (return after DOM readiness), or `none` (do not wait for a page-load event). Add explicit wait steps when using faster strategies.
+### Browser configuration
 
-The runner emits per-step elapsed time and a final performance summary with total run duration, latest navigation timing, resource count, and reported transfer bytes. These metrics are diagnostic estimates, not a complete network trace; cache and cross-origin policies can make transfer-size values incomplete. Full browser and Windows CI validation remains required.
+Browser target, optimization flags, headless behavior, and page-load settings are configured through the application where supported.
 
+Available options depend on the installed FlowForge version. Check the workflow editor and the runner configuration before assuming an option is supported by every browser.
 
-## Phase 9: Production Readiness & Windows Packaging
+### Workflow configuration
 
-- Electron windows deny new windows and navigation away from the trusted application page; renderer permissions are denied by default.
-- Privileged IPC calls are restricted to the trusted top-level application frame.
-- Packaged renderer responses receive a Content Security Policy; external font assets are limited to Google Fonts.
-- NSIS packaging uses ASAR, maximum compression, explicit packaged files, and versioned architecture-specific installer names.
-- CI runs release-config checks, TypeScript, unit tests, builds a Windows installer, and uploads the installer artifact. Tagged releases also generate SHA-256 checksums and publish installer files to GitHub Releases.
-- `SECURITY.md` and `docs/RELEASING.md` describe sensitive session data, release steps, and the unsigned-installer limitation.
+Workflow definitions and step settings are managed by the application. Use the editor's import/export functionality when available rather than manually editing generated runtime data without validating its schema.
 
-**Verification status:** Node syntax checks and `npm run verify:release` pass in this environment. Full Vitest, TypeScript, Vite production build, Windows packaging, and live app smoke tests are not verified because dependencies could not be installed here. No GitHub workflow has been run by this package generator. The repository does not yet include `package-lock.json`, so CI currently uses `npm install`; deterministic dependency resolution and npm caching remain follow-up work. The installer is not code-signed.
+---
 
+## Usage
 
-## Phase 10: templates and command palette
+### Create a workflow
 
-- Press `Ctrl+K` on Windows (or `Cmd+K` on macOS) to open the searchable command palette. Use `Enter` to run the first filtered command and `Escape` to close it.
-- Open **Templates** to load a website smoke-check, form-entry, or search-page starter. Replace example URLs, locators, and values before running against a target site.
-- Keyboard focus indicators are visible for interactive controls. A full focus trap, arrow-key navigation, screen-reader certification, and end-to-end Windows verification remain future validation tasks.
+1. Launch FlowForge.
+2. Create a new workflow or open an existing one.
+3. Give the workflow a descriptive name.
+4. Add the required actions.
+5. Select each action and configure its parameters.
+6. Configure error handling, retries, delays, and any supported conditions.
+7. Review the workflow from top to bottom.
+8. Run the workflow and inspect the engine output.
 
-## Release status
+### Example workflow
 
-The source package includes the ten planned delivery phases as a set of first-pass features, not a claim that every capability is production-complete. Run `npm install`, `npm run verify:release`, `npm run typecheck`, and `npm test` in a dependency-installed environment, then build and launch the Windows installer on a clean Windows machine. Do not distribute session snapshots: they can contain active authentication cookies and are currently plain JSON.
+A basic website smoke check can be represented as:
 
-## Automatic Windows releases
+```text
+Workflow: Website smoke check
 
-Push to `main` or `master` to trigger the Automatic Windows Release workflow. After release checks, tests, and the Windows installer build pass, it automatically publishes a versioned GitHub Release with generated notes and SHA-256 checksums. The patch version increments from the latest stable version. Configure repository Actions permissions to allow workflows to create releases (`contents: write`). See [docs/RELEASING.md](docs/RELEASING.md) for details.
+1. Navigate to URL
+   URL: https://example.com
 
+2. Wait for element
+   Selector: h1
 
-### Manual browser-driver detection (Windows)
+3. Verify expected content
+   Expected text: Example Domain
 
-FlowForge checks for a local ChromeDriver at `C:\WebDriver\chromedriver\chromedriver.exe` before asking Selenium Manager to resolve a driver. For Microsoft Edge, it checks `C:\WebDriver\msedgedriver\msedgedriver.exe`. You can override these paths with `FLOWFORGE_CHROMEDRIVER_PATH` or `FLOWFORGE_EDGEDRIVER_PATH`. The driver should match the installed browser version. If no local driver is found, FlowForge falls back to Selenium Manager.
+4. Finish
+```
 
+This is a conceptual example of the workflow. The exact selector fields, assertion action name, and supported result-checking behavior depend on the action catalog in the checked-out version.
 
-## UI refresh (October 2026)
+### Run a workflow
 
-The refreshed interface uses Google Poppins typography, larger controls and spacing, layered monochrome surfaces with indigo/cyan accents, animated Lucide SVG interactions, and responsive panel layouts for narrower windows. Use the sun/moon control in the top toolbar to switch between dark and light themes; the preference is saved locally in the renderer. Motion is reduced automatically when the operating system requests reduced motion. The Google Font is loaded remotely, so the system font fallback is used if the machine is offline.
+Use the Run Workflow or Run Automation control in the application.
 
-## User-input steps and robust waits
+During execution:
 
-The **Ask user for inputs** action opens a FlowForge dialog while a workflow is running. Add up to 30 titled fields, optionally mark a field required or secret, and map each answer to a webpage element using a CSS, XPath, ID, name, class, or tag locator. On Continue, FlowForge fills each mapped element and resumes the workflow. Secret input values are not written to the run log. Workflow exports still contain the field definitions and target locators, but not values entered into the runtime dialog.
+- Monitor the run-status panel.
+- Review the engine output for progress and errors.
+- Check the configured retry and error-handling behavior.
+- Inspect generated outputs after completion.
 
-**Wait until visible** and **Wait until clickable** re-query the locator on each polling attempt. This handles modern pages that replace elements during rendering and avoids waiting against a stale element reference. The configured step timeout is used for the entire wait, with a descriptive timeout error.
+### Headless execution
 
+When supported by the installed build, headless mode allows browser automation to run without displaying the normal browser window.
 
-## Multi-workflow library and reusable sub-workflows
+Use headless mode only after verifying that the target workflow works correctly in a visible browser. Some websites behave differently depending on browser configuration, permissions, authentication, or rendering behavior.
 
-Open **Workflows** in the left navigation to create, reopen, duplicate, export, import, or delete workflows. Edits are saved locally. Add the **Run another workflow** action to call a saved workflow from another workflow. It reuses the current Selenium browser session instead of launching another browser. The runner checks references, rejects cycles, limits nesting to 10 levels, inherits parent variables, and allows a child workflow's own variables to override inherited values. Exporting produces a `.flowforge.json` package containing the selected workflow and its transitive sub-workflow dependencies; importing remaps IDs to avoid collisions with workflows already in the library.
+### Regular-expression variable transformation
 
-**Sharing note:** workflow JSON is not encrypted. Inspect it for passwords, personal data, or other secrets before sharing. A single legacy workflow JSON file cannot resolve `Run another workflow` references on its own; import the complete FlowForge package.
+A supported regex transformation can be used to derive an output variable from an input string.
 
+For example, in JavaScript:
 
-## Advanced actions and output archives
+```js
+const source = "123-4567";
+const pattern = /(\d{3})-(\d{4})/g;
+const result = source.replace(pattern, "$1/$2");
 
-See [`docs/ADVANCED-ACTIONS-AND-OUTPUTS.md`](docs/ADVANCED-ACTIONS-AND-OUTPUTS.md) for the expanded action catalog, control-flow block format, output archive behavior, size limits, and remaining integration boundaries. Open **Outputs** in the left rail to browse the current workflow's run ZIPs, preview text/image artifacts, open an archive in the system ZIP viewer, reveal it in Explorer, or delete it with its preview files. Output data is stored locally under Electron user data at `outputs/<workflow-id>/`.
+console.log(result);
+// 123/4567
+```
 
-Nested `ifElse`, `repeat`, `loopList`, and `while` bodies are currently edited as JSON step arrays in the editor, not with a visual block canvas. `saveImage` stores an element screenshot as PNG. Download detection expects the browser's configured download directory and supports a filename-substring filter. Review output archives before sharing because they can contain personal data.
+In a FlowForge workflow, configure the equivalent source variable, pattern, replacement, flags, and destination variable through the action editor.
 
+### Automatic jobs
 
-### Conditional action outcomes (v0.3.11)
+Where scheduling is available, configure the workflow's interval or supported startup trigger in the application.
 
-If/else and while blocks support `Previous action result` and `Did the URL change?` conditions. Choose an earlier step in the workflow, then branch on `Succeeded`, `Failed`, or `Skipped`. To route a failed action to an Else branch, set that action's error handling to `Continue`; otherwise the default Stop policy ends the workflow immediately. The UI uses a consistent black/white/magenta theme and reduced-motion-aware icon hover animations.
+Distinguish between scheduling while the application is running and launching the application at Windows sign-in. These behaviors have different lifecycle requirements. Verify startup registration and unattended execution on the target Windows machine before relying on them for critical tasks.
 
+---
 
-### Bulk selectors and variables (v0.3.12)
+## Workflow Model
 
-- **Set variable** assigns a literal or a string containing `${name}` substitutions. Example: `${firstName} ${lastName}`.
-- **Extract all matching elements** queries every element matching a CSS, XPath, id, name, class, tag, or link-text locator and saves text, attributes, or input values as a JSON array variable and `.json` artifact (maximum 5,000 matches).
-- **Operate on all matching elements** can click, type into, or extract text/attributes/input values from all matches (maximum 1,000 matches). Extraction results are saved as a JSON array variable. Test broad selectors carefully before bulk click/type.
-- The topbar recorder now lets you choose the action to create (click, hover, wait-visible, extract text, or assert exists). It prefers a generated CSS selector and includes element identity/text in the step name and log.
+A workflow consists of a sequence of steps and the configuration required to execute them.
 
-## Interface and localization (v0.3.13)
+Conceptually:
 
-- The UI uses a consistent sky-blue, black/white design system across the workflow editor, library, templates, browser tools, profiles, outputs, settings, history, and logs.
-- English and Persian can be toggled from the top bar. Language preference is saved locally; Persian sets the app language and RTL layout and uses Vazirmatn with local fallbacks.
-- The former `lucide-react` dependency has been removed. FlowForge now uses a local Lucide-inspired animated SVG icon set with subtle hover/focus motion and reduced-motion support.
-- UI localization covers primary navigation, workflow editing, common action settings, outputs, templates, browser profiles, settings, history, diagnostics, and input prompts. Some user-authored workflow names, logs, imported content, and specialized technical strings intentionally remain as entered.
+```text
+Workflow
+├── Metadata
+│   ├── Name
+│   └── Workflow settings
+├── Steps
+│   ├── Action configuration
+│   ├── Retry policy
+│   ├── Error handling
+│   └── Enabled state
+├── Variables
+├── Control flow
+└── Execution outputs
+```
 
-### Animated icon system
+### Recommended workflow practices
 
-The UI routes its icon imports through `src/ui/AnimatedIcons.tsx`, with locally bundled SVGs and CSS interaction animations in `src/ui/styles.css`. This keeps the Electron UI offline-capable and honors `prefers-reduced-motion`. The icon animation layer is local; it is not a vendored copy of the third-party `lucide-animated.com` library. To replace the artwork with that site's exact components, its source/package needs to be available so the correct API and licenses can be verified.
+- Give workflows and steps descriptive names.
+- Prefer explicit waits over arbitrary long delays where possible.
+- Use retries for transient failures rather than masking invalid selectors.
+- Keep credentials out of workflow exports and source control.
+- Test workflows against a non-production environment first.
+- Validate conditions and variable references before running long workflows.
+- Make workflows safe to retry when the underlying operation can create or modify data.
 
+---
 
-## About and updates
+## Testing and Quality Checks
 
-The Settings screen includes maintainer links and a manual update check. On launch, FlowForge checks the latest stable GitHub Release and displays an update dialog only when a newer version is available. The check requires an internet connection and uses the GitHub Releases API for `Jelofen1962/FlowForge`; network failures do not block app startup. The release page is opened in the system browser, and updates are not silently installed.
+FlowForge uses Vitest for its test suite and TypeScript for static type checking.
 
-Maintainer attribution is included in key source files for project provenance: Amirreza Taati (Jelofen1962), [GitHub](https://github.com/Jelofen1962), [Telegram](https://t.me/Jelofen1962).
+### Run all tests
+
+```bash
+npm test
+```
+
+### Run tests in watch mode
+
+```bash
+npm run test:watch
+```
+
+### Test the automation runner
+
+```bash
+npm run test:engine
+```
+
+### Test control flow
+
+```bash
+npm run test:control-flow
+```
+
+### Run TypeScript checks
+
+```bash
+npm run typecheck
+```
+
+### Verify release configuration
+
+```bash
+npm run verify:release
+```
+
+### Build the renderer
+
+```bash
+npm run build
+```
+
+### Recommended pre-release sequence
+
+Run the following from the repository root:
+
+```bash
+npm install
+npm run verify:release
+npm run typecheck
+npm test
+npm run build:win
+```
+
+A successful installer build should be followed by manual smoke testing on a Windows machine.
+
+### Current quality boundaries
+
+Unit tests cannot replace end-to-end verification of the desktop app and browser. Before releasing, verify:
+
+- Application startup and shutdown.
+- Workflow creation, editing, saving, and reopening.
+- Browser startup and navigation.
+- Representative actions and control-flow paths.
+- Error handling and retry behavior.
+- Session persistence, if used.
+- Headless and visible browser modes.
+- Scheduled and startup-triggered execution, if used.
+- Output artifact generation.
+- Light and dark themes, panel resizing, and Persian RTL.
+- Installer installation, launch, and uninstall.
+
+No formatter or linter script is currently defined in the provided `package.json`. Add one before documenting a formatter command as part of the required CI workflow.
+
+---
+
+## Building for Windows
+
+FlowForge uses `electron-builder` to create a Windows NSIS installer.
+
+Run:
+
+```bash
+npm run build:win
+```
+
+The package configuration specifies:
+
+- Product name: `FlowForge`
+- Application ID: `com.flowforge.desktop`
+- Target: Windows NSIS installer
+- Architecture: x64
+- Output directory: `release/`
+- Configurable installation directory
+- Desktop and Start Menu shortcuts
+
+The generated installer filename includes the application version and architecture.
+
+### Continuous integration
+
+The repository contains GitHub Actions workflows for:
+
+- Running verification on pushes, pull requests, and manual dispatches.
+- Building the Windows installer.
+- Uploading installer artifacts.
+- Publishing tagged releases.
+- Generating SHA-256 checksums for release artifacts.
+
+Consult the workflow files under `.github/workflows/` for the authoritative release behavior.
+
+---
+
+## GitHub Release Updates
+
+The desktop app is configured to check the latest stable GitHub Release for `Jelofen1962/FlowForge` on launch and to offer an update dialog when a newer release is detected. The dialog links to the published release page; it does not silently install or replace the application. A manual check is also available in Settings where supported by the installed build.
+
+For release notifications to work, the repository must be reachable and have published GitHub Releases with version tags that can be compared with the installed app version. Network failures should not prevent normal application startup. Verify the repository name, version-tag format, prerelease handling, and release API response before publishing.
+
+---
+
+## Project Structure
+
+The following tree highlights the main application modules. Refer to the repository for the complete file list.
+
+```text
+flowforge/
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   └── workflows/
+│       ├── ci.yml
+│       ├── release.yml
+│       └── auto-release.yml
+├── assets/
+│   ├── 01-dark-editor.png
+│   ├── 02-light-editor.png
+│   ├── 03-resize-and-hide.png
+│   ├── 04-focus-mode.png
+│   └── 05-palette.png
+├── docs/
+│   ├── ADVANCED-ACTIONS-AND-OUTPUTS.md
+│   ├── ROADMAP.md
+│   ├── RELEASING.md
+│   └── UI-DESIGN.md
+├── electron/
+│   ├── main.cjs
+│   ├── preload.cjs
+│   └── global.d.ts
+├── engine/
+│   ├── runner.cjs
+│   ├── recorder-bridge.js
+│   └── zip.cjs
+├── scripts/
+│   └── verify-release.cjs
+├── src/
+│   ├── core/
+│   │   ├── workflow.ts
+│   │   ├── controlFlow.ts
+│   │   ├── recorder.ts
+│   │   ├── session.ts
+│   │   └── workflowLibrary.ts
+│   ├── ui/
+│   │   ├── App.tsx
+│   │   ├── AnimatedIcons.tsx
+│   │   └── styles.css
+│   ├── main.tsx
+│   └── global.d.ts
+├── tests/
+│   ├── runner.test.ts
+│   ├── advancedActions.test.ts
+│   ├── workflow.test.ts
+│   ├── workflowLibrary.test.ts
+│   ├── controlFlow.test.ts
+│   ├── recorder.test.ts
+│   └── session.test.ts
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── README.md
+```
+
+### Key modules
+
+- `src/core/workflow.ts`: Workflow definitions and related core operations.
+- `src/core/controlFlow.ts`: Workflow control-flow behavior.
+- `src/core/recorder.ts`: Recording-related core logic.
+- `src/core/session.ts`: Session-related functionality.
+- `src/core/workflowLibrary.ts`: Workflow library functionality.
+- `src/ui/App.tsx`: Main renderer application.
+- `src/ui/styles.css`: UI styling and theme rules.
+- `src/ui/AnimatedIcons.tsx`: Animated icon components.
+- `electron/main.cjs`: Electron main process.
+- `electron/preload.cjs`: Renderer integration bridge.
+- `engine/runner.cjs`: Browser automation execution engine.
+- `engine/zip.cjs`: ZIP/output artifact handling.
+- `tests/`: Automated test suite.
+- `docs/RELEASING.md`: Release procedures.
+- `docs/ROADMAP.md`: Project roadmap.
+
+---
+
+## Security
+
+Browser automation can access sensitive information and perform actions on websites using the permissions available to the browser and operating system.
+
+Use the following precautions:
+
+- Only automate websites and accounts you are authorized to access.
+- Do not commit credentials, cookies, access tokens, or session exports.
+- Treat workflow imports and browser-generated content as untrusted input.
+- Review workflows before running them against production systems.
+- Avoid exposing privileged Electron APIs directly to arbitrary renderer content.
+- Keep Electron security settings restrictive and review changes to IPC handlers.
+- Do not disable browser security protections merely to make a workflow work.
+- Store session artifacts securely and delete them when no longer needed.
+- Review the permissions required by scheduled or startup-triggered automation.
+- Keep dependencies updated and review security advisories.
+
+For security-sensitive reports, use the repository's private reporting process if one is configured. Otherwise, open a minimal public issue without including secrets or exploit details until a secure channel is available.
+
+---
+
+## Roadmap
+
+The checked items below represent features and infrastructure present in the repository. They do not imply that every platform or end-to-end scenario has been fully validated.
+
+### Implemented in the codebase
+
+- [x] Electron desktop application shell.
+- [x] React and TypeScript workflow editor.
+- [x] Selenium WebDriver automation runner.
+- [x] Workflow definition and control-flow modules.
+- [x] Browser recording-related functionality.
+- [x] Workflow library support.
+- [x] Session-related functionality.
+- [x] Engine output and artifact handling.
+- [x] Vitest test suite.
+- [x] TypeScript check command.
+- [x] Windows NSIS packaging configuration.
+- [x] GitHub Actions CI and release workflows.
+- [x] Light and dark themes.
+- [x] Resizable and collapsible workspace panels.
+- [x] English and Persian interface support in the UI code.
+
+### Planned or requiring further qualification
+
+- [ ] Expand end-to-end tests for representative workflows.
+- [ ] Verify headless execution across supported browser configurations.
+- [ ] Verify Windows startup registration and scheduled execution across restarts.
+- [ ] Add accessibility checks to automated UI tests.
+- [ ] Add visual regression tests for themes, focus mode, and RTL layout.
+- [ ] Define and enforce a formatter and linting policy.
+- [ ] Document the workflow schema and supported action catalog.
+- [ ] Establish a verified license and contribution policy.
+- [ ] Publish tested release artifacts with checksums and release notes.
+
+The maintained roadmap in `docs/ROADMAP.md` should be treated as the more detailed source of truth for project priorities.
+
+---
+
+## Contributing
+
+Contributions are welcome. Please keep changes focused, testable, and consistent with the existing architecture.
+
+### Before opening a pull request
+
+1. Check existing issues and discussions.
+2. Open an issue for substantial changes or new features.
+3. Create a focused branch.
+4. Implement the change with relevant tests.
+5. Run the type checker and test suite.
+6. Update documentation when behavior or configuration changes.
+7. Open a pull request describing the change and its validation.
+
+### Branch naming
+
+Use descriptive branch names such as:
+
+```text
+feature/regex-variable-transform
+fix/headless-default
+docs/update-installation
+test/workflow-control-flow
+refactor/editor-layout
+```
+
+### Suggested commit conventions
+
+```text
+feat: add workflow action
+fix: normalize browser options
+docs: clarify Windows setup
+test: cover conditional execution
+refactor: separate editor components
+```
+
+### Pull request checklist
+
+- [ ] The change has a clear purpose.
+- [ ] Existing behavior is preserved unless intentionally changed.
+- [ ] New logic has appropriate tests.
+- [ ] `npm run typecheck` passes.
+- [ ] `npm test` passes.
+- [ ] Documentation is updated where necessary.
+- [ ] No credentials, generated secrets, or unnecessary build artifacts are committed.
+- [ ] UI changes are checked in light mode, dark mode, and RTL where applicable.
+
+---
+
+## License
+
+**The repository license has not been verified.**
+
+Before publishing the repository publicly, add the appropriate `LICENSE` file and update this section to identify the actual license. Do not describe the project as MIT-licensed or otherwise grant permissions until the repository owner has selected and committed a license.
+
+Third-party dependencies remain subject to their respective licenses.
+
+## Acknowledgements
+
+FlowForge builds on the following open-source technologies:
+
+- [Electron](https://www.electronjs.org/) for the desktop application runtime.
+- [React](https://react.dev/) for the UI.
+- [TypeScript](https://www.typescriptlang.org/) for static typing.
+- [Selenium](https://www.selenium.dev/) for browser automation.
+- [Vite](https://vite.dev/) for development and bundling.
+- [Vitest](https://vitest.dev/) for automated testing.
+- [electron-builder](https://www.electron.build/) for desktop packaging.
+
+Thanks to the maintainers and contributors of these projects.
+
+---
+
+## Maintainer
+
+**Amirreza Taati, aka Jelofen1962**
+
+- GitHub: [https://github.com/Jelofen1962](https://github.com/Jelofen1962)
+- Telegram: [https://t.me/Jelofen1962](https://t.me/Jelofen1962)
+
+For bug reports, please include reproducible steps and remove credentials, cookies, tokens, and personal information from logs or workflow files.
+
+---
+
+## Support
+
+For bugs and feature requests, use the repository's [GitHub Issues](https://github.com/Jelofen1962/FlowForge/issues) page after replacing `Jelofen1962/FlowForge` with the actual repository path.
+
+For reproducible bug reports, include:
+
+- FlowForge version.
+- Windows version.
+- Node.js version when relevant.
+- Browser and browser version.
+- Minimal workflow or reproduction steps.
+- Relevant engine output with credentials and personal information removed.
+
+**FlowForge is intended to make browser automation easier to author and inspect. Always validate workflows in a safe environment before using them for important or irreversible operations.**
