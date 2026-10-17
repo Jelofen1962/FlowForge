@@ -1,6 +1,6 @@
 import type { SVGProps, ReactNode } from "react";
 
-type IconProps = SVGProps<SVGSVGElement> & { size?: number | string; fill?: string };
+type IconProps = Omit<SVGProps<SVGSVGElement>, "name"> & { size?: number | string; fill?: string };
 type IconName = "activity"|"app-window"|"arrow-down"|"arrow-up"|"braces"|"check"|"chevron-down"|"circle-help"|"clock"|"archive"|"eye"|"download"|"refresh"|"code"|"cookie"|"copy"|"file-plus"|"folder-open"|"globe"|"grip"|"layers"|"pointer"|"play"|"plus"|"save"|"settings"|"shield-check"|"square"|"terminal"|"trash"|"zap"|"search"|"file-text"|"book"|"sun"|"moon"|"mouse-pointer";
 
 const drawings: Record<IconName, ReactNode> = {
