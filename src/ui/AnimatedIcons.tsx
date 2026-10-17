@@ -44,7 +44,7 @@ const drawings: Record<IconName, ReactNode> = {
 };
 
 function Icon({ name, size = 16, fill, className, ...props }: IconProps & { name: IconName }) {
-  return <svg className={`animated-icon${className ? ` ${className}` : ""}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...props}>
+  return <svg className={`animated-icon animated-icon--${name}${className ? ` ${className}` : ""}`} data-icon={name} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...props}>
     {fill && name !== "play" && name !== "zap" ? <g fill={fill}>{drawings[name]}</g> : drawings[name]}
   </svg>;
 }

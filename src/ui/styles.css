@@ -578,3 +578,65 @@ body.is-resizing-panel,body.is-resizing-panel *{cursor:col-resize!important;user
 @media (prefers-reduced-motion: reduce) {
   .app-shell *, .app-shell *::before, .app-shell *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* FlowForge animated icon system: local SVGs stay bundled for offline Electron use. */
+.app-shell .animated-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: middle;
+  transform-box: fill-box;
+  transform-origin: center;
+  overflow: visible;
+  transition: color .18s ease, filter .18s ease, transform .18s ease;
+}
+.app-shell .animated-icon :is(path, line, polyline, polygon, circle, rect, ellipse) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon {
+  animation: ff-icon-spring .46s cubic-bezier(.2,.8,.2,1) both;
+}
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--search,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--eye,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--globe {
+  animation-name: ff-icon-scan;
+}
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--refresh,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--settings,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--sun {
+  animation-name: ff-icon-rotate;
+}
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--play,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--zap,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--arrow-down,
+.app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon--arrow-up {
+  animation-name: ff-icon-launch;
+}
+@keyframes ff-icon-spring {
+  0% { transform: scale(1) rotate(0); }
+  38% { transform: scale(1.16) rotate(-5deg); }
+  70% { transform: scale(.96) rotate(2deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes ff-icon-scan {
+  0%, 100% { transform: translateX(0) scale(1); }
+  35% { transform: translateX(1px) scale(1.08); }
+  70% { transform: translateX(-1px) scale(1.03); }
+}
+@keyframes ff-icon-rotate {
+  0% { transform: rotate(0) scale(1); }
+  65% { transform: rotate(22deg) scale(1.08); }
+  100% { transform: rotate(0) scale(1); }
+}
+@keyframes ff-icon-launch {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-2px) scale(1.1); }
+  100% { transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .animated-icon,
+  .app-shell :is(button, .rail-item, .step-card, .template-card, .mini-card, .feature-card, .brand):is(:hover, :focus-visible) .animated-icon {
+    animation: none !important;
+    transition: none !important;
+  }
+}
