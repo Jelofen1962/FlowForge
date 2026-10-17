@@ -234,9 +234,11 @@ async function startEngine(payload) {
   const workflowOutputRoot = path.join(app.getPath("userData"), "outputs", safeWorkflowKey);
   const outputDirectory = path.join(workflowOutputRoot, runId);
   const outputArchivePath = path.join(workflowOutputRoot, `${runId}.zip`);
+  const sessionStoreDir = path.join(app.getPath("userData"), "profiles", "sessions");
+  await fs.mkdir(sessionStoreDir, { recursive: true });
   let encoded;
   try {
-    encoded = JSON.stringify({ ...payload, runId, workflowName: String(payload.workflowName || "Workflow"), outputDirectory, outputArchivePath, screenshotDirectory: outputDirectory });
+    encoded = JSON.stringify({ ...payload, runId, workflowName: String(payload.workflowName || "Workflow"), outputDirectory, outputArchivePath, screenshotDirectory: outputDirectory, sessionStoreDir });
     if (Buffer.byteLength(encoded, "utf8") > 5_000_000) {
       return { ok: false, error: "Workflow payload exceeds the 5 MB limit." };
     }
@@ -359,7 +361,22 @@ handleTrusted("profile:save", async (_event, profile) => {
 handleTrusted("profile:list", async () => {
   const dir = path.join(app.getPath("userData"), "profiles");
   await fs.mkdir(dir, { recursive: true });
-  return (await fs.readdir(dir)).filter(file => file.endsWith(".json"));
+  const files = (await fs.readdir(dir)).filter(file => file.endsWith(".json"));
+  const profiles = [];
+  for (const file of files) {
+    try {
+      const value = JSON.parse(await fs.readFile(path.join(dir, file), "utf8"));
+      profiles.push({ ...value, name: String(value.name || path.basename(file, ".json")) });
+    } catch { /* ignore invalid profile files */ }
+  }
+  return profiles.sort((a, b) => a.name.localeCompare(b.name));
+});
+
+handleTrusted("session:list", async (_event, profileName) => {
+  const safeProfile = String(profileName || "default").replace(/[^a-z0-9_-]/gi, "_").slice(0, 80) || "default";
+  const dir = path.join(app.getPath("userData"), "profiles", "sessions", safeProfile);
+  await fs.mkdir(dir, { recursive: true });
+  return (await fs.readdir(dir)).filter(file => file.endsWith(".json")).map(file => path.basename(file, ".json")).sort();
 });
 
 const outputRoot = () => path.join(app.getPath("userData"), "outputs");

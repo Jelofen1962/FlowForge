@@ -900,6 +900,16 @@ Example MCP client configuration (replace the executable path and token with you
 
 Workflows can carry an `aiTag` and an `aiProvenance` value (`generated`, `human-guided`, or `ai-assisted`). AI Studio shows the workflow dependency graph and lets users tag a workflow as AI-assisted. The existing passive recorder captures supported page interactions and deliberately excludes password and likely payment/OTP fields. Review captured selectors and values before turning recorded guidance into a reusable workflow. User guidance should be treated as a proposal until validated and approved.
 
+
+### Workflow-specific browser profiles and reusable sessions
+
+1. Open **Profiles**, create a named browser profile, and save it. The profile appears in the workflow editor's **Browser profile for this workflow** selector; each workflow stores its selected profile in the workflow document.
+2. In a workflow, add **Save browser session** after navigating to the target site and completing login. Choose the profile and enter a session name such as `signed-in-account`.
+3. Add **Load saved browser session** near the beginning of a later workflow. Choose the same profile and select or enter the saved session name. At runtime, FlowForge loads the snapshot from that profile's local session store, navigates to the snapshot origin, and restores cookies plus `localStorage` and `sessionStorage`.
+4. Saved snapshots live in FlowForge's application user-data directory under `profiles/sessions/<profile>/<session>.json`. Session names and profile names are normalized to safe filename segments. Snapshots are limited to 2 MB and one HTTP(S) origin per snapshot.
+
+Session snapshots contain authentication material and are stored as local JSON files. Protect the Windows user account and app-data directory, do not commit snapshots to source control, and do not send them to an AI provider. A restored session may still require reauthentication if the website expires or binds sessions to a device. For a persistent browser identity beyond web storage, configure a dedicated user-data directory in the browser profile settings.
+
 ### Security and operating notes
 
 - The API is intended for local trusted AI clients, not direct public internet exposure. Do not port-forward it or bind it to `0.0.0.0`.

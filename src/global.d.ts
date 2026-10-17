@@ -17,7 +17,8 @@ declare global {
       recorderStop: () => Promise<{ ok: boolean; error?: string }>;
       recorderNavigate: (url: string) => Promise<{ ok: boolean; error?: string }>;
       saveProfile: (profile: unknown) => Promise<{ ok: boolean; path?: string; error?: string }>;
-      listProfiles: () => Promise<string[]>;
+      listProfiles: () => Promise<Array<{ name: string; browser?: "chrome" | "edge"; userDataDir?: string; optimizations?: Record<string, unknown> }>>;
+      listSessions: (profileName: string) => Promise<string[]>;
       listOutputs: (workflowId: string) => Promise<Array<{ name: string; path: string; size: number; modifiedAt: string; workflowName: string; runId: string; artifacts: Array<{ name: string; contentType: string; size: number; createdAt: string }> }>>;
       openOutput: (workflowId: string, archiveName: string) => Promise<{ ok: boolean; error?: string }>;
       revealOutput: (workflowId: string, archiveName: string) => Promise<{ ok: boolean; error?: string }>;

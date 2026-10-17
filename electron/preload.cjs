@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("flowforge", {
   recorderNavigate: url => ipcRenderer.invoke("recorder:navigate", url),
   saveProfile: profile => ipcRenderer.invoke("profile:save", profile),
   listProfiles: () => ipcRenderer.invoke("profile:list"),
+  listSessions: profileName => ipcRenderer.invoke("session:list", profileName),
   listOutputs: workflowId => ipcRenderer.invoke("outputs:list", workflowId),
   openOutput: (workflowId, archiveName) => ipcRenderer.invoke("outputs:open", workflowId, archiveName),
   revealOutput: (workflowId, archiveName) => ipcRenderer.invoke("outputs:reveal", workflowId, archiveName),

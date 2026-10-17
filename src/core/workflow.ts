@@ -6,7 +6,7 @@ export type LocatorStrategy =
 export type StepType =
   | "click" | "type" | "key" | "navigate"
   | "waitVisible" | "waitClickable" | "wait" | "assertText"
-  | "select" | "userInput" | "runWorkflow" | "screenshot" | "saveSession" | "back" | "forward" | "refresh"
+  | "select" | "userInput" | "runWorkflow" | "screenshot" | "saveSession" | "loadSession" | "back" | "forward" | "refresh"
   | "hover" | "rightClick" | "doubleClick" | "dragDrop" | "scrollTo" | "scroll"
   | "uploadFile" | "waitDownload" | "extractText" | "extractAttribute" | "extractValue" | "extractTable" | "saveText" | "saveImage"
   | "assertUrl" | "assertExists" | "assertCount" | "assertTitle" | "assertAttribute"
@@ -69,6 +69,8 @@ export interface WorkflowStep {
   target2?: Locator;
   attribute?: string;
   outputName?: string;
+  sessionName?: string;
+  profileName?: string;
   bulkOperation?: "click" | "type" | "extractText" | "extractAttribute" | "extractValue";
   filePath?: string;
   scrollAmount?: number;
@@ -101,6 +103,7 @@ export interface WorkflowDocument {
   name: string;
   startUrl: string;
   browser: "chrome" | "edge";
+  profileName?: string;
   steps: WorkflowStep[];
   groups: WorkflowGroup[];
   variables: WorkflowVariable[];
@@ -117,7 +120,7 @@ const locatorStrategies: LocatorStrategy[] = [
 ];
 const stepTypes: StepType[] = [
   "click", "type", "key", "navigate", "waitVisible", "waitClickable",
-  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "saveSession", "back", "forward", "refresh",
+  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "saveSession", "loadSession", "back", "forward", "refresh",
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
@@ -150,6 +153,7 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     runWorkflow: "Run another workflow",
     screenshot: "Take screenshot",
     saveSession: "Save browser session",
+    loadSession: "Load saved browser session",
     back: "Go back",
     forward: "Go forward",
     refresh: "Refresh page", setVariable: "Set variable", regexReplace: "Regex edit variable", extractAll: "Extract all matching elements", operateAll: "Operate on all matching elements", hover: "Hover over element", rightClick: "Right-click element", doubleClick: "Double-click element",
@@ -218,6 +222,7 @@ export function normalizeWorkflow(input: unknown): WorkflowDocument {
     name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Untitled workflow",
     startUrl: typeof raw.startUrl === "string" ? raw.startUrl : "",
     browser: raw.browser === "edge" ? "edge" : raw.browser === "chrome" ? "chrome" : (raw.browser as "chrome" | "edge"),
+    profileName: typeof raw.profileName === "string" ? raw.profileName : undefined,
     steps: raw.steps as WorkflowStep[],
     groups: groups as WorkflowGroup[],
     variables: variables as WorkflowVariable[]

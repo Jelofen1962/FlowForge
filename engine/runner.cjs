@@ -16,7 +16,7 @@ const MAX_WAIT_MS = 300_000;
 const LOCATOR_NAMES = new Set(["xpath", "css", "id", "name", "linkText", "className", "tagName"]);
 const STEP_TYPES = new Set([
   "click", "type", "key", "navigate", "waitVisible", "waitClickable", "wait",
-  "assertText", "select", "userInput", "runWorkflow", "screenshot", "saveSession", "back", "forward", "refresh",
+  "assertText", "select", "userInput", "runWorkflow", "screenshot", "saveSession", "loadSession", "back", "forward", "refresh",
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
@@ -346,6 +346,57 @@ function emit(type, data) {
   process.stdout.write(`${JSON.stringify({ type, data, at: new Date().toISOString() })}\n`);
 }
 
+function safeSessionSegment(value) {
+  const safe = String(value || "default").replace(/[^a-z0-9_-]/gi, "_").slice(0, 80) || "default";
+  if (safe === "." || safe === "..") throw new Error("Session profile/name is invalid.");
+  return safe;
+}
+async function captureSessionSnapshot(driver) {
+  const currentUrl = await driver.getCurrentUrl();
+  if (!isHttpUrl(currentUrl)) throw new Error("Save session requires an HTTP(S) page.");
+  const parsedUrl = new URL(currentUrl);
+  const cookies = await driver.manage().getCookies();
+  const storage = await driver.executeScript("return {localStorage:Object.entries(window.localStorage),sessionStorage:Object.entries(window.sessionStorage)};");
+  return { version: 1, createdAt: new Date().toISOString(), origin: parsedUrl.origin,
+    cookies: cookies.map(c => ({ name:c.name, value:c.value, ...(c.domain?{domain:c.domain}:{}), ...(c.path?{path:c.path}:{}), ...(typeof c.expiry === "number"?{expiry:c.expiry}:{}), ...(typeof c.secure === "boolean"?{secure:c.secure}:{}), ...(typeof c.httpOnly === "boolean"?{httpOnly:c.httpOnly}:{}), ...(c.sameSite?{sameSite:c.sameSite}:{}) })),
+    localStorage: storage.localStorage.map(([key,value])=>({key,value})), sessionStorage: storage.sessionStorage.map(([key,value])=>({key,value})) };
+}
+async function persistSessionSnapshot(baseDir, profileName, sessionName, json) {
+  if (!baseDir) throw new Error("Session storage directory is not configured.");
+  const dir = path.join(baseDir, safeSessionSegment(profileName));
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, `${safeSessionSegment(sessionName)}.json`), json, { encoding: "utf8", mode: 0o600 });
+}
+async function readSessionSnapshot(baseDir, profileName, sessionName) {
+  if (!baseDir) throw new Error("Session storage directory is not configured.");
+  const target = path.join(baseDir, safeSessionSegment(profileName), `${safeSessionSegment(sessionName)}.json`);
+  const json = await fs.readFile(target, "utf8");
+  if (Buffer.byteLength(json, "utf8") > 2_000_000) throw new Error("Saved session snapshot exceeds the 2 MB limit.");
+  const snapshot = JSON.parse(json);
+  if (!snapshot || snapshot.version !== 1 || !isHttpUrl(snapshot.origin) || !Array.isArray(snapshot.cookies) || !Array.isArray(snapshot.localStorage) || !Array.isArray(snapshot.sessionStorage)) throw new Error("Saved session snapshot is malformed.");
+  return snapshot;
+}
+async function restoreSessionSnapshot(driver, snapshot) {
+  if (!snapshot || snapshot.version !== 1 || typeof snapshot.origin !== "string" || !isHttpUrl(snapshot.origin) || !Array.isArray(snapshot.cookies) || !Array.isArray(snapshot.localStorage) || !Array.isArray(snapshot.sessionStorage)) throw new Error("Malformed session snapshot.");
+  if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > 2_000_000) throw new Error("Session snapshot exceeds the 2 MB limit.");
+  const originUrl = new URL(snapshot.origin);
+  await driver.get(originUrl.origin);
+  const imported = { cookies: 0, expired: 0, rejected: 0, storageEntries: 0 };
+  for (const cookie of snapshot.cookies) {
+    try {
+      if (!cookie || typeof cookie.name !== "string" || typeof cookie.value !== "string") { imported.rejected++; continue; }
+      if (typeof cookie.expiry === "number" && cookie.expiry <= Math.floor(Date.now()/1000)) { imported.expired++; continue; }
+      const domain = typeof cookie.domain === "string" ? cookie.domain.replace(/^\./, "").toLowerCase() : originUrl.hostname.toLowerCase();
+      if (!(originUrl.hostname.toLowerCase() === domain || originUrl.hostname.toLowerCase().endsWith(`.${domain}`))) { imported.rejected++; continue; }
+      const clean = { name: cookie.name, value: cookie.value, path: typeof cookie.path === "string" ? cookie.path : "/", ...(cookie.domain ? { domain: cookie.domain } : {}), ...(typeof cookie.expiry === "number" ? { expiry: cookie.expiry } : {}), ...(typeof cookie.secure === "boolean" ? { secure: cookie.secure } : {}), ...(typeof cookie.httpOnly === "boolean" ? { httpOnly: cookie.httpOnly } : {}), ...( ["Strict","Lax","None"].includes(cookie.sameSite) ? { sameSite: cookie.sameSite } : {}) };
+      await driver.manage().addCookie(clean); imported.cookies++;
+    } catch { imported.rejected++; }
+  }
+  await driver.executeScript("for (const [k,v] of arguments[0]) localStorage.setItem(k,v); for (const [k,v] of arguments[1]) sessionStorage.setItem(k,v);", snapshot.localStorage.map(x => [x.key, x.value]), snapshot.sessionStorage.map(x => [x.key, x.value]));
+  imported.storageEntries = snapshot.localStorage.length + snapshot.sessionStorage.length;
+  return imported;
+}
+
 async function runWorkflow(rawPayload, deps = {}) {
   const payload = validatePayload(rawPayload);
   const selenium = deps.selenium || require("selenium-webdriver");
@@ -492,7 +543,8 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "extractValue": { const el=await nestedWaiters.visible(); const value=String(await driver.executeScript("return arguments[0].value ?? '';",el)??""); childVariables[nested.outputName||"extractedValue"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`value-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
             case "extractTable": { const table=await nestedWaiters.visible(); const rows=await table.findElements(By.css("tr")); const values=[]; for(const row of rows){const cells=await row.findElements(By.css("th,td"));values.push(await Promise.all(cells.map(cell=>cell.getText())))} const csv=values.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n"); await writeArtifact(`${safeOutputName(nested.outputName||`table-${childIndex+1}`)}.csv`,csv,"text/csv; charset=utf-8"); childVariables[nested.outputName||"extractedTable"]=JSON.stringify(values); break; }
             case "saveText": await writeArtifact(`${safeOutputName(nested.outputName||`text-${childIndex+1}`)}.txt`,substituteVariables(nested.text||"",childVariables),"text/plain; charset=utf-8"); break;
-            case "saveSession": { const currentUrl=await driver.getCurrentUrl(); if(!isHttpUrl(currentUrl))throw new Error("Save session requires an HTTP(S) page."); const parsedUrl=new URL(currentUrl); const cookies=await driver.manage().getCookies(); const storage=await driver.executeScript("return {localStorage:Object.entries(window.localStorage),sessionStorage:Object.entries(window.sessionStorage)};"); const snapshot={version:1,createdAt:new Date().toISOString(),origin:parsedUrl.origin,cookies:cookies.map(c=>({name:c.name,value:c.value,...(c.domain?{domain:c.domain}:{}),...(c.path?{path:c.path}:{}),...(typeof c.expiry==="number"?{expiry:c.expiry}:{}),...(typeof c.secure==="boolean"?{secure:c.secure}:{}),...(typeof c.httpOnly==="boolean"?{httpOnly:c.httpOnly}:{}),...(c.sameSite?{sameSite:c.sameSite}:{})})),localStorage:storage.localStorage.map(([key,value])=>({key,value})),sessionStorage:storage.sessionStorage.map(([key,value])=>({key,value}))}; const json=JSON.stringify(snapshot,null,2); if(Buffer.byteLength(json,"utf8")>2_000_000)throw new Error("Session snapshot exceeds the 2 MB limit."); await writeArtifact(`${safeOutputName(nested.outputName||`session-${childIndex+1}`)}.json`,json,"application/json; charset=utf-8"); break; }
+            case "saveSession": { const snapshot = await captureSessionSnapshot(driver); const json = JSON.stringify(snapshot, null, 2); if (Buffer.byteLength(json, "utf8") > 2_000_000) throw new Error("Session snapshot exceeds the 2 MB limit."); const profileKey = safeSessionSegment(nested.profileName || payload.profile?.name || "default"); const sessionKey = safeSessionSegment(nested.sessionName || nested.outputName || `session-${childIndex+1}`); await persistSessionSnapshot(payload.sessionStoreDir, profileKey, sessionKey, json); await writeArtifact(`${safeOutputName(nested.outputName || sessionKey)}.json`, json, "application/json; charset=utf-8"); break; }
+            case "loadSession": { const profileKey = safeSessionSegment(nested.profileName || payload.profile?.name || "default"); const sessionKey = safeSessionSegment(nested.sessionName || nested.outputName || "default"); const snapshot = await readSessionSnapshot(payload.sessionStoreDir, profileKey, sessionKey); await restoreSessionSnapshot(driver, snapshot); break; }
             case "saveImage": { const el=await nestedWaiters.visible(); const image=await el.takeScreenshot(); await writeArtifact(`${safeOutputName(nested.outputName||`image-${childIndex+1}`)}.png`,Buffer.from(image,"base64"),"image/png"); break; }
             case "assertUrl": { const actual=await driver.getCurrentUrl(); const expected=substituteVariables(nested.expected||nested.url||"",childVariables); if(!actual.includes(expected)) throw new Error(`URL assertion failed: expected to contain ${expected}`); break; }
             case "assertExists": await nestedWaiters.locate(); break;
@@ -937,17 +989,22 @@ async function runWorkflow(rawPayload, deps = {}) {
           }
           case "saveText": { const text = substituteVariables(step.text || "", variables); await writeArtifact(`${safeOutputName(step.outputName || `text-${index + 1}`)}.txt`, text, "text/plain; charset=utf-8"); break; }
           case "saveSession": {
-            const currentUrl = await driver.getCurrentUrl();
-            if (!isHttpUrl(currentUrl)) throw new Error("Save session requires an HTTP(S) page.");
-            const parsedUrl = new URL(currentUrl);
-            const cookies = await driver.manage().getCookies();
-            const storage = await driver.executeScript("return {localStorage:Object.entries(window.localStorage),sessionStorage:Object.entries(window.sessionStorage)};");
-            const snapshot = { version: 1, createdAt: new Date().toISOString(), origin: parsedUrl.origin,
-              cookies: cookies.map(c => ({ name:c.name, value:c.value, ...(c.domain?{domain:c.domain}:{}), ...(c.path?{path:c.path}:{}), ...(typeof c.expiry === "number"?{expiry:c.expiry}:{}), ...(typeof c.secure === "boolean"?{secure:c.secure}:{}), ...(typeof c.httpOnly === "boolean"?{httpOnly:c.httpOnly}:{}), ...(c.sameSite?{sameSite:c.sameSite}:{}) })),
-              localStorage: storage.localStorage.map(([key,value])=>({key,value})), sessionStorage: storage.sessionStorage.map(([key,value])=>({key,value})) };
+            const snapshot = await captureSessionSnapshot(driver);
             const json = JSON.stringify(snapshot, null, 2);
             if (Buffer.byteLength(json, "utf8") > 2_000_000) throw new Error("Session snapshot exceeds the 2 MB limit.");
-            await writeArtifact(`${safeOutputName(step.outputName || `session-${index + 1}`)}.json`, json, "application/json; charset=utf-8");
+            const profileKey = safeSessionSegment(step.profileName || payload.profile?.name || "default");
+            const sessionKey = safeSessionSegment(step.sessionName || step.outputName || `session-${index + 1}`);
+            await persistSessionSnapshot(payload.sessionStoreDir, profileKey, sessionKey, json);
+            await writeArtifact(`${safeOutputName(step.outputName || sessionKey)}.json`, json, "application/json; charset=utf-8");
+            emit("session-saved", { profileName: profileKey, sessionName: sessionKey, origin: snapshot.origin });
+            break;
+          }
+          case "loadSession": {
+            const profileKey = safeSessionSegment(step.profileName || payload.profile?.name || "default");
+            const sessionKey = safeSessionSegment(step.sessionName || step.outputName || "default");
+            const snapshot = await readSessionSnapshot(payload.sessionStoreDir, profileKey, sessionKey);
+            const result = await restoreSessionSnapshot(driver, snapshot);
+            emit("session-loaded", { profileName: profileKey, sessionName: sessionKey, origin: snapshot.origin, ...result });
             break;
           }
           case "saveImage": { const element = await visible(); let image; try { image = await element.takeScreenshot(); } catch { image = await driver.takeScreenshot(); }
