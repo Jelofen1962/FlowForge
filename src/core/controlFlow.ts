@@ -5,7 +5,7 @@ export type ConditionOperator =
   | "matches" | "greaterThan" | "lessThan" | "truthy" | "falsy";
 
 export interface StepCondition {
-  source: "variable" | "lastText" | "url" | "stepStatus";
+  source: "variable" | "lastText" | "url" | "urlChanged" | "stepStatus";
   key?: string;
   operator: ConditionOperator;
   expected?: string;
@@ -29,6 +29,7 @@ export interface RuntimeContext {
   variables: Record<string, string>;
   lastText: string;
   url: string;
+  urlChanged?: boolean;
   stepStatus: Record<string, "success" | "error" | "skipped">;
 }
 
@@ -54,6 +55,7 @@ export function evaluateCondition(condition: StepCondition, context: RuntimeCont
       break;
     case "lastText": actual = context.lastText; break;
     case "url": actual = context.url; break;
+    case "urlChanged": actual = String(context.urlChanged === true); break;
     case "stepStatus":
       if (!condition.key || !Object.prototype.hasOwnProperty.call(context.stepStatus, condition.key)) {
         throw new Error(`Condition refers to unknown step id "${condition.key ?? ""}".`);
@@ -92,7 +94,7 @@ export function evaluateCondition(condition: StepCondition, context: RuntimeCont
 export function validateControlFlow(config: ControlFlowConfig): string[] {
   const errors: string[] = [];
   if (config.condition) {
-    if (!["variable", "lastText", "url", "stepStatus"].includes(config.condition.source)) errors.push("Unsupported condition source.");
+    if (!["variable", "lastText", "url", "urlChanged", "stepStatus"].includes(config.condition.source)) errors.push("Unsupported condition source.");
     if (!["equals", "notEquals", "contains", "notContains", "matches", "greaterThan", "lessThan", "truthy", "falsy"].includes(config.condition.operator)) errors.push("Unsupported condition operator.");
     if (config.condition.source === "variable" && !config.condition.key?.trim()) errors.push("Variable conditions need a variable name.");
     if (config.condition.source === "stepStatus" && !config.condition.key?.trim()) errors.push("Step-status conditions need a step id.");

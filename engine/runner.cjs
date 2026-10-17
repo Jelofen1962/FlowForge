@@ -15,7 +15,7 @@ const MAX_WAIT_MS = 300_000;
 const LOCATOR_NAMES = new Set(["xpath", "css", "id", "name", "linkText", "className", "tagName"]);
 const STEP_TYPES = new Set([
   "click", "type", "key", "navigate", "waitVisible", "waitClickable", "wait",
-  "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh",
+  "assertText", "select", "userInput", "runWorkflow", "screenshot", "saveSession", "back", "forward", "refresh",
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
@@ -72,7 +72,8 @@ function normalizeOptimizations(value = {}) {
     disableCss: raw.disableCss === true,
     disableFonts: raw.disableFonts === true,
     disableMedia: raw.disableMedia === true,
-    pageLoadStrategy: strategy
+    pageLoadStrategy: strategy,
+    headless: raw.headless === true
   };
 }
 
@@ -150,6 +151,9 @@ function validatePayload(payload, depth = 0) {
         if (!field.target || !LOCATOR_NAMES.has(field.target.strategy) || typeof field.target.value !== "string" || !field.target.value.trim()) throw new Error(`Step ${i + 1} input "${field.title}" needs a valid target locator.`);
         if (field.required !== undefined && typeof field.required !== "boolean") throw new Error(`Step ${i + 1} input "${field.title}" required must be boolean.`);
         if (field.secret !== undefined && typeof field.secret !== "boolean") throw new Error(`Step ${i + 1} input "${field.title}" secret must be boolean.`);
+        if (field.valueType !== undefined && !["text", "number", "boolean"].includes(field.valueType)) throw new Error(`Step ${i + 1} input "${field.title}" has an unsupported type.`);
+        if (field.pattern !== undefined && (typeof field.pattern !== "string" || field.pattern.length > 500)) throw new Error(`Step ${i + 1} input "${field.title}" regex is too long.`);
+        if (field.pattern) { try { new RegExp(field.pattern); } catch { throw new Error(`Step ${i + 1} input "${field.title}" regex is invalid.`); } }
       }
     }
   }
@@ -429,6 +433,7 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "extractValue": { const el=await nestedWaiters.visible(); const value=String(await driver.executeScript("return arguments[0].value ?? '';",el)??""); childVariables[nested.outputName||"extractedValue"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`value-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
             case "extractTable": { const table=await nestedWaiters.visible(); const rows=await table.findElements(By.css("tr")); const values=[]; for(const row of rows){const cells=await row.findElements(By.css("th,td"));values.push(await Promise.all(cells.map(cell=>cell.getText())))} const csv=values.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n"); await writeArtifact(`${safeOutputName(nested.outputName||`table-${childIndex+1}`)}.csv`,csv,"text/csv; charset=utf-8"); childVariables[nested.outputName||"extractedTable"]=JSON.stringify(values); break; }
             case "saveText": await writeArtifact(`${safeOutputName(nested.outputName||`text-${childIndex+1}`)}.txt`,substituteVariables(nested.text||"",childVariables),"text/plain; charset=utf-8"); break;
+            case "saveSession": { const currentUrl=await driver.getCurrentUrl(); if(!isHttpUrl(currentUrl))throw new Error("Save session requires an HTTP(S) page."); const parsedUrl=new URL(currentUrl); const cookies=await driver.manage().getCookies(); const storage=await driver.executeScript("return {localStorage:Object.entries(window.localStorage),sessionStorage:Object.entries(window.sessionStorage)};"); const snapshot={version:1,createdAt:new Date().toISOString(),origin:parsedUrl.origin,cookies:cookies.map(c=>({name:c.name,value:c.value,...(c.domain?{domain:c.domain}:{}),...(c.path?{path:c.path}:{}),...(typeof c.expiry==="number"?{expiry:c.expiry}:{}),...(typeof c.secure==="boolean"?{secure:c.secure}:{}),...(typeof c.httpOnly==="boolean"?{httpOnly:c.httpOnly}:{}),...(c.sameSite?{sameSite:c.sameSite}:{})})),localStorage:storage.localStorage.map(([key,value])=>({key,value})),sessionStorage:storage.sessionStorage.map(([key,value])=>({key,value}))}; const json=JSON.stringify(snapshot,null,2); if(Buffer.byteLength(json,"utf8")>2_000_000)throw new Error("Session snapshot exceeds the 2 MB limit."); await writeArtifact(`${safeOutputName(nested.outputName||`session-${childIndex+1}`)}.json`,json,"application/json; charset=utf-8"); break; }
             case "saveImage": { const el=await nestedWaiters.visible(); const image=await el.takeScreenshot(); await writeArtifact(`${safeOutputName(nested.outputName||`image-${childIndex+1}`)}.png`,Buffer.from(image,"base64"),"image/png"); break; }
             case "assertUrl": { const actual=await driver.getCurrentUrl(); const expected=substituteVariables(nested.expected||nested.url||"",childVariables); if(!actual.includes(expected)) throw new Error(`URL assertion failed: expected to contain ${expected}`); break; }
             case "assertExists": await nestedWaiters.locate(); break;
@@ -449,7 +454,7 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "ifElse": { const branch=evaluateRuntimeCondition(nested.condition,nestedRuntimeContext)?nested.thenSteps:nested.elseSteps; if(!Array.isArray(branch))throw new Error("If/else requires branch arrays"); const inlineId=`__nested_if_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline branch",startUrl:"",browser:browserName,steps:branch,groups:[],variables:[]}; try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}finally{delete lib[inlineId]} break; }
             case "repeat": { if(!Array.isArray(nested.loopSteps))throw new Error("Repeat requires nested steps"); const count=Math.max(1,Math.min(1000,Number(nested.repeatCount)||1)); const inlineId=`__nested_repeat_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline repeat",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]}; try{for(let r=0;r<count&&!stopRequested;r++){childVariables.iteration=String(r+1);try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]} break; }
             case "loopList": { if(!Array.isArray(nested.loopSteps))throw new Error("List loop requires nested steps");let items;const raw=substituteVariables(nested.listExpression||"",childVariables);try{const v=JSON.parse(raw);items=Array.isArray(v)?v:String(raw).split(",")}catch{items=String(raw).split(",")}if(items.length>1000)throw new Error("List loop max is 1000");const inlineId=`__nested_list_${Date.now()}_${childIndex}`;const lib=payload.workflowLibrary||(payload.workflowLibrary={});try{for(const item of items){childVariables[nested.itemVariable||"item"]=String(item);lib[inlineId]={version:1,name:"Inline list item",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]};try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]}break; }
-            case "userInput": { const values = await requestUserInput(nested, childIndex); for (const field of nested.inputs || []) { const value = String(values[field.id] ?? ""); if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`); if (!value && field.required === false) continue; const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, childVariables) }); const el = await driver.wait(async()=>{try { const found=await driver.findElement(fieldBy); return await found.isDisplayed()?found:false;} catch{return false;}}, nestedTimeout, `Input target "${field.title}" did not become visible`, 200); await el.clear(); await el.sendKeys(value); } break; }
+            case "userInput": { const values = await requestUserInput(nested, childIndex); for (const field of nested.inputs || []) { const value = String(values[field.id] ?? ""); if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`); if (!value && field.required === false) continue; if (field.valueType === "number" && !Number.isFinite(Number(value))) throw new Error(`Input "${field.title}" must be a valid number.`); if (field.valueType === "boolean" && !["true", "false"].includes(value.trim().toLowerCase())) throw new Error(`Input "${field.title}" must be true or false.`); if (field.pattern) { let valid = false; try { valid = new RegExp(field.pattern).test(value); } catch {} if (!valid) throw new Error(`Input "${field.title}" does not match its required pattern.`); } const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, childVariables) }); const el = await driver.wait(async()=>{try { const found=await driver.findElement(fieldBy); return await found.isDisplayed()?found:false;} catch{return false;}}, nestedTimeout, `Input target "${field.title}" did not become visible`, 200); await el.clear(); await el.sendKeys(value); } break; }
             case "back": await driver.navigate().back(); break;
             case "forward": await driver.navigate().forward(); break;
             case "refresh": await driver.navigate().refresh(); break;
@@ -482,6 +487,7 @@ async function runWorkflow(rawPayload, deps = {}) {
       driver = await driverFactory({ browserName, payload });
     } else {
       const options = browserName === "edge" ? new edge.Options() : new chrome.Options();
+      if (optimizations.headless) options.addArguments("--headless=new", "--window-size=1440,1000");
       if (profile.userDataDir) {
         const userDataDir = String(profile.userDataDir).trim();
         if (userDataDir) options.addArguments(`--user-data-dir=${userDataDir}`);
@@ -726,6 +732,9 @@ async function runWorkflow(rawPayload, deps = {}) {
               const value = values[field.id] === undefined || values[field.id] === null ? "" : String(values[field.id]);
               if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`);
               if (!value && field.required === false) continue;
+              if (field.valueType === "number" && !Number.isFinite(Number(value))) throw new Error(`Input "${field.title}" must be a valid number.`);
+              if (field.valueType === "boolean" && !["true", "false"].includes(value.trim().toLowerCase())) throw new Error(`Input "${field.title}" must be true or false.`);
+              if (field.pattern) { let valid = false; try { valid = new RegExp(field.pattern).test(value); } catch {} if (!valid) throw new Error(`Input "${field.title}" does not match its required pattern.`); }
               const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, variables) });
               const element = await driver.wait(async () => {
                 try { const found = await driver.findElement(fieldBy); return await found.isDisplayed() ? found : false; } catch { return false; }
@@ -850,6 +859,20 @@ async function runWorkflow(rawPayload, deps = {}) {
             await writeArtifact(`${safeOutputName(step.outputName || `table-${index + 1}`)}.csv`, csv, "text/csv; charset=utf-8"); runtimeContext.variables[step.outputName || "extractedTable"] = JSON.stringify(values); variables[step.outputName || "extractedTable"] = JSON.stringify(values); break;
           }
           case "saveText": { const text = substituteVariables(step.text || "", variables); await writeArtifact(`${safeOutputName(step.outputName || `text-${index + 1}`)}.txt`, text, "text/plain; charset=utf-8"); break; }
+          case "saveSession": {
+            const currentUrl = await driver.getCurrentUrl();
+            if (!isHttpUrl(currentUrl)) throw new Error("Save session requires an HTTP(S) page.");
+            const parsedUrl = new URL(currentUrl);
+            const cookies = await driver.manage().getCookies();
+            const storage = await driver.executeScript("return {localStorage:Object.entries(window.localStorage),sessionStorage:Object.entries(window.sessionStorage)};");
+            const snapshot = { version: 1, createdAt: new Date().toISOString(), origin: parsedUrl.origin,
+              cookies: cookies.map(c => ({ name:c.name, value:c.value, ...(c.domain?{domain:c.domain}:{}), ...(c.path?{path:c.path}:{}), ...(typeof c.expiry === "number"?{expiry:c.expiry}:{}), ...(typeof c.secure === "boolean"?{secure:c.secure}:{}), ...(typeof c.httpOnly === "boolean"?{httpOnly:c.httpOnly}:{}), ...(c.sameSite?{sameSite:c.sameSite}:{}) })),
+              localStorage: storage.localStorage.map(([key,value])=>({key,value})), sessionStorage: storage.sessionStorage.map(([key,value])=>({key,value})) };
+            const json = JSON.stringify(snapshot, null, 2);
+            if (Buffer.byteLength(json, "utf8") > 2_000_000) throw new Error("Session snapshot exceeds the 2 MB limit.");
+            await writeArtifact(`${safeOutputName(step.outputName || `session-${index + 1}`)}.json`, json, "application/json; charset=utf-8");
+            break;
+          }
           case "saveImage": { const element = await visible(); let image; try { image = await element.takeScreenshot(); } catch { image = await driver.takeScreenshot(); }
             await writeArtifact(`${safeOutputName(step.outputName || `image-${index + 1}`)}.png`, Buffer.from(image, "base64"), "image/png"); break; }
           case "assertUrl": { const actual = await driver.getCurrentUrl(); const expected = substituteVariables(step.expected || step.url || "", variables); if (!actual.includes(expected)) throw new Error(`URL assertion failed: expected URL to contain "${expected}", got "${actual}".`); break; }

@@ -6,7 +6,7 @@ export type LocatorStrategy =
 export type StepType =
   | "click" | "type" | "key" | "navigate"
   | "waitVisible" | "waitClickable" | "wait" | "assertText"
-  | "select" | "userInput" | "runWorkflow" | "screenshot" | "back" | "forward" | "refresh"
+  | "select" | "userInput" | "runWorkflow" | "screenshot" | "saveSession" | "back" | "forward" | "refresh"
   | "hover" | "rightClick" | "doubleClick" | "dragDrop" | "scrollTo" | "scroll"
   | "uploadFile" | "waitDownload" | "extractText" | "extractAttribute" | "extractValue" | "extractTable" | "saveText" | "saveImage"
   | "assertUrl" | "assertExists" | "assertCount" | "assertTitle" | "assertAttribute"
@@ -39,6 +39,8 @@ export interface UserInputField {
   placeholder?: string;
   required?: boolean;
   secret?: boolean;
+  valueType?: "text" | "number" | "boolean";
+  pattern?: string;
   target: Locator;
 }
 
@@ -110,7 +112,7 @@ const locatorStrategies: LocatorStrategy[] = [
 ];
 const stepTypes: StepType[] = [
   "click", "type", "key", "navigate", "waitVisible", "waitClickable",
-  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "back", "forward", "refresh",
+  "wait", "assertText", "select", "userInput", "runWorkflow", "screenshot", "saveSession", "back", "forward", "refresh",
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
@@ -142,6 +144,7 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     userInput: "Ask user for inputs",
     runWorkflow: "Run another workflow",
     screenshot: "Take screenshot",
+    saveSession: "Save browser session",
     back: "Go back",
     forward: "Go forward",
     refresh: "Refresh page", setVariable: "Set variable", extractAll: "Extract all matching elements", operateAll: "Operate on all matching elements", hover: "Hover over element", rightClick: "Right-click element", doubleClick: "Double-click element",
@@ -328,6 +331,9 @@ export function validateWorkflow(input: unknown): ValidationResult {
           if (field.placeholder !== undefined && typeof field.placeholder !== "string") errors.push(`${label} placeholder must be text.`);
           if (field.required !== undefined && typeof field.required !== "boolean") errors.push(`${label} required must be true or false.`);
           if (field.secret !== undefined && typeof field.secret !== "boolean") errors.push(`${label} secret must be true or false.`);
+          if (field.valueType !== undefined && !["text", "number", "boolean"].includes(field.valueType)) errors.push(`${label} has an unsupported input type.`);
+          if (field.pattern !== undefined && (typeof field.pattern !== "string" || field.pattern.length > 500)) errors.push(`${label} regex must be text no longer than 500 characters.`);
+          if (field.pattern) { try { new RegExp(field.pattern); } catch { errors.push(`${label} regex is invalid.`); } }
           const target = field.target as Partial<Locator> | undefined;
           if (!target || !locatorStrategies.includes(target.strategy as LocatorStrategy) || typeof target.value !== "string" || !target.value.trim()) errors.push(`${label} needs a valid target element locator.`);
         });
