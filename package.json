@@ -1,6 +1,6 @@
 {
   "name": "flowforge-automation",
-  "version": "0.3.24",
+  "version": "0.3.29",
   "private": true,
   "description": "Windows desktop GUI for Selenium browser automation",
   "main": "electron/main.cjs",
@@ -57,7 +57,8 @@
       "!**/tests/**",
       "!**/.github/**",
       "mcp-server.mjs",
-      "electron/ai-api.cjs"
+      "electron/ai-api.cjs",
+      "electron/ai-provider.cjs"
     ],
     "win": {
       "target": [

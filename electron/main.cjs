@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
 const { createAiApi } = require("./ai-api.cjs");
+const { createAiProvider } = require("./ai-provider.cjs");
 
 /* Maintainer: Amirreza Taati (Jelofen1962) | https://github.com/Jelofen1962 | Telegram: https://t.me/Jelofen1962 */
 const GITHUB_RELEASE_REPOSITORY = { owner: "Jelofen1962", repo: "FlowForge" };
@@ -202,6 +203,37 @@ const aiApi = createAiApi({
     return { ok: true };
   }
 });
+const aiProvider = createAiProvider({
+  userDataPath: app.getPath("userData"),
+  apiBaseUrl: () => aiApi.info().baseUrl,
+  apiToken: () => aiApi.info().token
+});
+
+handleTrusted("ai:provider-settings", async () => {
+  const settings = await aiProvider.getSettings();
+  return { baseUrl: settings.baseUrl, model: settings.model, hasApiKey: !!settings.apiKey };
+});
+handleTrusted("ai:provider-save", async (_event, settings) => {
+  try { return await aiProvider.saveSettings(settings); }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+});
+handleTrusted("ai:provider-test", async () => {
+  try {
+    const settings = await aiProvider.getSettings();
+    if (!settings.apiKey) return { ok: false, error: "Add your API key first." };
+    const response = await fetch(`${settings.baseUrl}/models`, { headers: { Authorization: `Bearer ${settings.apiKey}` }, signal: AbortSignal.timeout(15000) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { ok: false, error: data.error?.message || `Provider returned HTTP ${response.status}` };
+    return { ok: true, message: "Provider connected.", models: Array.isArray(data.data) ? data.data.map(item => item.id).slice(0, 50) : [] };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+});
+handleTrusted("ai:provider-chat", async (_event, input) => {
+  try {
+    if (!input || typeof input.message !== "string" || !input.message.trim()) return { ok: false, error: "Enter a message first." };
+    return await aiProvider.chat(input);
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+});
+
 app.whenReady().then(async () => {
   try { await aiApi.start(); } catch (error) { console.error("FlowForge AI API could not start:", error); }
   createWindow();

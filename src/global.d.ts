@@ -3,6 +3,10 @@ declare global {
     flowforge: {
       getVersion: () => Promise<string>;
       getAiApiInfo: () => Promise<{ available: boolean; baseUrl: string; token: string; authHeader: string; docsPath: string }>;
+      getAiProviderSettings: () => Promise<{ baseUrl: string; model: string; hasApiKey: boolean }>;
+      saveAiProviderSettings: (settings: { baseUrl: string; model: string; apiKey?: string }) => Promise<{ ok: boolean; error?: string; hasApiKey?: boolean }>;
+      testAiProvider: () => Promise<{ ok: boolean; message?: string; error?: string; models?: string[] }>;
+      sendAiMessage: (input: { message: string }) => Promise<{ ok: boolean; text?: string; error?: string; toolCalls?: number }>;
       getAiGuidanceActions: () => Promise<Array<{ id?: string; action: string; url?: string; title?: string; target?: { value?: string; text?: string; strategy?: string }; text?: string; value?: string; selectedText?: string; at?: number }>>;
       syncAiWorkflows: (workflows: unknown[]) => Promise<{ ok: boolean; count?: number; error?: string }>;
       checkForUpdates: () => Promise<{ ok: boolean; available: boolean; currentVersion?: string; latestVersion?: string; releaseName?: string; notes?: string; url?: string; publishedAt?: string | null; error?: string }>;

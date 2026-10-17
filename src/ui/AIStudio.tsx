@@ -18,7 +18,17 @@ export default function AIStudio({ workflows, onOpenWorkflow, onTagWorkflow }: P
   const [recorderUrl, setRecorderUrl] = useState("https://example.com");
   const [recording, setRecording] = useState(false);
   const [recorderMessage, setRecorderMessage] = useState("");
+  const [providerUrl, setProviderUrl] = useState("http://localhost:20128/v1");
+  const [providerModel, setProviderModel] = useState("MCP");
+  const [providerKey, setProviderKey] = useState("");
+  const [providerHasKey, setProviderHasKey] = useState(false);
+  const [providerStatus, setProviderStatus] = useState("");
+  const [providerBusy, setProviderBusy] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [chatBusy, setChatBusy] = useState(false);
   useEffect(() => { window.flowforge.getAiApiInfo().then(setApi).catch(() => setApi(null)); }, []);
+  useEffect(() => { window.flowforge.getAiProviderSettings().then(settings => { setProviderUrl(settings.baseUrl); setProviderModel(settings.model); setProviderHasKey(settings.hasApiKey); }).catch(() => {}); }, []);
   useEffect(() => { window.flowforge.syncAiWorkflows(workflows).catch(() => {}); }, [workflows]);
   useEffect(() => { window.flowforge.getAiGuidanceActions().then(setGuidance).catch(() => {}); }, []);
   const visible = useMemo(() => workflows.filter(w => `${w.document.name} ${w.document.startUrl}`.toLowerCase().includes(search.toLowerCase())), [workflows, search]);
@@ -34,6 +44,27 @@ First inspect existing workflows and the workflow graph. Reuse nested workflows 
       <div className="ai-hero-copy"><div className="eyebrow">FLOWFORGE INTELLIGENCE</div><h1>AI Studio</h1><p>Connect an AI agent, explore nested workflows, and turn guided work into reusable automation.</p></div>
       <span className="ai-pill"><Bot size={14}/> AI INTEGRATION</span>
     </div>
+    <section className="ai-card ai-provider-card">
+      <div className="ai-section-title"><div><KeyRound size={17}/><h2>9Router provider</h2></div><span>{providerHasKey ? "Key saved securely" : "Setup required"}</span></div>
+      <p className="ai-muted">Connect the OpenAI-compatible API. The key is saved to the app's local user-data folder and never sent to the renderer after saving.</p>
+      <div className="ai-provider-fields">
+        <label>API base URL<input value={providerUrl} onChange={e=>setProviderUrl(e.target.value)} placeholder="http://localhost:20128/v1" /></label>
+        <label>Model ID<input value={providerModel} onChange={e=>setProviderModel(e.target.value)} placeholder="MCP" /></label>
+        <label>API key<input type="password" autoComplete="new-password" value={providerKey} onChange={e=>setProviderKey(e.target.value)} placeholder={providerHasKey ? "Saved key. Leave blank to keep it." : "Paste 9Router API key"} /></label>
+      </div>
+      <div className="ai-provider-actions">
+        <button className="primary-button" disabled={providerBusy} onClick={async()=>{setProviderBusy(true);setProviderStatus("");const result=await window.flowforge.saveAiProviderSettings({baseUrl:providerUrl,model:providerModel,apiKey:providerKey||undefined});setProviderBusy(false);if(result.ok){setProviderHasKey(!!result.hasApiKey);setProviderKey("");setProviderStatus("Settings saved.");}else setProviderStatus(result.error||"Could not save settings.");}}>Save provider</button>
+        <button className="secondary-button" disabled={providerBusy} onClick={async()=>{setProviderBusy(true);setProviderStatus("Testing connection…");const saved=await window.flowforge.saveAiProviderSettings({baseUrl:providerUrl,model:providerModel,apiKey:providerKey||undefined});if(!saved.ok){setProviderStatus(saved.error||"Could not save settings.");setProviderBusy(false);return;}setProviderHasKey(!!saved.hasApiKey);setProviderKey("");const result=await window.flowforge.testAiProvider();setProviderBusy(false);setProviderStatus(result.ok?`Connected. ${result.models?.length ? `Models found: ${result.models.join(", ")}` : result.message||"API reachable."}`:result.error||"Connection failed.");}}>Test connection</button>
+      </div>
+      {providerStatus&&<p className={providerStatus.startsWith("Connected")||providerStatus==="Settings saved."?"ai-success":"ai-muted"}>{providerStatus}</p>}
+    </section>
+    <section className="ai-card ai-chat-card">
+      <div className="ai-section-title"><div><Brain size={17}/><h2>FlowForge AI assistant</h2></div><span>9Router + workflow tools</span></div>
+      <p className="ai-muted">Ask the assistant to inspect workflows or, when explicitly requested, run a workflow. Tool calls use the local authenticated FlowForge API.</p>
+      <div className="ai-chat-history" aria-live="polite">{chatMessages.map((message,index)=><div className={`ai-chat-message ${message.role}`} key={`${index}-${message.role}`}><b>{message.role === "user" ? "You" : "FlowForge AI"}</b><p>{message.text}</p></div>)}{!chatMessages.length&&<div className="ai-empty">Try “List my workflows” to test MCP tool calling.</div>}</div>
+      <textarea value={chatInput} onChange={e=>setChatInput(e.target.value)} rows={3} placeholder="Ask FlowForge to inspect or run an automation…" onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();if(chatInput.trim()&&!chatBusy){const message=chatInput.trim();setChatInput("");setChatMessages(previous=>[...previous,{role:"user",text:message}]);setChatBusy(true);window.flowforge.sendAiMessage({message}).then(result=>setChatMessages(previous=>[...previous,{role:"assistant",text:result.ok?(result.text||"The model returned an empty response."):result.error||"Request failed."}])).catch(error=>setChatMessages(previous=>[...previous,{role:"assistant",text:String(error)}])).finally(()=>setChatBusy(false));}}}} />
+      <button className="primary-button" disabled={chatBusy||!chatInput.trim()} onClick={()=>{const message=chatInput.trim();if(!message)return;setChatInput("");setChatMessages(previous=>[...previous,{role:"user",text:message}]);setChatBusy(true);window.flowforge.sendAiMessage({message}).then(result=>setChatMessages(previous=>[...previous,{role:"assistant",text:result.ok?(result.text||"The model returned an empty response."):result.error||"Request failed."}])).catch(error=>setChatMessages(previous=>[...previous,{role:"assistant",text:String(error)}])).finally(()=>setChatBusy(false));}}>{chatBusy?"Thinking and using tools…":"Send to AI"}</button>
+    </section>
     <div className="ai-studio-grid">
       <section className="ai-card ai-task-card">
         <div className="ai-section-title"><div><Brain size={17}/><h2>Give an AI agent a task</h2></div><span>Agent-ready</span></div>

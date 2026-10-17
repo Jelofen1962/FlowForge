@@ -814,3 +814,15 @@ body.is-resizing-panel,body.is-resizing-panel *{cursor:col-resize!important;user
 .ai-guidance-row>div { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
 .ai-guidance-row b { font-size:11px; overflow-wrap:anywhere; }
 .ai-guidance-row small { color:var(--muted); font-size:10px; overflow-wrap:anywhere; }
+
+.ai-provider-card,.ai-chat-card { grid-column: 1 / -1; }
+.ai-provider-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.ai-provider-fields label { display:flex; flex-direction:column; gap:7px; color:var(--muted); font-size:12px; }
+.ai-provider-fields input { min-width:0; width:100%; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:11px; font:inherit; }
+.ai-provider-actions { display:flex; gap:9px; flex-wrap:wrap; }
+.ai-chat-history { display:flex; flex-direction:column; gap:10px; max-height:360px; overflow:auto; }
+.ai-chat-message { max-width:92%; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.ai-chat-message.user { align-self:flex-end; background:var(--panel); }
+.ai-chat-message b { font-size:11px; color:var(--muted); }
+.ai-chat-message p { margin:5px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+@media (max-width: 850px) { .ai-provider-fields { grid-template-columns:1fr; } }
