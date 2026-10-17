@@ -6,7 +6,7 @@ FlowForge provides a visual workflow editor backed by Selenium WebDriver, with c
 
 <!-- Replace OWNER/REPOSITORY with the actual GitHub repository path. -->
 
-[![CI](https://github.com/OWNER/REPOSITORY/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPOSITORY/actions/workflows/ci.yml)
+[![CI](https://github.com/Jelofen1962/FlowForge/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPOSITORY/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/OWNER/REPOSITORY)](https://github.com/OWNER/REPOSITORY/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/OWNER/REPOSITORY?style=flat)](https://github.com/OWNER/REPOSITORY/stargazers)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
