@@ -79,5 +79,10 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "author": "Amirreza Taati (Jelofen1962)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jelofen1962/FlowForge.git"
   }
 }

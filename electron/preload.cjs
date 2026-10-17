@@ -1,3 +1,4 @@
+/* Maintainer: Amirreza Taati (Jelofen1962) | github.com/Jelofen1962 | t.me/Jelofen1962 */
 const { contextBridge, ipcRenderer } = require("electron");
 const subscribe = (channel, callback) => {
   const fn = (_event, value) => callback(value);
@@ -7,6 +8,7 @@ const subscribe = (channel, callback) => {
 contextBridge.exposeInMainWorld("flowforge", {
   start: payload => ipcRenderer.invoke("engine:start", payload),
   setLaunchAtLogin: enabled => ipcRenderer.invoke("app:set-launch-at-login", !!enabled),
+  checkForUpdates: () => ipcRenderer.invoke("app:check-updates"),
   chooseFile: () => ipcRenderer.invoke("file:choose"),
   stop: () => ipcRenderer.invoke("engine:stop"),
   respondUserInput: response => ipcRenderer.invoke("engine:user-input-response", response),

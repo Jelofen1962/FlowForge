@@ -1,4 +1,9 @@
+<!-- Maintainer: Amirreza Taati (Jelofen1962) | GitHub: https://github.com/Jelofen1962 | Telegram: https://t.me/Jelofen1962 -->
 # FlowForge Desktop
+
+**Maintainer:** Amirreza Taati, aka **Jelofen1962**  
+**GitHub:** https://github.com/Jelofen1962  
+**Telegram:** https://t.me/Jelofen1962
 
 A Windows-first, local desktop GUI for building sequential browser automations. Built with Electron, React, TypeScript, and Selenium WebDriver. The browser is a real Chrome or Edge process, not an iframe.
 
@@ -213,3 +218,10 @@ If/else and while blocks support `Previous action result` and `Did the URL chang
 ### Animated icon system
 
 The UI routes its icon imports through `src/ui/AnimatedIcons.tsx`, with locally bundled SVGs and CSS interaction animations in `src/ui/styles.css`. This keeps the Electron UI offline-capable and honors `prefers-reduced-motion`. The icon animation layer is local; it is not a vendored copy of the third-party `lucide-animated.com` library. To replace the artwork with that site's exact components, its source/package needs to be available so the correct API and licenses can be verified.
+
+
+## About and updates
+
+The Settings screen includes maintainer links and a manual update check. On launch, FlowForge checks the latest stable GitHub Release and displays an update dialog only when a newer version is available. The check requires an internet connection and uses the GitHub Releases API for `Jelofen1962/FlowForge`; network failures do not block app startup. The release page is opened in the system browser, and updates are not silently installed.
+
+Maintainer attribution is included in key source files for project provenance: Amirreza Taati (Jelofen1962), [GitHub](https://github.com/Jelofen1962), [Telegram](https://t.me/Jelofen1962).

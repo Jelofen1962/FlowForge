@@ -1,3 +1,4 @@
+/* Maintainer: Amirreza Taati (Jelofen1962) | https://github.com/Jelofen1962 | https://t.me/Jelofen1962 */
 /**
  * FlowForge Selenium runner.
  * Protocol: one JSON object per stdout line. Diagnostic text is never written to stdout.

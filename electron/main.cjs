@@ -3,6 +3,9 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
 
+/* Maintainer: Amirreza Taati (Jelofen1962) | https://github.com/Jelofen1962 | Telegram: https://t.me/Jelofen1962 */
+const GITHUB_RELEASE_REPOSITORY = { owner: "Jelofen1962", repo: "FlowForge" };
+
 let win;
 let engine = null;
 let engineStopping = false;
@@ -292,6 +295,34 @@ handleTrusted("outputs:read", async (_event, workflowId, archiveName, artifactNa
   const mime = ({ ".txt": "text/plain", ".csv": "text/csv", ".json": "application/json", ".html": "text/html", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" })[ext] || "application/octet-stream";
   return { ok: true, name: artifactName, mime, data: data.toString("base64"), text: mime.startsWith("text/") || mime === "application/json" ? data.toString("utf8") : undefined };
 });
+
+
+// Checks the latest published GitHub Release. A failed/offline check is non-fatal.
+async function checkLatestRelease() {
+  const { owner, repo } = GITHUB_RELEASE_REPOSITORY;
+  const endpoint = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases/latest`;
+  try {
+    const response = await fetch(endpoint, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "FlowForge-Desktop-Update-Checker", "X-GitHub-Api-Version": "2022-11-28" },
+      signal: AbortSignal.timeout(7000)
+    });
+    if (response.status === 404) return { ok: false, available: false, error: "No published GitHub release was found for the configured repository." };
+    if (!response.ok) return { ok: false, available: false, error: `GitHub returned HTTP ${response.status}.` };
+    const release = await response.json();
+    if (release.draft || release.prerelease || typeof release.tag_name !== "string") return { ok: true, available: false };
+    const current = app.getVersion().replace(/^v/i, "");
+    const latest = release.tag_name.replace(/^v/i, "");
+    const parse = value => value.split(/[.+-]/).slice(0, 3).map(part => Number.parseInt(part, 10) || 0);
+    const a = parse(current), b = parse(latest);
+    let newer = false;
+    for (let i = 0; i < 3; i++) { if (b[i] !== a[i]) { newer = b[i] > a[i]; break; } }
+    return { ok: true, available: newer, currentVersion: current, latestVersion: latest, releaseName: String(release.name || release.tag_name), notes: String(release.body || "").slice(0, 12000), url: String(release.html_url || `https://github.com/${owner}/${repo}/releases/latest`), publishedAt: release.published_at || null };
+  } catch (error) {
+    return { ok: false, available: false, error: error instanceof Error ? error.message : "Could not check GitHub releases." };
+  }
+}
+
+handleTrusted("app:check-updates", async () => checkLatestRelease());
 
 handleTrusted("app:set-launch-at-login", (_event, enabled) => {
   if (typeof enabled !== "boolean") return { ok: false, error: "Expected a boolean launch setting." };
