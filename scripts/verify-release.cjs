@@ -7,7 +7,11 @@ const main = fs.readFileSync(path.join(root, "electron/main.cjs"), "utf8");
 const preload = fs.readFileSync(path.join(root, "electron/preload.cjs"), "utf8");
 const checks = [
   ["application version is set", typeof pkg.version === "string" && /^\d+\.\d+\.\d+/.test(pkg.version)],
-  ["application version is synchronized with v0.3.24 release", pkg.version === "0.3.24"],
+  ["application version matches the GitHub release tag when running a tag build", (() => {
+    const ref = process.env.GITHUB_REF_NAME || process.env.RELEASE_TAG || "";
+    const match = ref.match(/^v?(\d+\.\d+\.\d+)$/);
+    return !match || pkg.version === match[1];
+  })()],
   ["Windows NSIS target is configured", pkg.build?.win?.target?.some?.(target => (typeof target === "string" ? target : target.target) === "nsis")],
   ["packaged app uses ASAR", pkg.build?.asar === true],
   ["renderer disables Node integration", /nodeIntegration:\s*false/.test(main)],

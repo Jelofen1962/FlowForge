@@ -8,6 +8,7 @@ const subscribe = (channel, callback) => {
 contextBridge.exposeInMainWorld("flowforge", {
   start: payload => ipcRenderer.invoke("engine:start", payload),
   setLaunchAtLogin: enabled => ipcRenderer.invoke("app:set-launch-at-login", !!enabled),
+  getVersion: () => ipcRenderer.invoke("app:get-version"),
   checkForUpdates: () => ipcRenderer.invoke("app:check-updates"),
   chooseFile: () => ipcRenderer.invoke("file:choose"),
   stop: () => ipcRenderer.invoke("engine:stop"),

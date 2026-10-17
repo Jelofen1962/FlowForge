@@ -15,7 +15,8 @@
     "dist": "npm run build && electron-builder --publish never",
     "test:engine": "vitest run tests/runner.test.ts",
     "test:control-flow": "vitest run tests/controlFlow.test.ts",
-    "verify:release": "node scripts/verify-release.cjs"
+    "verify:release": "node scripts/verify-release.cjs",
+    "sync:release-version": "node scripts/sync-release-version.cjs"
   },
   "dependencies": {
     "react": "^18.3.1",
