@@ -19,7 +19,7 @@ const STEP_TYPES = new Set([
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
-  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop", "setVariable", "extractAll", "operateAll"
+  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop", "setVariable", "regexReplace", "extractAll", "operateAll"
 ]);
 const LOCATOR_STEP_TYPES = new Set(["click", "type", "waitVisible", "waitClickable", "assertText", "select", "hover", "rightClick", "doubleClick", "scrollTo", "uploadFile", "extractText", "extractAttribute", "extractValue", "extractTable", "saveImage", "assertExists", "assertCount", "assertAttribute", "switchFrame", "dragDrop", "extractAll", "operateAll"]);
 
@@ -109,11 +109,12 @@ function validatePayload(payload, depth = 0) {
     if (step.type === "dragDrop" && (!step.target2 || !LOCATOR_NAMES.has(step.target2.strategy) || typeof step.target2.value !== "string" || !step.target2.value.trim())) throw new Error(`Step ${i + 1} needs a destination locator for drag and drop.`);
     if (["extractAttribute", "assertAttribute"].includes(step.type) && (typeof step.attribute !== "string" || !step.attribute.trim())) throw new Error(`Step ${i + 1} needs an attribute name.`);
     if (["extractText", "extractAttribute", "extractValue", "extractTable"].includes(step.type) && step.outputName !== undefined && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} output variable must be a valid identifier.`);
-    if (["setVariable", "extractAll"].includes(step.type) && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} needs a valid output variable name.`);
+    if (["setVariable", "regexReplace", "extractAll"].includes(step.type) && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} needs a valid output variable name.`);
     if (step.type === "operateAll" && (!["click", "type", "extractText", "extractAttribute", "extractValue"].includes(step.bulkOperation) || (step.bulkOperation === "extractAttribute" && (typeof step.attribute !== "string" || !step.attribute.trim())))) throw new Error(`Step ${i + 1} needs a supported bulk operation and attribute when extracting attributes.`);
     if (step.type === "extractAll" && step.bulkOperation !== undefined && !["extractText", "extractAttribute", "extractValue"].includes(step.bulkOperation)) throw new Error(`Step ${i + 1} has an unsupported extraction mode.`);
     if (step.type === "operateAll" && String(step.bulkOperation || "").startsWith("extract") && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) throw new Error(`Step ${i + 1} needs a valid output variable for extraction.`);
-    if (step.type === "setVariable" && typeof step.text !== "string") throw new Error(`Step ${i + 1} needs a text value to assign.`);
+    if (["setVariable", "regexReplace"].includes(step.type) && typeof step.text !== "string") throw new Error(`Step ${i + 1} needs a source value or expression.`);
+    if (step.type === "regexReplace") { if (typeof step.expected !== "string" || step.expected.length > 500) throw new Error(`Step ${i + 1} needs a regex pattern no longer than 500 characters.`); try { new RegExp(step.expected, step.key || "g"); } catch { throw new Error(`Step ${i + 1} has an invalid regex pattern or flags.`); } }
     if (step.type === "uploadFile" && (typeof step.filePath !== "string" || !step.filePath.trim())) throw new Error(`Step ${i + 1} needs a file path.`);
     if (["assertUrl", "assertTitle"].includes(step.type) && (typeof step.expected !== "string" || !step.expected.trim())) throw new Error(`Step ${i + 1} needs an expected value.`);
     if (step.type === "repeat" && (!Number.isInteger(step.repeatCount) || step.repeatCount < 1 || step.repeatCount > 1000 || !Array.isArray(step.loopSteps))) throw new Error(`Step ${i + 1} repeat count must be 1-1000 and include loopSteps.`);
@@ -427,6 +428,7 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "uploadFile": { const file = path.resolve(substituteVariables(nested.filePath, childVariables)); await fs.access(file); await (await nestedWaiters.visible()).sendKeys(file); break; }
             case "extractText": { const value=await (await nestedWaiters.visible()).getText(); nestedRuntimeContext.lastText=value; childVariables[nested.outputName||"extractedText"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`text-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
             case "setVariable": { const name=nested.outputName; childVariables[name]=substituteVariables(nested.text||"",childVariables); break; }
+            case "regexReplace": { const name=nested.outputName; const source=substituteVariables(nested.text||"",childVariables); let regex; try{regex=new RegExp(nested.expected||"",nested.key||"g")}catch{throw new Error("Regex edit has an invalid pattern or flags.")} childVariables[name]=String(source).replace(regex,substituteVariables(nested.attribute||"",childVariables)); break; }
             case "extractAll": { const elements=await driver.findElements(nestedBy); if(elements.length>5000)throw new Error("Bulk extraction is limited to 5,000 elements."); const mode=nested.bulkOperation||"extractText"; const values=await Promise.all(elements.map(async el=>mode==="extractAttribute"?String(await el.getAttribute(substituteVariables(nested.attribute||"href",childVariables))??""):mode==="extractValue"?String(await driver.executeScript("return arguments[0].value ?? '';",el)??""):el.getText())); const json=JSON.stringify(values); childVariables[nested.outputName]=json; await writeArtifact(`${safeOutputName(nested.outputName)}.json`,json,"application/json; charset=utf-8"); break; }
             case "operateAll": { const elements=await driver.findElements(nestedBy); if(elements.length>1000)throw new Error("Bulk operations are limited to 1,000 elements."); const values=[]; for(const el of elements){if(nested.bulkOperation==="click")await el.click();else if(nested.bulkOperation==="type")await el.sendKeys(substituteVariables(nested.text||"",childVariables));else if(nested.bulkOperation==="extractText")values.push(await el.getText());else if(nested.bulkOperation==="extractAttribute")values.push(String(await el.getAttribute(substituteVariables(nested.attribute,childVariables))??""));else if(nested.bulkOperation==="extractValue")values.push(String(await driver.executeScript("return arguments[0].value ?? '';",el)??""));} if(nested.outputName){childVariables[nested.outputName]=JSON.stringify(values);if(values.length)await writeArtifact(`${safeOutputName(nested.outputName)}.json`,JSON.stringify(values),"application/json; charset=utf-8");} break; }
             case "extractAttribute": { const value=String(await (await nestedWaiters.visible()).getAttribute(substituteVariables(nested.attribute,childVariables))??""); childVariables[nested.outputName||"extractedAttribute"]=value; await writeArtifact(`${safeOutputName(nested.outputName||`attribute-${childIndex+1}`)}.txt`,value,"text/plain; charset=utf-8"); break; }
@@ -811,6 +813,14 @@ async function runWorkflow(rawPayload, deps = {}) {
             const value = substituteVariables(step.text || "", variables);
             runtimeContext.variables[name] = value; variables[name] = value;
             emit("variable-set", { index, name }); break;
+          }
+          case "regexReplace": {
+            const name = step.outputName;
+            const source = substituteVariables(step.text || "", variables);
+            let regex; try { regex = new RegExp(step.expected || "", step.key || "g"); } catch { throw new Error("Regex edit has an invalid pattern or flags."); }
+            const value = String(source).replace(regex, substituteVariables(step.attribute || "", variables));
+            runtimeContext.variables[name] = value; variables[name] = value; runtimeContext.lastText = value;
+            emit("variable-set", { index, name, operation: "regexReplace" }); break;
           }
           case "extractAll": {
             const elements = await driver.findElements(by);

@@ -2,6 +2,7 @@ declare global {
   interface Window {
     flowforge: {
       start: (payload: unknown) => Promise<{ ok: boolean; error?: string }>;
+      setLaunchAtLogin: (enabled: boolean) => Promise<{ ok: boolean; enabled?: boolean; error?: string }>;
       chooseFile: () => Promise<{ canceled?: boolean; path?: string; error?: string }>;
       stop: () => Promise<{ ok: boolean; error?: string }>;
       respondUserInput: (response: { requestId: string; values?: Record<string, string>; cancel?: boolean }) => Promise<{ ok: boolean; error?: string }>;

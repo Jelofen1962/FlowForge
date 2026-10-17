@@ -293,6 +293,12 @@ handleTrusted("outputs:read", async (_event, workflowId, archiveName, artifactNa
   return { ok: true, name: artifactName, mime, data: data.toString("base64"), text: mime.startsWith("text/") || mime === "application/json" ? data.toString("utf8") : undefined };
 });
 
+handleTrusted("app:set-launch-at-login", (_event, enabled) => {
+  if (typeof enabled !== "boolean") return { ok: false, error: "Expected a boolean launch setting." };
+  try { app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false }); return { ok: true, enabled }; }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+});
+
 handleTrusted("open:external", (_event, url) => {
   if (typeof url === "string" && /^https?:\/\//i.test(url)) return shell.openExternal(url);
   return false;

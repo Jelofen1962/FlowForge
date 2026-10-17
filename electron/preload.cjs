@@ -6,6 +6,7 @@ const subscribe = (channel, callback) => {
 };
 contextBridge.exposeInMainWorld("flowforge", {
   start: payload => ipcRenderer.invoke("engine:start", payload),
+  setLaunchAtLogin: enabled => ipcRenderer.invoke("app:set-launch-at-login", !!enabled),
   chooseFile: () => ipcRenderer.invoke("file:choose"),
   stop: () => ipcRenderer.invoke("engine:stop"),
   respondUserInput: response => ipcRenderer.invoke("engine:user-input-response", response),

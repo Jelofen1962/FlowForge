@@ -11,7 +11,7 @@ export type StepType =
   | "uploadFile" | "waitDownload" | "extractText" | "extractAttribute" | "extractValue" | "extractTable" | "saveText" | "saveImage"
   | "assertUrl" | "assertExists" | "assertCount" | "assertTitle" | "assertAttribute"
   | "alertAccept" | "alertDismiss" | "openTab" | "closeTab" | "switchWindow" | "switchFrame" | "switchFrameDefault"
-  | "ifElse" | "repeat" | "loopList" | "while" | "breakLoop" | "continueLoop" | "setVariable" | "extractAll" | "operateAll";
+  | "ifElse" | "repeat" | "loopList" | "while" | "breakLoop" | "continueLoop" | "setVariable" | "regexReplace" | "extractAll" | "operateAll";
 
 export type OnErrorPolicy = "stop" | "continue";
 
@@ -116,7 +116,7 @@ const stepTypes: StepType[] = [
   "hover", "rightClick", "doubleClick", "dragDrop", "scrollTo", "scroll", "uploadFile", "waitDownload",
   "extractText", "extractAttribute", "extractValue", "extractTable", "saveText", "saveImage",
   "assertUrl", "assertExists", "assertCount", "assertTitle", "assertAttribute", "alertAccept", "alertDismiss",
-  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop", "setVariable", "extractAll", "operateAll"
+  "openTab", "closeTab", "switchWindow", "switchFrame", "switchFrameDefault", "ifElse", "repeat", "loopList", "while", "breakLoop", "continueLoop", "setVariable", "regexReplace", "extractAll", "operateAll"
 ];
 const requiredLocatorTypes = new Set<StepType>([
   "click", "type", "waitVisible", "waitClickable", "assertText", "select", "hover", "rightClick", "doubleClick",
@@ -147,7 +147,7 @@ export function createStep(type: StepType = "click", groupId?: string): Workflow
     saveSession: "Save browser session",
     back: "Go back",
     forward: "Go forward",
-    refresh: "Refresh page", setVariable: "Set variable", extractAll: "Extract all matching elements", operateAll: "Operate on all matching elements", hover: "Hover over element", rightClick: "Right-click element", doubleClick: "Double-click element",
+    refresh: "Refresh page", setVariable: "Set variable", regexReplace: "Regex edit variable", extractAll: "Extract all matching elements", operateAll: "Operate on all matching elements", hover: "Hover over element", rightClick: "Right-click element", doubleClick: "Double-click element",
     dragDrop: "Drag and drop", scrollTo: "Scroll to element", scroll: "Scroll page", uploadFile: "Upload file",
     waitDownload: "Wait for download", extractText: "Extract element text", extractAttribute: "Extract attribute",
     extractValue: "Extract input value", extractTable: "Extract table to CSV", saveText: "Save text output", saveImage: "Save image from element",
@@ -305,11 +305,12 @@ export function validateWorkflow(input: unknown): ValidationResult {
       if (type === "select" && typeof step.text !== "string") errors.push(`Step ${n} needs an option value.`);
       if (["extractAttribute", "assertAttribute"].includes(type) && (!step.attribute || !step.attribute.trim())) errors.push(`Step ${n} needs an attribute name.`);
       if (["extractText", "extractAttribute", "extractValue", "extractTable"].includes(type) && step.outputName !== undefined && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) errors.push(`Step ${n} output variable must start with a letter or underscore and contain only letters, numbers, and underscores.`);
-      if (["setVariable", "extractAll"].includes(type) && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) errors.push(`Step ${n} needs a valid output variable name.`);
+      if (["setVariable", "regexReplace", "extractAll"].includes(type) && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) errors.push(`Step ${n} needs a valid output variable name.`);
       if (type === "operateAll" && (!["click", "type", "extractText", "extractAttribute", "extractValue"].includes(step.bulkOperation || "") || (step.bulkOperation === "extractAttribute" && (!step.attribute || !step.attribute.trim())))) errors.push(`Step ${n} needs a supported bulk operation and an attribute when extracting attributes.`);
       if (type === "extractAll" && step.bulkOperation !== undefined && !["extractText", "extractAttribute", "extractValue"].includes(step.bulkOperation)) errors.push(`Step ${n} has an unsupported extraction mode.`);
       if (type === "operateAll" && String(step.bulkOperation || "").startsWith("extract") && (typeof step.outputName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(step.outputName))) errors.push(`Step ${n} needs a valid output variable for extraction.`);
-      if (type === "setVariable" && typeof step.text !== "string") errors.push(`Step ${n} needs a text value to assign.`);
+      if (["setVariable", "regexReplace"].includes(type) && typeof step.text !== "string") errors.push(`Step ${n} needs a source value or expression.`);
+      if (type === "regexReplace") { if (typeof step.expected !== "string" || step.expected.length > 500) errors.push(`Step ${n} needs a regex pattern no longer than 500 characters.`); else { try { new RegExp(step.expected); } catch { errors.push(`Step ${n} has an invalid regex pattern.`); } } }
       if (type === "dragDrop") {
         const target2 = step.target2 as Partial<Locator> | undefined;
         if (!target2 || !locatorStrategies.includes(target2.strategy as LocatorStrategy) || typeof target2.value !== "string" || !target2.value.trim()) errors.push(`Step ${n} needs a destination locator for drag and drop.`);
