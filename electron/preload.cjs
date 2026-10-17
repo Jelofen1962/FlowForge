@@ -6,7 +6,6 @@ const subscribe = (channel, callback) => {
   return () => ipcRenderer.removeListener(channel, fn);
 };
 contextBridge.exposeInMainWorld("flowforge", {
-  getAppVersion: () => ipcRenderer.invoke("app:get-version"),
   start: payload => ipcRenderer.invoke("engine:start", payload),
   setLaunchAtLogin: enabled => ipcRenderer.invoke("app:set-launch-at-login", !!enabled),
   checkForUpdates: () => ipcRenderer.invoke("app:check-updates"),
