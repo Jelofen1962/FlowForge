@@ -149,3 +149,19 @@ describe("browser optimization configuration", () => {
     expect(runner.buildBlockedUrlPatterns({})).toEqual([]);
   });
 });
+
+describe("standard regular-expression support", () => {
+  it("supports standard JavaScript flags and slash-delimited literals", () => {
+    const { compileWorkflowRegex } = require("../engine/runner.cjs");
+    expect("ABC".replace(compileWorkflowRegex("abc", "gi"), "x")).toBe("x");
+    expect("a\nb".replace(compileWorkflowRegex("/a.b/s", ""), "x")).toBe("x");
+    expect("one one".replace(compileWorkflowRegex("one", "gy"), "x")).toBe("x one");
+    expect(compileWorkflowRegex("[\\s\\S]*", "g").test("a\nb")).toBe(true);
+  });
+
+  it("rejects invalid patterns and unsupported flags with actionable messages", () => {
+    const { compileWorkflowRegex } = require("../engine/runner.cjs");
+    expect(() => compileWorkflowRegex("[", "g")).toThrow(/Invalid regular expression/);
+    expect(() => compileWorkflowRegex("abc", "z")).toThrow(/Unsupported regular-expression flags/);
+  });
+});
