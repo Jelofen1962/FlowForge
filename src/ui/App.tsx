@@ -953,7 +953,7 @@ export default function App(){
             {v.valueType==="json"&&<small className={jsonValid?"variable-help":"variable-error"}>{jsonValid?t("Valid JSON"):t("Invalid JSON")}</small>}{v.valueType==="number"&&v.value.trim()&&Number.isNaN(Number(v.value))&&<small className="variable-error">Expected a valid number.</small>}
             <label className="field-label">{t("Description")}</label><textarea className="text-input variable-description-editor" value={v.description||""} onChange={e=>updateVariable(v.id,{description:e.target.value})} placeholder="What is this value used for?"/>
             <label className="variable-secret-toggle"><span><strong>{t("Secret")}</strong><small>{t("Secrets are masked in this editor but are not encrypted by this setting.")}</small></span><input type="checkbox" checked={v.secret===true} onChange={e=>updateVariable(v.id,{secret:e.target.checked})}/></label>
-            <div className="variable-reference-preview"><div><span className="eyebrow">{t("Reference")}</span><code>${"{"+v.name+"}"}</code></div><button className="secondary-button" onClick={()=>{void navigator.clipboard?.writeText(`${${v.name}}`)}}><Copy size={13}/>{t("Copy reference")}</button></div>
+            <div className="variable-reference-preview"><div><span className="eyebrow">{t("Reference")}</span><code>${"{"+v.name+"}"}</code></div><button className="secondary-button" onClick={()=>{void navigator.clipboard?.writeText("$"+"{"+v.name+"}")}}><Copy size={13}/>{t("Copy reference")}</button></div>
           </>})()}</section>
         </div>}
         <p className="hint variable-manager-note">{t("Workflow variables are saved with this workflow. Run-scoped values are reset for each execution.")}</p>
