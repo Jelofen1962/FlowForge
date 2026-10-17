@@ -67,3 +67,8 @@ The workflow editor includes **Set variable**, **Extract all matching elements**
 - Workflow variables support text, number, Boolean, and JSON defaults, plus workflow/run scope metadata, optional descriptions, and secret marking in the editor. Typed defaults are parsed at run start; invalid numeric, Boolean, or JSON defaults stop the run with a clear error.
 - Captured outputs from extraction steps continue to populate named runtime variables and output artifacts. Variable interpolation uses `${name}` and serializes object/array values as JSON.
 - Runtime variable values are scoped to a workflow execution. The editor's saved values are defaults, not a persistent cross-run variable store. Secret marking is editor metadata and does not encrypt workflow files or output artifacts.
+
+
+## Workflow Variable Manager
+
+Each workflow owns its own variable definitions. Open **Variables** in the navigation rail to search and select variables, create or duplicate entries, edit type/scope/default/description, mark sensitive values for masked display, and copy the `${variableName}` reference for use in step fields. Workflow defaults are stored with the workflow; run-scoped values are intended to reset per execution. JSON defaults show a validity indicator. Secret marking is a UI hint only and does not encrypt values. Runtime inspection of live values is not yet exposed by the engine UI.
