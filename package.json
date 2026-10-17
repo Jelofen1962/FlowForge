@@ -16,12 +16,15 @@
     "test:engine": "vitest run tests/runner.test.ts",
     "test:control-flow": "vitest run tests/controlFlow.test.ts",
     "verify:release": "node scripts/verify-release.cjs",
-    "sync:release-version": "node scripts/sync-release-version.cjs"
+    "sync:release-version": "node scripts/sync-release-version.cjs",
+    "mcp": "node mcp-server.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "selenium-webdriver": "^4.27.0"
+    "selenium-webdriver": "^4.27.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
@@ -52,7 +55,9 @@
       "!**/*.map",
       "!**/*.md",
       "!**/tests/**",
-      "!**/.github/**"
+      "!**/.github/**",
+      "mcp-server.mjs",
+      "electron/ai-api.cjs"
     ],
     "win": {
       "target": [

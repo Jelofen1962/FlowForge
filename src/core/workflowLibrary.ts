@@ -4,6 +4,8 @@ export interface StoredWorkflow {
   id: string;
   document: WorkflowDocument;
   updatedAt: string;
+  aiTag?: boolean;
+  aiProvenance?: "generated" | "human-guided" | "ai-assisted";
 }
 
 export interface WorkflowPackage {

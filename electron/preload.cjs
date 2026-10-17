@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld("flowforge", {
   start: payload => ipcRenderer.invoke("engine:start", payload),
   setLaunchAtLogin: enabled => ipcRenderer.invoke("app:set-launch-at-login", !!enabled),
   getVersion: () => ipcRenderer.invoke("app:get-version"),
+  getAiApiInfo: () => ipcRenderer.invoke("ai:api-info"),
+  getAiGuidanceActions: () => ipcRenderer.invoke("ai:get-guidance-actions"),
+  syncAiWorkflows: workflows => ipcRenderer.invoke("ai:sync-workflows", workflows),
   checkForUpdates: () => ipcRenderer.invoke("app:check-updates"),
   chooseFile: () => ipcRenderer.invoke("file:choose"),
   stop: () => ipcRenderer.invoke("engine:stop"),
@@ -26,6 +29,7 @@ contextBridge.exposeInMainWorld("flowforge", {
   deleteOutput: (workflowId, archiveName) => ipcRenderer.invoke("outputs:delete", workflowId, archiveName),
   readOutput: (workflowId, archiveName, artifactName) => ipcRenderer.invoke("outputs:read", workflowId, archiveName, artifactName),
   openExternal: url => ipcRenderer.invoke("open:external", url),
+  onAiWorkflowUpsert: callback => subscribe("ai:workflow-upsert", callback),
   onLog: callback => subscribe("engine:log", callback),
   onFinished: callback => subscribe("engine:finished", callback)
 });

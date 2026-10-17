@@ -1,7 +1,9 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
+const { createAiApi } = require("./ai-api.cjs");
 
 /* Maintainer: Amirreza Taati (Jelofen1962) | https://github.com/Jelofen1962 | Telegram: https://t.me/Jelofen1962 */
 const GITHUB_RELEASE_REPOSITORY = { owner: "Jelofen1962", repo: "FlowForge" };
@@ -11,6 +13,11 @@ let engine = null;
 let engineStopping = false;
 let enginePayloadPath = null;
 let stdoutBuffer = "";
+let aiWorkflows = [];
+let activeRunId = null;
+let activeRunStatus = "idle";
+let activeRunLogs = [];
+let guidanceActions = [];
 const isDev = !app.isPackaged;
 
 function createWindow() {
@@ -58,7 +65,18 @@ function sendToRenderer(channel, value) {
 
 function emitLogLine(line) {
   const trimmed = line.trim();
-  if (trimmed) sendToRenderer("engine:log", trimmed);
+  if (trimmed) {
+    try {
+      const event = JSON.parse(trimmed);
+      activeRunLogs.push(event);
+      if (activeRunLogs.length > 1000) activeRunLogs = activeRunLogs.slice(-1000);
+      if (event.type === "user-input-request") activeRunStatus = "waiting_for_input";
+      else if (event.type === "recorder" && event.data?.status === "stopped") activeRunStatus = "stopped";
+      else if (event.type === "done") activeRunStatus = event.data && event.data.success ? "success" : "failed";
+      else if (event.type === "error") activeRunStatus = "failed";
+    } catch {}
+    sendToRenderer("engine:log", trimmed);
+  }
 }
 
 function handleStdout(chunk) {
@@ -80,12 +98,115 @@ function finishEngine(code, signal) {
   sendToRenderer("engine:finished", { code: typeof code === "number" ? code : 1, signal: signal || null, stopped: engineStopping });
   engine = null;
   engineStopping = false;
+  if (activeRunStatus === "running" || activeRunStatus === "recording") activeRunStatus = code === 0 ? "success" : "failed";
   const payloadPath = enginePayloadPath;
   enginePayloadPath = null;
   if (payloadPath) fs.unlink(payloadPath).catch(() => {});
 }
 
-app.whenReady().then(createWindow);
+const aiApi = createAiApi({
+  userDataPath: app.getPath("userData"),
+  getWorkflows: () => aiWorkflows,
+  getGuidanceActions: () => guidanceActions,
+  startRecorder: async options => {
+    const startUrl = typeof options.startUrl === "string" ? options.startUrl : "https://example.com";
+    const browser = options.browser === "edge" ? "edge" : "chrome";
+    if (!/^https?:\/\//i.test(startUrl)) return { ok: false, error: "Recorder start URL must use HTTP or HTTPS." };
+    guidanceActions = [];
+    const result = await startEngine({ mode: "recorder", browser, startUrl, steps: [], profile: {} });
+    if (result.ok) { activeRunStatus = "recording"; activeRunId = result.runId; activeRunLogs = []; }
+    return result;
+  },
+  stopRecorder: async () => {
+    if (!engine || !engine.stdin || engine.killed) return { ok: false, error: "No browser session is running." };
+    engine.stdin.write(JSON.stringify({ type: "recorder:stop" }) + "\n");
+    return { ok: true };
+  },
+  saveWorkflow: async (existingId, input) => {
+    const document = input && input.document && typeof input.document === "object" ? input.document : input;
+    if (!document || typeof document !== "object" || Array.isArray(document) || typeof document.name !== "string" || !document.name.trim() || !Array.isArray(document.steps) || document.steps.length > 1000) return { ok: false, error: "Workflow requires a name and a steps array of at most 1,000 steps." };
+    if (document.startUrl && !/^https?:\/\//i.test(String(document.startUrl))) return { ok: false, error: "Workflow startUrl must use HTTP or HTTPS." };
+    const existing = existingId ? aiWorkflows.find(item => item.id === existingId) : null;
+    if (existingId && !existing) return { ok: false, error: "Workflow not found." };
+    const id = existingId || crypto.randomUUID();
+    const graph = new Map(aiWorkflows.filter(w => w.id !== id).map(w => [w.id, w.document]));
+    graph.set(id, document);
+    for (const [ownerId, ownerDoc] of graph) {
+      for (const step of ownerDoc.steps || []) {
+        if (step.type === "runWorkflow" && (!step.workflowId || !graph.has(step.workflowId))) return { ok: false, error: `Workflow "${ownerDoc.name}" references missing sub-workflow "${step.workflowId || ""}".` };
+      }
+    }
+    const visiting = new Set(); const visited = new Set();
+    const visit = nodeId => {
+      if (visiting.has(nodeId)) throw new Error(`Nested workflow cycle detected at "${graph.get(nodeId)?.name || nodeId}".`);
+      if (visited.has(nodeId)) return;
+      visiting.add(nodeId);
+      for (const step of graph.get(nodeId)?.steps || []) if (step.type === "runWorkflow" && step.workflowId) visit(step.workflowId);
+      visiting.delete(nodeId); visited.add(nodeId);
+    };
+    try { for (const nodeId of graph.keys()) visit(nodeId); } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Nested workflow cycle detected." }; }
+    const requestedProvenance = input && ["generated", "human-guided", "ai-assisted"].includes(input.aiProvenance) ? input.aiProvenance : null;
+    const item = { id, document, updatedAt: new Date().toISOString(), aiTag: true, aiProvenance: requestedProvenance || (existing ? "ai-assisted" : "generated") };
+    const next = aiWorkflows.filter(w => w.id !== id);
+    next.push(item);
+    aiWorkflows = next.slice(-500);
+    sendToRenderer("ai:workflow-upsert", item);
+    return { ok: true, workflow: { id: item.id, name: document.name, aiTag: true, aiProvenance: item.aiProvenance } };
+  },
+  startWorkflow: async workflow => {
+    const payload = workflow.document ? {
+      steps: workflow.document.steps, startUrl: workflow.document.startUrl, browser: workflow.document.browser,
+      workflowName: workflow.document.name, currentWorkflowId: workflow.id,
+      variables: workflow.document.variables || [],
+      workflowLibrary: Object.fromEntries(aiWorkflows.map(item => [item.id, item.document]))
+    } : {
+      ...workflow,
+      workflowName: workflow.workflowName || workflow.name || "Workflow",
+      currentWorkflowId: workflow.currentWorkflowId || workflow.id || "ai-workflow",
+      variables: Array.isArray(workflow.variables) ? workflow.variables : [],
+      workflowLibrary: workflow.workflowLibrary || Object.fromEntries(aiWorkflows.map(item => [item.id, item.document]))
+    };
+    const result = await startEngine(payload);
+    if (result.ok) { activeRunId = result.runId || null; activeRunStatus = "running"; activeRunLogs = []; }
+    return result;
+  },
+  stopWorkflow: async () => {
+    if (!engine || engine.killed) return { ok: false, error: "No active browser run." };
+    engineStopping = true;
+    engine.kill("SIGTERM");
+    activeRunStatus = "stopping";
+    return { ok: true };
+  },
+  getRunState: () => ({ runId: activeRunId, status: activeRunStatus, logs: activeRunLogs.slice(-100).map(event => {
+    if (!event || typeof event !== "object") return { type: "event" };
+    const data = event.data && typeof event.data === "object" ? event.data : {};
+    if (event.type === "user-input-request") return { type: event.type, data: {
+      requestId: data.requestId, stepName: data.stepName,
+      fields: Array.isArray(data.fields) ? data.fields.map(field => ({
+        id: field.id, title: field.title, placeholder: field.placeholder, required: field.required,
+        secret: field.secret, valueType: field.valueType, options: field.options, variableName: field.variableName
+      })) : []
+    }};
+    if (event.type === "step") return { type: event.type, data: {
+      stepId: data.stepId || data.id, name: data.name, status: data.status, durationMs: data.durationMs,
+      error: typeof data.error === "string" ? data.error.slice(0, 500) : undefined
+    }};
+    if (event.type === "done") return { type: event.type, data: { success: !!data.success } };
+    if (event.type === "error") return { type: event.type, data: { message: String(data.message || "Automation error").slice(0, 500) } };
+    return { type: String(event.type || "event") };
+  }) }),
+  respondUserInput: async response => {
+    if (!engine || !engine.stdin || engine.killed || activeRunStatus !== "waiting_for_input") return { ok: false, error: "No automation is waiting for user input." };
+    engine.stdin.write(JSON.stringify({ type: response.cancel ? "user-input:cancel" : "user-input:response", requestId: response.requestId, values: response.values || {} }) + "\n");
+    activeRunStatus = "running";
+    return { ok: true };
+  }
+});
+app.whenReady().then(async () => {
+  try { await aiApi.start(); } catch (error) { console.error("FlowForge AI API could not start:", error); }
+  createWindow();
+});
+app.on("will-quit", () => { aiApi.stop().catch(() => {}); });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 app.on("before-quit", () => {
   if (engine && !engine.killed) {
@@ -148,7 +269,8 @@ async function startEngine(payload) {
       if (engine) finishEngine(1, null);
     });
     engine.once("close", finishEngine);
-    return { ok: true };
+    activeRunStatus = "running";
+    return { ok: true, runId };
   } catch (error) {
     engine = null;
     enginePayloadPath = null;
@@ -321,6 +443,18 @@ async function checkLatestRelease() {
     return { ok: false, available: false, error: error instanceof Error ? error.message : "Could not check GitHub releases." };
   }
 }
+
+handleTrusted("ai:api-info", async () => aiApi.info());
+handleTrusted("ai:get-guidance-actions", async () => guidanceActions.slice(-500));
+handleTrusted("ai:sync-workflows", async (_event, workflows) => {
+  if (!Array.isArray(workflows) || workflows.length > 500) return { ok: false, error: "Invalid workflow library." };
+  const incoming = workflows.filter(item => item && typeof item.id === "string" && item.document && typeof item.document.name === "string")
+    .map(item => ({ id: item.id, document: item.document, updatedAt: item.updatedAt || null, aiTag: !!item.aiTag, aiProvenance: item.aiProvenance }));
+  const merged = new Map(aiWorkflows.map(item => [item.id, item]));
+  for (const item of incoming) merged.set(item.id, item);
+  aiWorkflows = [...merged.values()].slice(-500);
+  return { ok: true, count: aiWorkflows.length };
+});
 
 handleTrusted("app:get-version", async () => app.getVersion().replace(/^v/i, ""));
 handleTrusted("app:check-updates", async () => checkLatestRelease());

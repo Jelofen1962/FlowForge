@@ -834,3 +834,76 @@ For reproducible bug reports, include:
 - Relevant engine output with credentials and personal information removed.
 
 **FlowForge is intended to make browser automation easier to author and inspect. Always validate workflows in a safe environment before using them for important or irreversible operations.**
+
+
+## AI Studio, local API, and MCP integration
+
+FlowForge includes a loopback-only AI API for trusted local agents. Open **AI Studio** in the desktop app to see the base URL and the generated bearer token. The token is stored in the app's user-data directory with restrictive file permissions. Treat it as a credential: anyone who obtains it can start browser automations and submit user-input responses.
+
+### Local REST API
+
+Base URL: `http://127.0.0.1:43127`
+
+Every request requires `Authorization: Bearer <token>`. The API binds to `127.0.0.1`, rejects non-loopback peers, does not enable CORS, and limits JSON request sizes.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/health` | API health check |
+| GET | `/v1/workflows` | List the current workflow library |
+| GET | `/v1/workflow-graph` | Workflow nodes and nested-flow edges |\n| GET | `/v1/guidance/actions` | Recent browser actions captured by the passive recorder |\n| POST | `/v1/recorder/start` | Start a visible browser recording session for user guidance |\n| POST | `/v1/recorder/stop` | Stop the active recorder and finalize captured actions |\n| POST | `/v1/workflows` | Create an AI-tagged workflow in the local library |\n| PUT | `/v1/workflows/:id` | Update an existing workflow definition |
+| GET | `/v1/workflows/:id` | Retrieve one workflow and its definition |
+| POST | `/v1/runs` | Start a browser run from a stored workflow object or workflow payload |
+| GET | `/v1/runs/active` | Read current run status and recent engine events |\n| POST | `/v1/runs/stop` | Stop the active browser run |
+| POST | `/v1/runs/input` | Submit a response to a pending `userInput` request |
+
+Example (replace the token with the one shown in AI Studio):
+
+```bash
+curl -H "Authorization: Bearer YOUR_LOCAL_TOKEN" http://127.0.0.1:43127/v1/workflows
+```
+
+### MCP server
+
+The included `mcp-server.mjs` exposes workflow discovery, graph inspection, workflow retrieval and graph inspection, recorded-action retrieval, recorder start/stop, workflow creation/update, run start/status, and user-guidance submission as MCP tools over stdio.
+
+1. Install project dependencies with `npm install`.
+2. Open FlowForge and copy the local API token from AI Studio.
+3. Set `FLOWFORGE_API_TOKEN` in the environment used to launch the MCP client.
+4. Configure the MCP client to launch `node` with the absolute path to `mcp-server.mjs` as its argument and pass the token through its environment. Set `FLOWFORGE_API_URL` only if the local API uses a different URL.
+5. Keep the token out of source control, shared logs, and workflow files.
+
+Example environment:
+
+```text
+FLOWFORGE_API_URL=http://127.0.0.1:43127
+FLOWFORGE_API_TOKEN=<token copied from FlowForge AI Studio>
+```
+
+Example MCP client configuration (replace the executable path and token with your local values):
+
+```json
+{
+  "mcpServers": {
+    "flowforge": {
+      "command": "node",
+      "args": ["C:/path/to/FlowForge/mcp-server.mjs"],
+      "env": {
+        "FLOWFORGE_API_URL": "http://127.0.0.1:43127",
+        "FLOWFORGE_API_TOKEN": "<token copied from FlowForge AI Studio>"
+      }
+    }
+  }
+}
+```
+
+### AI workflow provenance and human-guided runs
+
+Workflows can carry an `aiTag` and an `aiProvenance` value (`generated`, `human-guided`, or `ai-assisted`). AI Studio shows the workflow dependency graph and lets users tag a workflow as AI-assisted. The existing passive recorder captures supported page interactions and deliberately excludes password and likely payment/OTP fields. Review captured selectors and values before turning recorded guidance into a reusable workflow. User guidance should be treated as a proposal until validated and approved.
+
+### Security and operating notes
+
+- The API is intended for local trusted AI clients, not direct public internet exposure. Do not port-forward it or bind it to `0.0.0.0`.
+- The bearer token grants powerful local automation capability. Rotate it by closing FlowForge and removing the `ai-api-token` file from the app's user-data directory; a new token is generated on next launch.
+- The API is a local bridge, not an AI model provider. An MCP-compatible agent or other client must supply the AI reasoning/model connection.
+- Browser execution still uses the existing FlowForge Selenium engine. Run only workflows authorized by the user and require human confirmation for sensitive or consequential actions.
+- The API currently reports one active engine run at a time, matching the existing single-engine architecture.
