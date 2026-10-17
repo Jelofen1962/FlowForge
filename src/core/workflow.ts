@@ -39,8 +39,10 @@ export interface UserInputField {
   placeholder?: string;
   required?: boolean;
   secret?: boolean;
-  valueType?: "text" | "number" | "boolean";
+  valueType?: "text" | "number" | "boolean" | "choice" | "regex";
   pattern?: string;
+  options?: string[];
+  variableName?: string;
   target: Locator;
 }
 
@@ -89,6 +91,9 @@ export interface WorkflowVariable {
   name: string;
   value: string;
   secret?: boolean;
+  valueType?: "text" | "number" | "boolean" | "json";
+  scope?: "workflow" | "run";
+  description?: string;
 }
 
 export interface WorkflowDocument {
@@ -263,6 +268,9 @@ export function validateWorkflow(input: unknown): ValidationResult {
       } else if (variableNames.has(variable.name)) errors.push(`Variable name "${variable.name}" is duplicated.`);
       else variableNames.add(variable.name);
       if (typeof variable.value !== "string") errors.push(`Variable ${index + 1} value must be a string.`);
+      if (variable.valueType !== undefined && !["text", "number", "boolean", "json"].includes(variable.valueType)) errors.push(`Variable ${index + 1} has an unsupported value type.`);
+      if (variable.scope !== undefined && !["workflow", "run"].includes(variable.scope)) errors.push(`Variable ${index + 1} has an unsupported scope.`);
+      if (variable.description !== undefined && typeof variable.description !== "string") errors.push(`Variable ${index + 1} description must be text.`);
       if (typeof variable.id !== "string" || !variable.id.trim()) errors.push(`Variable ${index + 1} needs an id.`);
     });
   }
@@ -332,11 +340,15 @@ export function validateWorkflow(input: unknown): ValidationResult {
           if (field.placeholder !== undefined && typeof field.placeholder !== "string") errors.push(`${label} placeholder must be text.`);
           if (field.required !== undefined && typeof field.required !== "boolean") errors.push(`${label} required must be true or false.`);
           if (field.secret !== undefined && typeof field.secret !== "boolean") errors.push(`${label} secret must be true or false.`);
-          if (field.valueType !== undefined && !["text", "number", "boolean"].includes(field.valueType)) errors.push(`${label} has an unsupported input type.`);
+          if (field.valueType !== undefined && !["text", "number", "boolean", "choice", "regex"].includes(field.valueType)) errors.push(`${label} has an unsupported input type.`);
           if (field.pattern !== undefined && (typeof field.pattern !== "string" || field.pattern.length > 500)) errors.push(`${label} regex must be text no longer than 500 characters.`);
+          if (field.valueType === "regex" && (typeof field.pattern !== "string" || !field.pattern.trim())) errors.push(`${label} needs a regex pattern when using regex-validated input.`);
           if (field.pattern) { try { new RegExp(field.pattern); } catch { errors.push(`${label} regex is invalid.`); } }
+          if (field.variableName !== undefined && (typeof field.variableName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field.variableName))) errors.push(`${label} variable name must be a valid identifier.`);
+          if (field.valueType === "choice" && (!Array.isArray(field.options) || field.options.length < 2 || field.options.length > 100 || field.options.some(option => typeof option !== "string" || !option.trim()))) errors.push(`${label} needs between 2 and 100 non-empty choice options.`);
           const target = field.target as Partial<Locator> | undefined;
-          if (!target || !locatorStrategies.includes(target.strategy as LocatorStrategy) || typeof target.value !== "string" || !target.value.trim()) errors.push(`${label} needs a valid target element locator.`);
+          if (!field.variableName && (!target || !locatorStrategies.includes(target.strategy as LocatorStrategy) || typeof target.value !== "string" || !target.value.trim())) errors.push(`${label} needs a target locator or a variable name to capture the answer.`);
+          if (field.variableName && target?.value && (!locatorStrategies.includes(target.strategy as LocatorStrategy) || typeof target.value !== "string")) errors.push(`${label} has an invalid optional target locator.`);
         });
       }
       if (requiredLocatorTypes.has(type)) {

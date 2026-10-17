@@ -34,9 +34,19 @@ describe("workflow validation", () => {
     expect(step.inputs).toHaveLength(1);
     const validStep = { ...step, inputs: [{ id: "email", title: "Email address", required: true, secret: false, target: { strategy: "css" as const, value: "#email" } }] };
     expect(validateWorkflow({ ...valid, steps: [validStep] }).valid).toBe(true);
-    expect(validateWorkflow({ ...valid, steps: [{ ...validStep, inputs: [{ ...validStep.inputs[0], target: { strategy: "css" as const, value: "" } }] }] }).errors.some(error => /target element locator/.test(error))).toBe(true);
+    expect(validateWorkflow({ ...valid, steps: [{ ...validStep, inputs: [{ ...validStep.inputs[0], target: { strategy: "css" as const, value: "" } }] }] }).errors.some(error => /target locator or a variable name/.test(error))).toBe(true);
   });
 
+  it("supports user input saved directly to a variable without a webpage locator", () => {
+    const step = createStep("userInput");
+    const result = validateWorkflow({ ...valid, steps: [{ ...step, inputs: [{ id: "choice", title: "Choose action", valueType: "choice", options: ["Continue", "Retry", "Cancel"], variableName: "user_action", target: { strategy: "css", value: "" } }] }] });
+    expect(result.valid).toBe(true);
+  });
+  it("rejects multiple-choice inputs with fewer than two options", () => {
+    const step = createStep("userInput");
+    const result = validateWorkflow({ ...valid, steps: [{ ...step, inputs: [{ id: "choice", title: "Choose action", valueType: "choice", options: ["Only"], variableName: "user_action", target: { strategy: "css", value: "" } }] }] });
+    expect(result.errors.some(error => /between 2 and 100/.test(error))).toBe(true);
+  });
   it("requires a referenced workflow id for workflow-call steps", () => {
     const base = { id: "call-1", name: "Run sub-workflow", type: "runWorkflow" as const };
     expect(validateWorkflow({ ...valid, steps: [base] }).errors.some(error => /select a workflow/i.test(error))).toBe(true);

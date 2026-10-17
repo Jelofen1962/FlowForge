@@ -177,7 +177,12 @@ function validatePayload(payload, depth = 0) {
       for (let fieldIndex = 0; fieldIndex < step.inputs.length; fieldIndex++) {
         const field = step.inputs[fieldIndex];
         if (!field || typeof field !== "object" || typeof field.id !== "string" || !field.id.trim() || typeof field.title !== "string" || !field.title.trim()) throw new Error(`Step ${i + 1} input ${fieldIndex + 1} needs an id and title.`);
-        if (!field.target || !LOCATOR_NAMES.has(field.target.strategy) || typeof field.target.value !== "string" || !field.target.value.trim()) throw new Error(`Step ${i + 1} input "${field.title}" needs a valid target locator.`);
+        if (field.valueType !== undefined && !["text", "number", "boolean", "choice", "regex"].includes(field.valueType)) throw new Error(`Step ${i + 1} input "${field.title}" has an unsupported type.`);
+        if (field.variableName !== undefined && (typeof field.variableName !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field.variableName))) throw new Error(`Step ${i + 1} input "${field.title}" has an invalid variable name.`);
+        if (field.valueType === "regex" && (typeof field.pattern !== "string" || !field.pattern.trim())) throw new Error(`Step ${i + 1} input "${field.title}" needs a regex pattern.`);
+        if (field.valueType === "choice" && (!Array.isArray(field.options) || field.options.length < 2 || field.options.length > 100 || field.options.some(option => typeof option !== "string" || !option.trim()))) throw new Error(`Step ${i + 1} input "${field.title}" needs at least two choice options.`);
+        if (!field.variableName && (!field.target || !LOCATOR_NAMES.has(field.target.strategy) || typeof field.target.value !== "string" || !field.target.value.trim())) throw new Error(`Step ${i + 1} input "${field.title}" needs a valid target locator or variable name.`);
+        if (field.target && field.target.value && !LOCATOR_NAMES.has(field.target.strategy)) throw new Error(`Step ${i + 1} input "${field.title}" has an invalid target locator strategy.`);
         if (field.required !== undefined && typeof field.required !== "boolean") throw new Error(`Step ${i + 1} input "${field.title}" required must be boolean.`);
         if (field.secret !== undefined && typeof field.secret !== "boolean") throw new Error(`Step ${i + 1} input "${field.title}" secret must be boolean.`);
         if (field.valueType !== undefined && !["text", "number", "boolean"].includes(field.valueType)) throw new Error(`Step ${i + 1} input "${field.title}" has an unsupported type.`);
@@ -189,13 +194,37 @@ function validatePayload(payload, depth = 0) {
   return { ...payload, browser, optimizations: normalizeOptimizations(payload.optimizations) };
 }
 
+function stringifyWorkflowValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function parseWorkflowVariable(variable) {
+  const value = variable && typeof variable.value === "string" ? variable.value : "";
+  switch (variable && variable.valueType) {
+    case "number": {
+      if (!value.trim()) return 0;
+      const number = Number(value);
+      if (!Number.isFinite(number)) throw new Error(`Workflow variable "${variable.name}" must contain a valid number.`);
+      return number;
+    }
+    case "boolean":
+      if (["true", "false"].includes(value.trim().toLowerCase())) return value.trim().toLowerCase() === "true";
+      throw new Error(`Workflow variable "${variable.name}" must be true or false.`);
+    case "json":
+      try { return JSON.parse(value); } catch { throw new Error(`Workflow variable "${variable.name}" must contain valid JSON.`); }
+    default: return value;
+  }
+}
+
 function substituteVariables(value, variables = {}) {
   if (typeof value !== "string") return value;
   return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, name) => {
     if (!Object.prototype.hasOwnProperty.call(variables, name)) {
       throw new Error(`Unknown workflow variable "${name}".`);
     }
-    return String(variables[name] ?? "");
+    return stringifyWorkflowValue(variables[name]);
   });
 }
 
@@ -329,7 +358,7 @@ async function runWorkflow(rawPayload, deps = {}) {
   const profile = payload.profile || {};
   const optimizations = payload.optimizations;
   const runStarted = Date.now();
-  const variables = Object.fromEntries((payload.variables || []).map(v => [v.name, v.value]));
+  const variables = Object.fromEntries((payload.variables || []).map(v => [v.name, parseWorkflowVariable(v)]));
   let driver;
   let stopRequested = false;
   let recording = false;
@@ -375,7 +404,7 @@ async function runWorkflow(rawPayload, deps = {}) {
   };
   const requestUserInput = (step, index) => new Promise((resolve, reject) => {
     const requestId = require("node:crypto").randomUUID();
-    const fields = step.inputs.map(field => ({ id: field.id, title: field.title, placeholder: field.placeholder || "", required: field.required !== false, secret: field.secret === true }));
+    const fields = step.inputs.map(field => ({ id: field.id, title: field.title, placeholder: field.placeholder || "", required: field.required !== false, secret: field.secret === true, valueType: field.valueType || "text", pattern: field.pattern, options: Array.isArray(field.options) ? field.options : [], variableName: field.variableName || "" }));
     const timer = setTimeout(() => {
       pendingUserInputs.delete(requestId);
       reject(new Error("Timed out waiting for user input (10 minutes)."));
@@ -390,7 +419,7 @@ async function runWorkflow(rawPayload, deps = {}) {
     const child = library[workflowId];
     if (!child || !Array.isArray(child.steps)) throw new Error(`Referenced workflow "${workflowId}" was not found in the workflow library.`);
     validatePayload({ ...child, workflowLibrary: library });
-    const childVariables = { ...inheritedVariables, ...Object.fromEntries((child.variables || []).map(v => [v.name, String(v.value ?? "")])) };
+    const childVariables = { ...inheritedVariables, ...Object.fromEntries((child.variables || []).map(v => [v.name, parseWorkflowVariable(v)])) };
     const nestedRuntimeContext = { variables: childVariables, lastText: "", url: await driver.getCurrentUrl().catch(() => ""), urlChanged: false, stepStatus: {} };
     emit("subworkflow", { status: "started", workflowId, name: child.name || workflowId, depth });
     try {
@@ -484,7 +513,7 @@ async function runWorkflow(rawPayload, deps = {}) {
             case "ifElse": { const branch=evaluateRuntimeCondition(nested.condition,nestedRuntimeContext)?nested.thenSteps:nested.elseSteps; if(!Array.isArray(branch))throw new Error("If/else requires branch arrays"); const inlineId=`__nested_if_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline branch",startUrl:"",browser:browserName,steps:branch,groups:[],variables:[]}; try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}finally{delete lib[inlineId]} break; }
             case "repeat": { if(!Array.isArray(nested.loopSteps))throw new Error("Repeat requires nested steps"); const count=Math.max(1,Math.min(1000,Number(nested.repeatCount)||1)); const inlineId=`__nested_repeat_${Date.now()}_${childIndex}`; const lib=payload.workflowLibrary||(payload.workflowLibrary={}); lib[inlineId]={version:1,name:"Inline repeat",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]}; try{for(let r=0;r<count&&!stopRequested;r++){childVariables.iteration=String(r+1);try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]} break; }
             case "loopList": { if(!Array.isArray(nested.loopSteps))throw new Error("List loop requires nested steps");let items;const raw=substituteVariables(nested.listExpression||"",childVariables);try{const v=JSON.parse(raw);items=Array.isArray(v)?v:String(raw).split(",")}catch{items=String(raw).split(",")}if(items.length>1000)throw new Error("List loop max is 1000");const inlineId=`__nested_list_${Date.now()}_${childIndex}`;const lib=payload.workflowLibrary||(payload.workflowLibrary={});try{for(const item of items){childVariables[nested.itemVariable||"item"]=String(item);lib[inlineId]={version:1,name:"Inline list item",startUrl:"",browser:browserName,steps:nested.loopSteps,groups:[],variables:[]};try{await executeNestedWorkflow(inlineId,depth+1,[...stack,workflowId],childVariables)}catch(e){if(e&&e.flowControl==="break")break;if(e&&e.flowControl==="continue")continue;throw e}}}finally{delete lib[inlineId]}break; }
-            case "userInput": { const values = await requestUserInput(nested, childIndex); for (const field of nested.inputs || []) { const value = String(values[field.id] ?? ""); if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`); if (!value && field.required === false) continue; if (field.valueType === "number" && !Number.isFinite(Number(value))) throw new Error(`Input "${field.title}" must be a valid number.`); if (field.valueType === "boolean" && !["true", "false"].includes(value.trim().toLowerCase())) throw new Error(`Input "${field.title}" must be true or false.`); if (field.pattern) { let valid = false; try { valid = new RegExp(field.pattern).test(value); } catch {} if (!valid) throw new Error(`Input "${field.title}" does not match its required pattern.`); } const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, childVariables) }); const el = await driver.wait(async()=>{try { const found=await driver.findElement(fieldBy); return await found.isDisplayed()?found:false;} catch{return false;}}, nestedTimeout, `Input target "${field.title}" did not become visible`, 200); await el.clear(); await el.sendKeys(value); } break; }
+            case "userInput": { const values = await requestUserInput(nested, childIndex); for (const field of nested.inputs || []) { const value = String(values[field.id] ?? ""); if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`); if (!value && field.required === false) continue; if (field.valueType === "number" && !Number.isFinite(Number(value))) throw new Error(`Input "${field.title}" must be a valid number.`); if (field.valueType === "boolean" && !["true", "false"].includes(value.trim().toLowerCase())) throw new Error(`Input "${field.title}" must be true or false.`); if (field.valueType === "choice" && Array.isArray(field.options) && field.options.length && !field.options.includes(value)) throw new Error(`Input "${field.title}" must be one of the configured options.`); if (field.pattern) { let valid = false; try { valid = new RegExp(field.pattern).test(value); } catch {} if (!valid) throw new Error(`Input "${field.title}" does not match its required pattern.`); } if (field.variableName && /^[A-Za-z_][A-Za-z0-9_]*$/.test(field.variableName)) { childVariables[field.variableName] = value; } if (!field.target || !field.target.value || !field.target.value.trim()) continue; const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, childVariables) }); const el = await driver.wait(async()=>{try { const found=await driver.findElement(fieldBy); return await found.isDisplayed()?found:false;} catch{return false;}}, nestedTimeout, `Input target "${field.title}" did not become visible`, 200); await el.clear(); await el.sendKeys(value); } break; }
             case "back": await driver.navigate().back(); break;
             case "forward": await driver.navigate().forward(); break;
             case "refresh": await driver.navigate().refresh(); break;
@@ -763,8 +792,10 @@ async function runWorkflow(rawPayload, deps = {}) {
               if (field.required !== false && !value.trim()) throw new Error(`Input "${field.title}" is required.`);
               if (!value && field.required === false) continue;
               if (field.valueType === "number" && !Number.isFinite(Number(value))) throw new Error(`Input "${field.title}" must be a valid number.`);
-              if (field.valueType === "boolean" && !["true", "false"].includes(value.trim().toLowerCase())) throw new Error(`Input "${field.title}" must be true or false.`);
+              if (field.valueType === "boolean" && !["true", "false"].includes(value.trim().toLowerCase())) throw new Error(`Input "${field.title}" must be true or false.`); if (field.valueType === "choice" && Array.isArray(field.options) && field.options.length && !field.options.includes(value)) throw new Error(`Input "${field.title}" must be one of the configured options.`);
               if (field.pattern) { let valid = false; try { valid = new RegExp(field.pattern).test(value); } catch {} if (!valid) throw new Error(`Input "${field.title}" does not match its required pattern.`); }
+              if (field.variableName && /^[A-Za-z_][A-Za-z0-9_]*$/.test(field.variableName)) { const definition = (payload.variables || []).find(item => item.name === field.variableName); let captured = value; if (definition?.valueType === "number") captured = Number(value); else if (definition?.valueType === "boolean") captured = value.trim().toLowerCase() === "true"; else if (definition?.valueType === "json") { try { captured = JSON.parse(value); } catch { throw new Error(`Input "${field.title}" must contain valid JSON for variable "${field.variableName}".`); } } variables[field.variableName] = captured; runtimeContext.variables[field.variableName] = captured; emit("variable-set", { index, name: field.variableName, source: "userInput" }); }
+              if (!field.target || !field.target.value || !field.target.value.trim()) continue;
               const fieldBy = buildLocator(By, { strategy: field.target.strategy, value: substituteVariables(field.target.value, variables) });
               const element = await driver.wait(async () => {
                 try { const found = await driver.findElement(fieldBy); return await found.isDisplayed() ? found : false; } catch { return false; }

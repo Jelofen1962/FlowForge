@@ -58,3 +58,12 @@ FlowForge uses a local animated SVG icon set with CSS micro-interactions. It doe
 ## Bulk selectors and variables (0.3.12)
 
 The workflow editor includes **Set variable**, **Extract all matching elements**, and **Operate on all matching elements**. Bulk selectors support the existing CSS/XPath/id/name/class/tag/link-text strategies. Extraction stores JSON arrays in named runtime variables and output artifacts; extraction is capped at 5,000 matches and bulk click/type at 1,000. The recorder offers action presets and creates a CSS locator with an informative step name.
+
+
+## User input and typed variables
+
+- User-input fields support text, number, true/false, multiple-choice, and regex-validated text. Choice lists contain 2-100 options. Regex patterns are validated before the answer is applied.
+- An input may be saved directly to a named runtime variable. A webpage locator is optional when a variable name is provided; when a locator is configured, the same answer is also typed into that element.
+- Workflow variables support text, number, Boolean, and JSON defaults, plus workflow/run scope metadata, optional descriptions, and secret marking in the editor. Typed defaults are parsed at run start; invalid numeric, Boolean, or JSON defaults stop the run with a clear error.
+- Captured outputs from extraction steps continue to populate named runtime variables and output artifacts. Variable interpolation uses `${name}` and serializes object/array values as JSON.
+- Runtime variable values are scoped to a workflow execution. The editor's saved values are defaults, not a persistent cross-run variable store. Secret marking is editor metadata and does not encrypt workflow files or output artifacts.
