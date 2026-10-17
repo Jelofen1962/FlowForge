@@ -70,7 +70,7 @@ A local-first Windows desktop automation studio. The engine owns browser lifecyc
 1. **Foundation & desktop shell**: Electron hardening, React UI, Poppins typography, monochrome design, Windows packaging, settings.
 2. **Workflow editor**: typed step schema, add/reorder/duplicate/delete, groups, variables, JSON import/export, local autosave, validation. **Implemented in current package; CI verification pending.**
 3. **Selenium core**: navigation, click/type/keys, selectors, waits, assertions, tabs, frames, alerts, screenshots, uploads/downloads.
-4. **Visual recorder**: 40% red hover overlay, click-to-select, XPath/CSS candidates, selector preview/test/highlight, iframe and shadow DOM.
+4. **Workflow recorder**: passive capture of common page interactions, stable CSS selectors, editable step generation, and clear handling of unsupported browser/native actions.
 5. **Control flow & debugging**: if/else, loops, retry, error policies, pause/resume, breakpoints, step-through, rerun failed steps.
 6. **Profiles & sessions**: Chrome/Edge profile directories, cookies, localStorage/sessionStorage, encrypted export/import, secret redaction.
 7. **Reliability & testing**: bounded action retries, step error policies, persisted run history, structured retry/failure events. Full integration tests, local fixture website, browser matrix tests, and diagnostics export remain.
@@ -196,7 +196,7 @@ The package includes trusted-frame IPC validation, navigation and popup restrict
 
 ### Capability status and known gaps
 
-The workflow library and sub-workflow engine are implemented as a first pass; full UI tests and real Chrome/Edge Windows integration remain outstanding. The command palette is a searchable action list; it does not yet implement arrow-key selection or a full focus trap. Template examples are generic scaffolds, not production-tested site-specific workflows. The Browser tab still includes a selector demo and explanatory text; the complete recorder UI experience requires further end-to-end validation. Phase 5 nested loops, pause/resume, breakpoints, and rerun-failed-step are not complete. Phase 6 session JSON is not encrypted. Phase 7 run history is local renderer storage, not an audit log. The installer is unsigned, and live Windows CI results must be checked in GitHub Actions before distribution.
+The workflow library and sub-workflow engine are implemented as a first pass; full UI tests and real Chrome/Edge Windows integration remain outstanding. The command palette is a searchable action list; it does not yet implement arrow-key selection or a full focus trap. Template examples are generic scaffolds, not production-tested site-specific workflows. The Browser tab now describes the passive workflow recorder; real Chrome/Edge end-to-end recorder coverage still needs Windows integration testing. Phase 5 nested loops, pause/resume, breakpoints, and rerun-failed-step are not complete. Phase 6 session JSON is not encrypted. Phase 7 run history is local renderer storage, not an audit log. The installer is unsigned, and live Windows CI results must be checked in GitHub Actions before distribution.
 
 
 ## Advanced action and output pass (October 2026)

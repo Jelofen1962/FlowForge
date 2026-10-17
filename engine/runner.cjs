@@ -682,26 +682,34 @@ async function runWorkflow(rawPayload, deps = {}) {
 
     if (recorderMode) {
       const bridgeSource = await fs.readFile(path.join(__dirname, "recorder-bridge.js"), "utf8");
+      let lastRecorderUrl = await driver.getCurrentUrl();
       await driver.executeScript(bridgeSource);
       recording = true;
-      emit("recorder", { status: "started", url: await driver.getCurrentUrl() });
+      emit("recorder", { status: "started", url: lastRecorderUrl, title: await driver.getTitle() });
       while (!stopRequested) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 180));
         try {
-          const message = await driver.executeScript("const m = window.__flowforgeRecorderLastMessage || null; window.__flowforgeRecorderLastMessage = null; return m;");
-          if (message && message.channel === "FLOWFORGE_RECORDER_V1") {
-            if (message.type === "selected" && message.data && typeof message.data.xpath === "string" && typeof message.data.css === "string") {
-              emit("recorder", { status: "selected", selection: message.data });
-              // Re-arm after each one-shot selection so recording can continue.
-              if (!stopRequested) await driver.executeScript(bridgeSource);
-            } else if (message.type === "stopped") {
-              // Selection stop is one-shot; the bridge is rearmed by the polling loop after selection.
-            }
+          const currentUrl = await driver.getCurrentUrl();
+          if (currentUrl !== lastRecorderUrl) {
+            emit("recorder", { status: "action", action: { action: "navigate", url: currentUrl, title: await driver.getTitle(), at: Date.now() } });
+            lastRecorderUrl = currentUrl;
+            // Full page navigation replaces the injected recorder, so install it again.
+            await driver.executeScript(bridgeSource).catch(() => {});
+          }
+          const events = await driver.executeScript("const q = window.__flowforgeRecorderEventsV1 || []; return q.splice(0, q.length);");
+          if (Array.isArray(events)) for (const event of events.slice(0, 100)) {
+            if (!event || typeof event.action !== "string") continue;
+            emit("recorder", { status: "action", action: event });
           }
         } catch (error) {
-          emit("notice", { level: "warning", message: `Recorder polling failed: ${normalizeError(error).message}` });
+          // A transient navigation can make one poll fail. Keep recording and re-arm on the next tick.
+          const message = normalizeError(error).message;
+          if (!/no such window|target window already closed|disconnected/i.test(message)) emit("notice", { level: "warning", message: `Recorder polling hiccup: ${message}` });
         }
       }
+      try { await driver.executeScript("window.__flowforgeRecorderStateV1?.stop?.()"); } catch {}
+      recording = false;
+      emit("recorder", { status: "stopped" });
       emit("done", { success: true, recorder: true });
       return;
     }

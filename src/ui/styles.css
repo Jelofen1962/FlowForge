@@ -738,3 +738,7 @@ body.is-resizing-panel,body.is-resizing-panel *{cursor:col-resize!important;user
 .app-shell[data-language="fa"] .variable-list-item{text-align:right}
 @media(max-width:850px){.app-shell .variable-manager-layout{grid-template-columns:1fr}.app-shell .variable-list-card{max-height:260px;overflow:auto}.app-shell .variable-summary-grid{grid-template-columns:1fr}.app-shell .variable-detail-card{padding:17px}}
 @media(max-width:520px){.app-shell .variable-fields-two{grid-template-columns:1fr}.app-shell .variable-detail-heading{flex-direction:column}.app-shell .variable-reference-preview{align-items:flex-start;flex-direction:column}}
+
+/* Workflow recorder capability cards */
+.app-shell .recording-capabilities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:20px}
+@media(max-width:680px){.app-shell .recording-capabilities{grid-template-columns:1fr}}

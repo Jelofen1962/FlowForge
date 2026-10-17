@@ -57,7 +57,7 @@ FlowForge uses a local animated SVG icon set with CSS micro-interactions. It doe
 
 ## Bulk selectors and variables (0.3.12)
 
-The workflow editor includes **Set variable**, **Extract all matching elements**, and **Operate on all matching elements**. Bulk selectors support the existing CSS/XPath/id/name/class/tag/link-text strategies. Extraction stores JSON arrays in named runtime variables and output artifacts; extraction is capped at 5,000 matches and bulk click/type at 1,000. The recorder offers action presets and creates a CSS locator with an informative step name.
+The workflow editor includes **Set variable**, **Extract all matching elements**, and **Operate on all matching elements**. Bulk selectors support the existing CSS/XPath/id/name/class/tag/link-text strategies. Extraction stores JSON arrays in named runtime variables and output artifacts; extraction is capped at 5,000 matches and bulk click/type at 1,000. The passive recorder captures common browser interactions into editable workflow steps and prefers stable CSS locators. See [RECORDER.md](./RECORDER.md) for supported events and limitations.
 
 
 ## User input and typed variables
