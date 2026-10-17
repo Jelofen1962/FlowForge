@@ -202,3 +202,10 @@ If/else and while blocks support `Previous action result` and `Did the URL chang
 - **Extract all matching elements** queries every element matching a CSS, XPath, id, name, class, tag, or link-text locator and saves text, attributes, or input values as a JSON array variable and `.json` artifact (maximum 5,000 matches).
 - **Operate on all matching elements** can click, type into, or extract text/attributes/input values from all matches (maximum 1,000 matches). Extraction results are saved as a JSON array variable. Test broad selectors carefully before bulk click/type.
 - The topbar recorder now lets you choose the action to create (click, hover, wait-visible, extract text, or assert exists). It prefers a generated CSS selector and includes element identity/text in the step name and log.
+
+## Interface and localization (v0.3.13)
+
+- The UI uses a consistent sky-blue, black/white design system across the workflow editor, library, templates, browser tools, profiles, outputs, settings, history, and logs.
+- English and Persian can be toggled from the top bar. Language preference is saved locally; Persian sets the app language and RTL layout and uses Vazirmatn with local fallbacks.
+- The former `lucide-react` dependency has been removed. FlowForge now uses a local Lucide-inspired animated SVG icon set with subtle hover/focus motion and reduced-motion support.
+- UI localization covers primary navigation, workflow editing, common action settings, outputs, templates, browser profiles, settings, history, diagnostics, and input prompts. Some user-authored workflow names, logs, imported content, and specialized technical strings intentionally remain as entered.

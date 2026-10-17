@@ -44,7 +44,7 @@ Per-file output is capped at 100 MB and in-app previews at 10 MB. ZIPs and outpu
 - Upload-file actions include a native file chooser. The selected path is stored in the workflow; the file is only sent to the target website when that workflow runs.
 - Panel surfaces, form controls, status panels, library cards, output cards, and responsive breakpoints share the app's theme tokens. Lucide icons use subtle CSS motion on hover/focus/press and respect reduced-motion preferences.
 
-The requested `npx shadcn add @lucide-animated` command was attempted, but the CLI did not resolve before the environment timeout. The project therefore retains its existing `lucide-react` dependency and uses local CSS micro-animations rather than claiming that the external shadcn registry component was installed.
+FlowForge uses a local animated SVG icon set with CSS micro-interactions. It does not depend on `lucide-react` or require an external shadcn registry install.
 
 
 ## Conditional action results and UI refresh (0.3.11)
