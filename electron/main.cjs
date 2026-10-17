@@ -322,6 +322,7 @@ async function checkLatestRelease() {
   }
 }
 
+handleTrusted("app:get-version", () => app.getVersion());
 handleTrusted("app:check-updates", async () => checkLatestRelease());
 
 handleTrusted("app:set-launch-at-login", (_event, enabled) => {

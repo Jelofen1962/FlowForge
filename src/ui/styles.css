@@ -311,7 +311,7 @@ body{min-width:320px;min-height:100vh}.app-shell{min-width:0;min-height:560px;he
 .app-shell .recorder-action-select:focus-visible{outline:2px solid #c4b5fd;outline-offset:2px}
 @media(max-width:680px){.app-shell .recorder-action-select{flex:1;min-width:110px;max-width:160px}}
 
-/* FlowForge v0.3.13: sky-blue, black/white, English/Persian and RTL. */
+/* FlowForge v0.3.24: sky-blue, black/white, English/Persian and RTL. */
 :root{font-family:Inter,"Segoe UI",sans-serif}
 .app-shell{--bg:#0b0f14;--surface:#111821;--surface-raised:#151e29;--surface-hover:#1b2937;--border:#263341;--border-strong:#3b5064;--text:#f6f9fc;--text-secondary:#c3d0dc;--text-muted:#8798a9;--accent:#38bdf8;--accent-strong:#7dd3fc;--accent-soft:rgba(56,189,248,.13);--positive:#75e0b0;--warning:#f4d17b;--danger:#c4b5fd;--shadow:0 16px 44px rgba(0,0,0,.24);font-family:Inter,"Segoe UI",sans-serif;color:var(--text);background:var(--bg)}
 .app-shell[data-theme="light"]{--bg:#f4f7fa;--surface:#fff;--surface-raised:#f8fafc;--surface-hover:#eaf5fc;--border:#dce5ed;--border-strong:#bdcddc;--text:#101820;--text-secondary:#334556;--text-muted:#657789;--accent:#0284c7;--accent-strong:#0ea5e9;--accent-soft:rgba(14,165,233,.11);--positive:#087f5b;--warning:#8a5b00;--danger:#a78bfa;--shadow:0 16px 44px rgba(26,53,77,.09)}

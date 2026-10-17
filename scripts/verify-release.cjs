@@ -7,6 +7,8 @@ const main = fs.readFileSync(path.join(root, "electron/main.cjs"), "utf8");
 const preload = fs.readFileSync(path.join(root, "electron/preload.cjs"), "utf8");
 const checks = [
   ["application version is set", typeof pkg.version === "string" && /^\d+\.\d+\.\d+/.test(pkg.version)],
+  ["application version is synchronized with v0.3.24 release", pkg.version === "0.3.24"],
+  ["About and status UI do not hard-code an old version", !/0\.3\.13/.test(fs.readFileSync(path.join(root, "src/ui/App.tsx"), "utf8"))],
   ["Windows NSIS target is configured", pkg.build?.win?.target?.some?.(target => (typeof target === "string" ? target : target.target) === "nsis")],
   ["packaged app uses ASAR", pkg.build?.asar === true],
   ["renderer disables Node integration", /nodeIntegration:\s*false/.test(main)],

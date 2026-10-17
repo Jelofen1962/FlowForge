@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     flowforge: {
+      getAppVersion: () => Promise<string>;
       checkForUpdates: () => Promise<{ ok: boolean; available: boolean; currentVersion?: string; latestVersion?: string; releaseName?: string; notes?: string; url?: string; publishedAt?: string | null; error?: string }>;
       start: (payload: unknown) => Promise<{ ok: boolean; error?: string }>;
       setLaunchAtLogin: (enabled: boolean) => Promise<{ ok: boolean; enabled?: boolean; error?: string }>;
