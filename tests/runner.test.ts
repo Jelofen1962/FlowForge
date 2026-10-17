@@ -133,8 +133,10 @@ describe("Selenium runner validation", () => {
 
 describe("browser optimization configuration", () => {
   it("normalizes optimization flags and defaults to normal page loading", () => {
-    expect(runner.normalizeOptimizations()).toEqual({ disableImages:false, disableCss:false, disableFonts:false, disableMedia:false, pageLoadStrategy:"normal" });
+    expect(runner.normalizeOptimizations()).toEqual({ disableImages:false, disableCss:false, disableFonts:false, disableMedia:false, pageLoadStrategy:"normal", headless:false });
     expect(runner.normalizeOptimizations({ disableFonts:true, pageLoadStrategy:"eager" }).disableFonts).toBe(true);
+    expect(runner.normalizeOptimizations({ headless:true }).headless).toBe(true);
+    expect(runner.normalizeOptimizations({ headless:false }).headless).toBe(false);
   });
   it("rejects invalid optimization values", () => {
     expect(() => runner.normalizeOptimizations({ pageLoadStrategy:"instant" })).toThrow(/page load strategy/i);
