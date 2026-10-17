@@ -18,15 +18,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          # npm caching is enabled after a package-lock.json is committed.
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Verify release configuration
         run: npm run verify:release
       - name: TypeScript check
         run: npm run typecheck
-      - name: Unit tests
+      - name: Engine and unit tests
         run: npm test
+      - name: Frontend UI and layout tests
+        run: npm run test:ui
       - name: Build Windows installer
         run: npm run build:win
       - name: Upload Windows installer

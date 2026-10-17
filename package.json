@@ -1,6 +1,6 @@
 {
   "name": "flowforge-automation",
-  "version": "0.3.29",
+  "version": "0.3.30",
   "private": true,
   "description": "Windows desktop GUI for Selenium browser automation",
   "main": "electron/main.cjs",
@@ -10,6 +10,7 @@
     "start": "electron .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:ui": "vitest run tests/ui",
     "test:watch": "vitest",
     "build:win": "npm run build && electron-builder --win nsis --publish never",
     "dist": "npm run build && electron-builder --publish never",
@@ -24,7 +25,8 @@
     "react-dom": "^18.3.1",
     "selenium-webdriver": "^4.27.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "lucide-react": "^1.59.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
