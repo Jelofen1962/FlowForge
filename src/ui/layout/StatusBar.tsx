@@ -7,16 +7,15 @@ export function StatusBar({ app, panels }: { app: AppController; panels: PanelLa
   const { t, running, validation, steps, appVersion, tab } = app;
   const { layout } = panels;
   const issues = validation.errors.length;
-
   return (
     <footer className="statusbar">
       <div className="status-group">
         <span className="status-item"><StatusDot tone={running ? "busy" : "live"} />{running ? t("Running") : t("Ready")}</span>
         <span className={`status-item ${validation.valid ? "" : "is-bad"}`}>
-          {validation.valid ? <CircleCheck size={13} /> : <TriangleAlert size={13} />}
-          {validation.valid ? t("Valid") : `${issues} ${t("issues")}`}
+          {validation.valid ? <CircleCheck size={13} aria-hidden="true" /> : <TriangleAlert size={13} aria-hidden="true" />}
+          {validation.valid ? t("Valid") : `${issues} ${t(issues === 1 ? "issue" : "issues")}`}
         </span>
-        <span className="status-item"><Layers size={13} /><span className="count">{steps.length} {t("STEPS")}</span></span>
+        <span className="status-item"><Layers size={13} aria-hidden="true" /><span className="count">{steps.length} {t("STEPS")}</span></span>
       </div>
       <div className="status-group">
         {tab === "workflow" && (

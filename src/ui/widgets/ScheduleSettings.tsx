@@ -1,4 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
+import { CalendarClock, Info } from "lucide-react";
+import { Hint, Icon, Input, Select, SwitchRow } from "../components";
 
 type ScheduleUnit = "seconds" | "minutes" | "hours" | "days";
 type Props = {
@@ -10,20 +12,26 @@ type Props = {
   setUnit: Dispatch<SetStateAction<string>>;
   startup: boolean;
   onStartupChange: (enabled: boolean) => void | Promise<void>;
+  t?: (text: string) => string;
 };
 
-/** Scheduler preferences are a self-contained settings widget, independent of app composition. */
-export function ScheduleSettings({ enabled, setEnabled, every, setEvery, unit, setUnit, startup, onStartupChange }: Props) {
-  return <section className="schedule-settings" aria-labelledby="schedule-settings-title">
-    <div className="section-caption schedule-section-title" id="schedule-settings-title">AUTOMATIC JOBS</div>
-    <p className="hint">Schedule the currently open workflow. Repeat timers run while FlowForge is open. Windows startup launches the app at sign-in and triggers one run.</p>
-    <label className="setting-row"><span><strong>Repeat automatically</strong><small>Run the current workflow on a repeating timer</small></span><input type="checkbox" checked={enabled} onChange={event=>setEnabled(event.target.checked)}/></label>
-    <div className="schedule-controls">
-      <input className="text-input" aria-label="Repeat interval" type="number" min="1" max="100000" value={every} onChange={event=>setEvery(Math.max(1,Number(event.target.value)||1))}/>
-      <select className="text-input" aria-label="Repeat interval unit" value={unit} onChange={event=>setUnit(event.target.value as ScheduleUnit)}>
-        <option value="seconds">Every seconds</option><option value="minutes">Every minutes</option><option value="hours">Every hours</option><option value="days">Every days</option>
-      </select>
-    </div>
-    <label className="setting-row"><span><strong>Run at Windows startup</strong><small>Launch FlowForge at sign-in and run once using the currently saved workflow</small></span><input type="checkbox" checked={startup} onChange={event=>void onStartupChange(event.target.checked)}/></label>
-  </section>;
+/** Scheduler preferences: a self-contained settings widget, independent of app composition. */
+export function ScheduleSettings({ enabled, setEnabled, every, setEvery, unit, setUnit, startup, onStartupChange, t = text => text }: Props) {
+  return (
+    <section aria-labelledby="schedule-settings-title">
+      <div className="card-title" id="schedule-settings-title" style={{ marginBottom: 8 }}><Icon icon={CalendarClock} size={16} />{t("AUTOMATIC JOBS")}</div>
+      <Hint icon={<Icon icon={Info} size={13} />}>{t("Schedule the currently open workflow. Repeat timers run while FlowForge is open. Windows startup launches the app at sign-in and triggers one run.")}</Hint>
+      <SwitchRow label={t("Repeat automatically")} description={t("Run the current workflow on a repeating timer")} checked={enabled} onChange={setEnabled} />
+      <div className="schedule-row">
+        <Input aria-label={t("Repeat interval")} type="number" min="1" max="100000" value={every} onChange={event => setEvery(Math.max(1, Number(event.target.value) || 1))} />
+        <Select aria-label={t("Repeat interval unit")} value={unit} onChange={event => setUnit(event.target.value as ScheduleUnit)}>
+          <option value="seconds">{t("Every seconds")}</option>
+          <option value="minutes">{t("Every minutes")}</option>
+          <option value="hours">{t("Every hours")}</option>
+          <option value="days">{t("Every days")}</option>
+        </Select>
+      </div>
+      <SwitchRow label={t("Run at Windows startup")} description={t("Launch FlowForge at sign-in and run once using the currently saved workflow")} checked={startup} onChange={value => void onStartupChange(value)} />
+    </section>
+  );
 }

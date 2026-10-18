@@ -7,12 +7,15 @@ type FieldProps = {
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
+  /** Small control shown on the right of the label (e.g. "Record selector"). */
   action?: ReactNode;
+  /** Use "div" when the field wraps several controls. */
   as?: "label" | "div";
   className?: string;
   children: ReactNode;
 };
 
+/** Label + control + hint/error, wired for accessibility without ids. */
 export function Field({ label, hint, error, action, as = "label", className, children }: FieldProps) {
   const Tag = as;
   return (
@@ -36,6 +39,7 @@ export function Field({ label, hint, error, action, as = "label", className, chi
   );
 }
 
+/** Inline helper text with an optional leading icon. */
 export function Hint({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   return (
     <p className="field-hint">
@@ -67,24 +71,31 @@ export function Select({ sm, wrapperClassName, className, children, ...rest }: S
   );
 }
 
-export function SwitchRow({ label, description, checked, onChange, disabled }: {
-  label: ReactNode; description?: ReactNode; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean;
-}) {
+type SwitchRowProps = {
+  label: ReactNode;
+  description?: ReactNode;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+};
+
+/** Accessible toggle row: a native checkbox with role="switch". */
+export function SwitchRow({ label, description, checked, onChange, disabled }: SwitchRowProps) {
   return (
     <label className="switch-row">
       <span className="switch-copy">
         <strong>{label}</strong>
         {description && <small>{description}</small>}
       </span>
-      <input type="checkbox" role="switch" className="switch" checked={checked} disabled={disabled} onChange={e => onChange(e.target.checked)} />
+      <input type="checkbox" role="switch" className="switch" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
     </label>
   );
 }
 
-export function CheckRow({ label, checked, onChange }: { label: ReactNode; checked: boolean; onChange: (v: boolean) => void }) {
+export function CheckRow({ label, checked, onChange }: { label: ReactNode; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <label className="check-row">
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
   );

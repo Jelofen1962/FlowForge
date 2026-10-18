@@ -33,10 +33,37 @@ export function Note({ tone = "neutral", icon, children, className }: { tone?: "
 export function EmptyState({ icon, title, children, action }: { icon: LucideIcon; title: ReactNode; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
-      <span className="empty-icon"><Icon icon={icon} size={20} anim="pop" /></span>
+      <span className="empty-icon">
+        <Icon icon={icon} size={20} anim="pop" />
+      </span>
       <h3>{title}</h3>
       {children && <p>{children}</p>}
       {action}
+    </div>
+  );
+}
+
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  block,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: Array<{ value: T; label: ReactNode; icon?: LucideIcon }>;
+  label: string;
+  block?: boolean;
+}) {
+  return (
+    <div role="group" aria-label={label} className={cx("seg", block && "seg-block")}>
+      {options.map(option => (
+        <button key={option.value} type="button" aria-pressed={value === option.value} onClick={() => onChange(option.value)}>
+          {option.icon && <Icon icon={option.icon} size={14} />}
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

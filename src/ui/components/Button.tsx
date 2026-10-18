@@ -35,6 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 export type IconButtonProps = Omit<Base, "aria-label" | "children"> & {
   icon: LucideIcon;
+  /** Required: becomes both the accessible name and the tooltip. */
   label: string;
   variant?: ButtonVariant;
   size?: "sm" | "md";

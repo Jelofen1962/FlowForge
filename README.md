@@ -489,6 +489,16 @@ npm test
 npm run test:watch
 ```
 
+### Test and lint the UI
+
+```bash
+npm run test:ui       # components, panel layout, i18n coverage, axe-core accessibility
+npm run lint:design   # design-system rules: tokens, no emoji, no hard-coded colours, reduced motion
+npm run verify:ui     # lint + typecheck + UI tests + production build (what the UI tests workflow runs)
+```
+
+The **UI tests** GitHub workflow (`.github/workflows/ui-tests.yml`) runs these on every push and pull request that touches the front end.
+
 ### Test the automation runner
 
 ```bash
@@ -639,7 +649,14 @@ flowforge/
 │   │   └── workflowLibrary.ts
 │   ├── ui/
 │   │   ├── App.tsx
-│   │   ├── AnimatedIcons.tsx
+│   │   ├── state/          (useAppController, usePanelLayout)
+│   │   ├── components/     (shadcn-style UI kit, Lucide icon wrapper)
+│   │   ├── layout/         (Topbar, NavSidebar, StatusBar, Panel, Page)
+│   │   ├── editor/         (steps, inspector, run panel, console)
+│   │   ├── views/          (one file per page)
+│   │   ├── dialogs/        (command palette, prompts)
+│   │   ├── i18n/           (Persian translations)
+│   │   ├── styles/         (tokens and component CSS)
 │   │   └── styles.css
 │   ├── main.tsx
 │   └── global.d.ts
@@ -650,7 +667,8 @@ flowforge/
 │   ├── workflowLibrary.test.ts
 │   ├── controlFlow.test.ts
 │   ├── recorder.test.ts
-│   └── session.test.ts
+│   ├── session.test.ts
+│   └── ui/                 (component, layout, i18n and accessibility tests)
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -664,9 +682,11 @@ flowforge/
 - `src/core/recorder.ts`: Recording-related core logic.
 - `src/core/session.ts`: Session-related functionality.
 - `src/core/workflowLibrary.ts`: Workflow library functionality.
-- `src/ui/App.tsx`: Main renderer application.
-- `src/ui/styles.css`: UI styling and theme rules.
-- `src/ui/AnimatedIcons.tsx`: Animated icon components.
+- `src/ui/App.tsx`: Renderer composition root (shortcuts, command palette, page routing).
+- `src/ui/state/useAppController.ts`: Workflow, run, library and settings state and handlers.
+- `src/ui/state/usePanelLayout.ts`: Resizable, collapsible, hideable panel layout (persisted).
+- `src/ui/components/`: shadcn-style UI kit and animated Lucide `Icon`.
+- `src/ui/styles/`: Design tokens (black & white with pastel-purple accent) and component CSS. See `docs/UI-DESIGN.md`.
 - `electron/main.cjs`: Electron main process.
 - `electron/preload.cjs`: Renderer integration bridge.
 - `engine/runner.cjs`: Browser automation execution engine.

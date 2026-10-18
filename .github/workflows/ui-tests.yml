@@ -1,0 +1,89 @@
+name: UI tests
+
+# Fast, Linux-only checks for the React front end. The full Windows build lives in ci.yml.
+on:
+  push:
+    branches: [main, master, develop]
+    paths: ["src/**", "tests/ui/**", "index.html", "package.json", "vite.config.ts", "scripts/design-lint.cjs", ".github/workflows/ui-tests.yml"]
+  pull_request:
+    paths: ["src/**", "tests/ui/**", "index.html", "package.json", "vite.config.ts", "scripts/design-lint.cjs", ".github/workflows/ui-tests.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+jobs:
+  design-and-types:
+    name: Design lint & types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Design-system lint (tokens, emoji, colours, motion, CSP-safe HTML)
+        run: npm run lint:design
+      - name: TypeScript
+        run: npm run typecheck
+
+  ui-tests:
+    name: UI tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Component, layout, i18n and accessibility (axe-core) tests
+        run: npx vitest run tests/ui --reporter=default --reporter=junit --outputFile.junit=ui-test-results.xml
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results-node${{ matrix.node }}
+          path: ui-test-results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  bundle:
+    name: Production bundle & budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Build renderer
+        run: npm run build
+      - name: Check bundle budget and renderer isolation
+        run: |
+          js=$(cat dist/assets/*.js | wc -c)
+          css=$(cat dist/assets/*.css | wc -c)
+          echo "JS: ${js} bytes, CSS: ${css} bytes"
+          test "$js" -lt 900000 || { echo "::error::JS bundle exceeds 900 KB budget"; exit 1; }
+          test "$css" -lt 150000 || { echo "::error::CSS bundle exceeds 150 KB budget"; exit 1; }
+          if grep -Eq '<script[^>]+src="https?:' dist/index.html; then echo "::error::dist/index.html loads a third-party script"; exit 1; fi
+          grep -q 'fonts.googleapis.com' dist/index.html && echo "Fonts load from the CSP-allowed Google Fonts origin (with system fallbacks)."
+      - name: Upload renderer bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: renderer-dist
+          path: dist
+          retention-days: 7

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
+/** Scrolling single-panel page with the dot-grid canvas. */
 export function Page({ children, label }: { children: ReactNode; label?: string }) {
   return (
-    <main className="view" id="main" aria-label={label}>
+    <main className="view" id="main" tabIndex={-1} aria-label={label}>
       <div className="page">
         <div className="page-inner">{children}</div>
       </div>

@@ -7,6 +7,7 @@ export type Layout = { navExpanded: boolean; steps: PanelState; run: PanelState;
 
 export const STORAGE_KEY = "flowforge.layout.v2";
 
+/** Width (steps, run) or height (dock) limits in CSS pixels. */
 export const LIMITS: Record<PanelId, { min: number; max: number }> = {
   steps: { min: 240, max: 520 },
   run: { min: 280, max: 520 },
@@ -31,6 +32,7 @@ const sanitizePanel = (id: PanelId, value: unknown): PanelState => {
   };
 };
 
+/** Parses stored layout JSON defensively; falls back to defaults for anything invalid. */
 export function parseLayout(raw: string | null): Layout {
   if (!raw) return DEFAULT_LAYOUT;
   try {
@@ -50,6 +52,7 @@ function loadLayout(): Layout {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return parseLayout(stored);
+    // Migrate the widths saved by the previous (v1) layout.
     const steps = Number(localStorage.getItem("flowforge.stepsWidth.v1"));
     const run = Number(localStorage.getItem("flowforge.rightWidth.v1"));
     return {
@@ -62,20 +65,28 @@ function loadLayout(): Layout {
   }
 }
 
+/**
+ * Workspace layout state: every panel can be resized, collapsed to a rail, or hidden entirely.
+ * Persisted in localStorage so the workspace reopens the way you left it.
+ */
 export function usePanelLayout() {
   const [layout, setLayout] = useState<Layout>(loadLayout);
   const snapshot = useRef<Layout | null>(null);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(layout)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(layout)); } catch { /* storage unavailable */ }
   }, [layout]);
 
   const patch = useCallback((id: PanelId, change: Partial<PanelState>) => setLayout(current => ({ ...current, [id]: { ...current[id], ...change } })), []);
+
   const setSize = useCallback((id: PanelId, size: number) => patch(id, { size: clamp(Math.round(size), LIMITS[id].min, LIMITS[id].max) }), [patch]);
   const resetSize = useCallback((id: PanelId) => patch(id, { size: DEFAULT_LAYOUT[id].size }), [patch]);
   const reveal = useCallback((id: PanelId) => patch(id, { open: true, collapsed: false }), [patch]);
   const hide = useCallback((id: PanelId) => patch(id, { open: false }), [patch]);
-  const toggleOpen = useCallback((id: PanelId) => setLayout(current => ({ ...current, [id]: current[id].open ? { ...current[id], open: false } : { ...current[id], open: true, collapsed: false } })), []);
+  const toggleOpen = useCallback(
+    (id: PanelId) => setLayout(current => ({ ...current, [id]: current[id].open ? { ...current[id], open: false } : { ...current[id], open: true, collapsed: false } })),
+    []
+  );
   const toggleCollapsed = useCallback((id: PanelId) => setLayout(current => ({ ...current, [id]: { ...current[id], collapsed: !current[id].collapsed } })), []);
   const toggleNav = useCallback(() => setLayout(current => ({ ...current, navExpanded: !current.navExpanded })), []);
 

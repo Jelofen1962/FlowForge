@@ -2,13 +2,24 @@ import type { CSSProperties, ReactNode } from "react";
 import { ChevronsLeft, ChevronsRight, ChevronsDown, ChevronsUp, X, type LucideIcon } from "lucide-react";
 import { Icon, IconButton, cx } from "../components";
 
-export function Panel({
-  title, icon, side, collapsed, onToggleCollapsed, onHide, labels, badge, actions, style, className, children
-}: {
-  title: string; icon: LucideIcon; side: "start" | "end" | "bottom"; collapsed: boolean;
-  onToggleCollapsed: () => void; onHide: () => void; labels: { collapse: string; expand: string; hide: string };
-  badge?: ReactNode; actions?: ReactNode; style?: CSSProperties; className?: string; children: ReactNode;
-}) {
+type Props = {
+  title: string;
+  icon: LucideIcon;
+  /** Where the panel sits: start/end rails collapse sideways, bottom collapses to its header. */
+  side: "start" | "end" | "bottom";
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  onHide: () => void;
+  labels: { collapse: string; expand: string; hide: string };
+  badge?: ReactNode;
+  actions?: ReactNode;
+  style?: CSSProperties;
+  className?: string;
+  children: ReactNode;
+};
+
+/** Workspace panel chrome: title, collapse-to-rail, hide, and optional header actions. */
+export function Panel({ title, icon, side, collapsed, onToggleCollapsed, onHide, labels, badge, actions, style, className, children }: Props) {
   const sideways = side !== "bottom";
   const ExpandIcon = side === "start" ? ChevronsRight : ChevronsLeft;
   const CollapseIcon = side === "start" ? ChevronsLeft : ChevronsRight;

@@ -1,9 +1,24 @@
 import type { KeyboardEvent, PointerEvent } from "react";
 import { clamp, cx } from "./cx";
 
-export function ResizeHandle({ orientation = "vertical", value, min, max, onChange, onReset, label, invert = false }: {
-  orientation?: "vertical" | "horizontal"; value: number; min: number; max: number; onChange: (v: number) => void; onReset?: () => void; label: string; invert?: boolean;
-}) {
+type Props = {
+  /** "vertical" = a vertical bar between side-by-side panes (resizes width). "horizontal" = bar above a bottom dock (resizes height). */
+  orientation?: "vertical" | "horizontal";
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+  onReset?: () => void;
+  label: string;
+  /** Dragging toward the inline-end shrinks the pane (true for end-side panes, and for start-side panes in RTL). */
+  invert?: boolean;
+};
+
+/**
+ * Accessible splitter: pointer drag (with capture), arrow keys (Shift = bigger steps),
+ * Home/End for min/max, Enter or double-click to reset.
+ */
+export function ResizeHandle({ orientation = "vertical", value, min, max, onChange, onReset, label, invert = false }: Props) {
   const vertical = orientation === "vertical";
   const bodyClass = vertical ? "is-resizing" : "is-resizing-y";
 
@@ -22,7 +37,7 @@ export function ResizeHandle({ orientation = "vertical", value, min, max, onChan
     };
     const up = (e: globalThis.PointerEvent) => {
       document.body.classList.remove(bodyClass);
-      try { el.releasePointerCapture(e.pointerId); } catch {}
+      try { el.releasePointerCapture(e.pointerId); } catch { /* already released */ }
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", up);
@@ -34,17 +49,23 @@ export function ResizeHandle({ orientation = "vertical", value, min, max, onChan
 
   const key = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.shiftKey ? 48 : 16;
-    let dir = 0;
+    let direction = 0;
     if (vertical) {
-      if (event.key === "ArrowRight") dir = invert ? -1 : 1;
-      if (event.key === "ArrowLeft") dir = invert ? 1 : -1;
+      if (event.key === "ArrowRight") direction = invert ? -1 : 1;
+      if (event.key === "ArrowLeft") direction = invert ? 1 : -1;
     } else {
-      if (event.key === "ArrowUp") dir = 1;
-      if (event.key === "ArrowDown") dir = -1;
+      if (event.key === "ArrowUp") direction = 1;
+      if (event.key === "ArrowDown") direction = -1;
     }
-    if (dir) {
+    if (direction) {
       event.preventDefault();
-      onChange(clamp(value + dir * step, min, max));
+      onChange(clamp(value + direction * step, min, max));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      onChange(min);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      onChange(max);
     } else if (event.key === "Enter") {
       event.preventDefault();
       onReset?.();
