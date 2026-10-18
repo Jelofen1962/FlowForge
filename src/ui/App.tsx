@@ -12,11 +12,12 @@ import { Button, IconButton } from "./components/Button";
 import { Input, Textarea, Select, Field, SwitchRow, CheckRow } from "./components/Fields";
 import { Badge, Note, EmptyState, ProgressBar } from "./components/Misc";
 import { Section } from "./components/Section";
+import { Icon as AppIcon } from "./components/Icon";
 import { Dialog } from "./components/Dialog";
 import {
   Activity, AppWindow, ArrowDown, ArrowUp, Braces, Check, Copy, FileText,
   FolderOpen, Globe, Layers, MousePointer2, Plus, RefreshCw, Save, Search,
-  Terminal, Trash2, Eye, Download, Code2, ShieldCheck, Sparkles, Network, ExternalLink
+  Terminal, Trash2, Eye, Download, Code2, ShieldCheck, Sparkles, Network, ExternalLink, Archive, Workflow
 } from "lucide-react";
 import { stepTypes, actionIcons } from "./data/actionCatalog";
 import type { StepType, LocatorStrategy, OnErrorPolicy, WorkflowStep } from "../core/workflow";
@@ -141,7 +142,7 @@ export default function App() {
                 >
                   <div className="stack" style={{ padding: "0.8rem", gap: "0.6rem" }}>
                     <div className="input-group">
-                      <Icon icon={Search} size={14} />
+                      <AppIcon icon={Search} size={14} />
                       <Input sm placeholder={t("Find a step…")} value={app.stepSearch} onChange={e => app.setStepSearch(e.target.value)} />
                     </div>
                     <div className="step-list">

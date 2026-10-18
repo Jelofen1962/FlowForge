@@ -466,7 +466,7 @@ export function useAppController() {
     profiles, sessionNamesByProfile, userDataDir, setUserDataDir, running, recording, recordUrl, setRecordUrl,
     logs, setLogs, runState, runHistory, setRunHistory, outputArchives, outputRefreshToken, setOutputRefreshToken,
     outputPreview, setOutputPreview, stepSearch, setStepSearch, current, workflowDocument, validation,
-    update, updateNested, addNested, patchNested, removeNested, submitUserInput, cancelUserInput,
+    update, updateNested, addNested, patchNested, removeNested, submitUserInput, cancelUserInput, makeStep,
     addStep, duplicateStep, addGroup, addVariable, updateVariable, duplicateVariable, variableNameError,
     deleteStep, move, run, startRecorder, stopRecorder, refreshProfiles, refreshSessions, saveProfile,
     exportSession, importSession, exportWorkflow, exportWorkflowFor, activateWorkflow, newWorkflow,
