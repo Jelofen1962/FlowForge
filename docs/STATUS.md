@@ -133,3 +133,12 @@ These were two separate model review passes, not independent human approvals. No
 - Added current-page extraction preview via trusted IPC; preview does not click pagination controls.
 - Added a subworkflow regression test.
 - Verification: 15 TypeScript/TSX files transpiled without syntax diagnostics. Full typecheck, test suite, lint, and production build remain unverified because dependencies are unavailable.
+
+
+## Phase 9 completion pass
+
+- Recorder captures HTTP(S) anchor navigation as `openUrl`, native select changes as `selectOption`, text edits as `typeText`, and ordinary clicks as `click`.
+- Added `selectOption` and `extractImages` workflow actions. Image output includes resolved source, alt/title, dimensions, loading mode, and completion state, with a 2,000-image cap.
+- Element picker offers XPath candidates based on accessible name text, `aria-label`, and `title` in addition to CSS/XPath paths and IDs.
+- Workflow preflight validates required browser selectors, select values, extraction field maps, pagination limits, and loop bounds. Added regression tests for invalid selector/config handling.
+- Verification caveat: dependency-backed tests, lint, full type-check, build, and live Chrome integration are still required before Phase 9 can be declared fully verified.

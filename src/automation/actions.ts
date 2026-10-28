@@ -10,6 +10,11 @@ export function registerAutomationActions(registry: ActionRegistry, outputDirect
     if (typeof selector !== 'string' || !selector) throw new Error('Click element requires a selector');
     return chromeSession.click(selector, typeof config.strategy === 'string' ? config.strategy : 'css');
   });
+  registry.register('selectOption', async (config) => {
+    if (typeof config.selector !== 'string' || !config.selector.trim()) throw new Error('Select option requires a selector');
+    if (typeof config.value !== 'string') throw new Error('Select option requires a string value');
+    return chromeSession.selectOption(config.selector, config.value, typeof config.strategy === 'string' ? config.strategy : 'css');
+  });
   registry.register('typeText', async (config) => {
     if (typeof config.selector !== 'string' || !config.selector) throw new Error('Type text requires a selector');
     const text = typeof config.text === 'string' ? config.text : '';
@@ -43,6 +48,11 @@ export function registerAutomationActions(registry: ActionRegistry, outputDirect
     const links = await chromeSession.extractLinks(selector);
     if (typeof config.outputVariable === 'string' && config.outputVariable) context.variables[config.outputVariable] = links;
     return links;
+  });
+  registry.register('extractImages', async (config, context) => {
+    const images = await chromeSession.extractImages(typeof config.selector === 'string' && config.selector.trim() ? config.selector : 'img');
+    if (typeof config.outputVariable === 'string' && config.outputVariable) context.variables[config.outputVariable] = images;
+    return images;
   });
   registry.register('extractItems', async (config, context) => {
     if (typeof config.itemSelector !== 'string' || !config.itemSelector.trim()) throw new Error('Extract items requires a repeated-item selector');

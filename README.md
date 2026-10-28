@@ -105,3 +105,8 @@ The desktop app stores up to 50 recent run summaries in its local user-data dire
 ### Reusable workflows and scraping preview
 
 Save a workflow in the local library, add a **Run workflow** node, and select the saved workflow. Configure input mappings as a JSON object; the child workflow's variables are returned by the action and can be captured in the configured output variable. Nested workflow calls are limited to ten levels. For scraping, launch managed Chrome and use **Preview current page** in an Extract repeated items node to inspect up to 500 matching rows before running the full workflow.
+
+
+### Phase 9 recorder and extraction additions
+
+The managed-browser recorder can now convert HTTP(S) link clicks into navigation nodes and native select changes into `selectOption` nodes. The `extractImages` action collects resolved image URLs, alt/title text, dimensions, loading mode, and completion state. The element picker includes XPath candidates based on visible text and accessible labels. Workflow preflight validates browser selectors, scraping field maps, pagination limits, and loop bounds before execution.

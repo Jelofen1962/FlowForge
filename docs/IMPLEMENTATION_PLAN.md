@@ -53,5 +53,8 @@
 - Added a reusable-workflow picker to the node inspector, using the existing local workflow library. Selected workflows are embedded in the parent node so it remains portable after saving.
 - Added a current-page scraping preview that uses the configured item selector and field map without triggering pagination.
 - Added a regression test for subworkflow input/output behavior.
-- Remaining Phase 9: recorder navigation/select-option capture, locator strategy coverage, richer image extraction where supported, and broader node/config validation.
-- Verification: TypeScript syntax transpilation passes; full project typecheck, tests, lint, and build remain blocked by unavailable npm dependencies.
+- Phase 9 completion increment: recorder now captures HTTP(S) link navigation and native select changes; a select-option action executes native `<select>` values with explicit missing-option errors.
+- Added image extraction for source/current source, alt text, title, natural dimensions, lazy-loading metadata, and completion state.
+- Added accessible-name XPath candidates to the element picker, covering text, `aria-label`, and `title` when present.
+- Added preflight validation for required browser configs, extraction field maps, pagination bounds, and loop item limits, plus regression tests.
+- Phase 9 status: implementation scope is covered in source; release-grade completion remains pending full dependency-backed typecheck, test, lint, build, and real Chrome integration runs.

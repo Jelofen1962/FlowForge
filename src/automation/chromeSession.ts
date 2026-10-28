@@ -1,7 +1,9 @@
 import { Builder, By, until, type WebDriver } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
 
-export interface RecordedAction { kind: 'click' | 'typeText'; selector: string; strategy: 'css'; value?: string; tagName: string }
+export type RecordedAction =
+  | { kind: 'click' | 'typeText' | 'selectOption'; selector: string; strategy: 'css' | 'xpath' | 'id'; value?: string; tagName: string }
+  | { kind: 'openUrl'; url: string; tagName: string };
 export type ScrapedItem = Record<string, string>;
 
 export interface ElementSnapshot {
@@ -45,6 +47,34 @@ export class ChromeSession {
       [...document.querySelectorAll<HTMLAnchorElement>(query)].slice(0, 2000)
         .filter((element) => Boolean(element.href))
         .map((element) => ({ text: element.innerText.trim().slice(0, 500), href: element.href.slice(0, 2048), title: element.title.slice(0, 200) })), selector);
+  }
+
+  async extractImages(selector = 'img'): Promise<Record<string, string | number>[]> {
+    if (selector.length > 2048) throw new Error('Selector exceeds the 2048 character limit');
+    return this.requireDriver().executeScript<Record<string, string | number>[]>((query: string) =>
+      [...document.querySelectorAll<HTMLImageElement>(query)].slice(0, 2000).map((image) => {
+        const lazySource = image.getAttribute('data-src') || image.getAttribute('data-lazy-src') || image.getAttribute('data-original') || '';
+        return {
+        src: (!image.complete || image.naturalWidth === 0) && lazySource ? lazySource : image.currentSrc || image.getAttribute('src') || lazySource,
+        srcset: image.getAttribute('srcset') || image.getAttribute('data-srcset') || '',
+        alt: image.alt.slice(0, 1000), title: image.title.slice(0, 500),
+        width: image.naturalWidth || image.width, height: image.naturalHeight || image.height,
+        loading: image.loading, complete: image.complete ? 1 : 0,
+        };
+      }), selector);
+  }
+
+  async selectOption(selector: string, value: string, strategy = 'css'): Promise<{ selected: string }> {
+    if (value.length > 100_000) throw new Error('Option value exceeds the 100,000 character limit');
+    const driver = this.requireDriver();
+    const element = await driver.findElement(this.locator(strategy, selector));
+    const tag = await element.getTagName();
+    if (tag.toLowerCase() !== 'select') throw new Error('Select option requires a <select> element');
+    const options = await element.findElements(By.css('option'));
+    for (const option of options) {
+      if ((await option.getAttribute('value')) === value) { await option.click(); return { selected: value }; }
+    }
+    throw new Error(`No option with value ${value} exists in the select element`);
   }
 
   async previewItems(itemSelector: string, fields: Record<string, string>): Promise<ScrapedItem[]> {
@@ -188,6 +218,7 @@ export class ChromeSession {
             ...(name ? [{ strategy: 'css', value: `[name="${name.replace(/"/g, '\\"')}"]`, matches: cssMatches(`[name="${name.replace(/"/g, '\\"')}"]`) }] : []),
             { strategy: 'css', value: css, matches: cssMatches(css) },
             { strategy: 'xpath', value: xpath, matches: xpathMatches(xpath) },
+            ...((element.getAttribute('aria-label') || element.getAttribute('title') || (element.textContent ?? '').trim().slice(0, 120)) ? [{ strategy: 'xpath', value: `//${element.tagName.toLowerCase()}[@aria-label=${xpathLiteral(element.getAttribute('aria-label') || '__no_match__')} or @title=${xpathLiteral(element.getAttribute('title') || '__no_match__')} or normalize-space(.)=${xpathLiteral((element.textContent ?? '').trim().slice(0, 120))}]`, matches: xpathMatches(`//${element.tagName.toLowerCase()}[@aria-label=${xpathLiteral(element.getAttribute('aria-label') || '__no_match__')} or @title=${xpathLiteral(element.getAttribute('title') || '__no_match__')} or normalize-space(.)=${xpathLiteral((element.textContent ?? '').trim().slice(0, 120))}]`) }] : []),
           ];
           const attributes: Record<string, string> = {};
           for (const attr of [...element.attributes].slice(0, 30)) attributes[attr.name] = attr.value.slice(0, 500);
@@ -258,13 +289,25 @@ export class ChromeSession {
         };
         const finish = (action: RecordedAction | { error: string }) => { cleanup(); done(action); };
         const onClick = (event: MouseEvent) => {
-          const target = event.target;
-          if (!(target instanceof Element) || target.closest('input,textarea,select,option,button') && target.closest('input,textarea,select')) return;
+          const eventTarget = event.target;
+          if (!(eventTarget instanceof Element)) return;
+          const formControl = eventTarget.closest('input,textarea,select,option');
+          if (formControl && !(formControl instanceof HTMLInputElement && ['checkbox', 'radio'].includes(formControl.type))) return;
+          const target = formControl ?? eventTarget.closest('a[href],button,[role="button"],input[type="button"],input[type="submit"]') ?? eventTarget;
+          const anchor = target.closest('a[href]');
+          if (anchor instanceof HTMLAnchorElement && anchor.href && ['http:', 'https:'].includes(new URL(anchor.href).protocol)) {
+            finish({ kind: 'openUrl', url: anchor.href, tagName: target.tagName.toLowerCase() });
+            return;
+          }
           finish({ kind: 'click', selector: selectorFor(target), strategy: 'css', tagName: target.tagName.toLowerCase() });
         };
         const onChange = (event: Event) => {
           const target = event.target;
-          if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) return;
+          if (target instanceof HTMLSelectElement) {
+            finish({ kind: 'selectOption', selector: selectorFor(target), strategy: 'css', value: target.value.slice(0, 100_000), tagName: target.tagName.toLowerCase() });
+            return;
+          }
+          if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
           if (target instanceof HTMLInputElement && ['checkbox', 'radio', 'button', 'submit', 'file'].includes(target.type)) return;
           finish({ kind: 'typeText', selector: selectorFor(target), strategy: 'css', value: target.value.slice(0, 100_000), tagName: target.tagName.toLowerCase() });
         };

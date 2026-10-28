@@ -103,6 +103,32 @@ describe('workflow validation and execution', () => {
     expect(result.status).toBe('succeeded');
     expect(result.variables.childResult).toMatchObject({ result: 'hello' });
   });
+  it('validates required browser selectors and select values before execution', () => {
+    const invalid: Workflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node) => node.id === 'log' ? { ...node, type: 'selectOption' as const, config: { selector: '', value: 7 } } : node),
+    };
+    expect(validateWorkflow(invalid).errors.join(' ')).toContain('selector must be a non-empty string');
+    expect(validateWorkflow(invalid).errors.join(' ')).toContain('value must be a string');
+  });
+  it('rejects invalid scraping field maps and pagination bounds', () => {
+    const invalid: Workflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node) => node.id === 'log' ? { ...node, type: 'extractItems' as const, config: { itemSelector: '.card', fields: { title: '' }, maxPages: 101 } } : node),
+    };
+    const errors = validateWorkflow(invalid).errors.join(' ');
+    expect(errors).toContain('fields must map non-empty names to CSS selectors');
+    expect(errors).toContain('maxPages must be an integer from 1 to 100');
+  });
+  it('rejects an unconfigured or invalid embedded subworkflow', () => {
+    const incomplete: Workflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node) => node.id === 'log' ? { ...node, type: 'subworkflow' as const, config: { workflow: null, inputs: [] } } : node),
+    };
+    const errors = validateWorkflow(incomplete).errors.join(' ');
+    expect(errors).toContain('workflow must be a configured workflow object');
+    expect(errors).toContain('inputs must be an object');
+  });
   it('rejects invalid loop output handles', () => {
     const invalid: Workflow = { ...workflow, nodes: [...workflow.nodes, { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 0 }, config: {}, disabled: false }], edges: [...workflow.edges, { id: 'loop-edge', source: 'loop', target: 'log', sourceHandle: 'other' }] };
     expect(validateWorkflow(invalid).errors.join(' ')).toContain('item or done');

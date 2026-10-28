@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const NodeKind = z.enum([
-  'start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'extractItems', 'setVariable', 'forEach', 'if', 'writeFile', 'exportCsv', 'log', 'subworkflow',
+  'start', 'openUrl', 'click', 'typeText', 'selectOption', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'extractItems', 'extractImages', 'setVariable', 'forEach', 'if', 'writeFile', 'exportCsv', 'log', 'subworkflow',
 ]);
 export type NodeKind = z.infer<typeof NodeKind>;
 
@@ -43,6 +43,42 @@ export function validateWorkflow(input: unknown): { workflow?: Workflow; errors:
   if (!parsed.success) return { errors: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`) };
   const workflow = parsed.data;
   const errors: string[] = [];
+  const configString = (node: WorkflowNode, key: string, required = false) => {
+    const value = node.config[key];
+    if (required && (typeof value !== 'string' || !value.trim())) errors.push(`Node ${node.id}: ${key} must be a non-empty string`);
+    else if (value !== undefined && typeof value !== 'string') errors.push(`Node ${node.id}: ${key} must be a string`);
+    if (typeof value === 'string' && value.length > 100_000) errors.push(`Node ${node.id}: ${key} exceeds the 100,000 character limit`);
+  };
+  for (const node of workflow.nodes) {
+    if (['click', 'typeText', 'selectOption', 'waitForElement', 'readAttribute'].includes(node.type)) configString(node, 'selector', true);
+    if (node.type === 'openUrl') configString(node, 'url', true);
+    if (node.type === 'typeText') configString(node, 'text');
+    if (node.type === 'selectOption' && typeof node.config.value !== 'string') errors.push(`Node ${node.id}: value must be a string`);
+    if (['click', 'typeText', 'selectOption', 'waitForElement', 'readAttribute'].includes(node.type) && node.config.strategy !== undefined && !['css', 'xpath', 'id'].includes(String(node.config.strategy))) errors.push(`Node ${node.id}: strategy must be css, xpath, or id`);
+    if (['extractText', 'extractLinks'].includes(node.type)) configString(node, 'selector');
+    if (node.type === 'extractItems') {
+      configString(node, 'itemSelector', true);
+      const fields = node.config.fields;
+      if (!fields || typeof fields !== 'object' || Array.isArray(fields) || !Object.keys(fields).length || Object.entries(fields as Record<string, unknown>).some(([name, selector]) => !name.trim() || typeof selector !== 'string' || !selector.trim())) errors.push(`Node ${node.id}: fields must map non-empty names to CSS selectors`);
+      const maxPages = node.config.maxPages;
+      if (Object.values(fields as Record<string, unknown>).some((selector) => typeof selector === 'string' && selector.length > 2048)) errors.push(`Node ${node.id}: field selectors must be 2048 characters or fewer`);
+      if (maxPages !== undefined && (!Number.isInteger(maxPages) || Number(maxPages) < 1 || Number(maxPages) > 100)) errors.push(`Node ${node.id}: maxPages must be an integer from 1 to 100`);
+      configString(node, 'nextSelector');
+    }
+    if (node.type === 'extractImages') configString(node, 'selector');
+    if (['readAttribute', 'extractText', 'extractLinks', 'extractItems', 'extractImages'].includes(node.type) && node.config.outputVariable !== undefined && (typeof node.config.outputVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(node.config.outputVariable) || ['__proto__', 'prototype', 'constructor'].includes(node.config.outputVariable))) errors.push(`Node ${node.id}: outputVariable must be a valid variable name`);
+    if (node.type === 'forEach' && node.config.maxItems !== undefined && (!Number.isInteger(node.config.maxItems) || Number(node.config.maxItems) < 0 || Number(node.config.maxItems) > 10000)) errors.push(`Node ${node.id}: maxItems must be an integer from 0 to 10000`);
+    if (node.type === 'subworkflow') {
+      if (!node.config.workflow || typeof node.config.workflow !== 'object' || Array.isArray(node.config.workflow)) {
+        errors.push(`Node ${node.id}: workflow must be a configured workflow object`);
+      } else {
+        const child = validateWorkflow(node.config.workflow);
+        if (child.errors.length) errors.push(...child.errors.map((error) => `Node ${node.id} subworkflow: ${error}`));
+      }
+      if (node.config.inputs !== undefined && (!node.config.inputs || typeof node.config.inputs !== 'object' || Array.isArray(node.config.inputs))) errors.push(`Node ${node.id}: inputs must be an object`);
+      if (node.config.outputVariable !== undefined && (typeof node.config.outputVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(node.config.outputVariable) || ['__proto__', 'prototype', 'constructor'].includes(node.config.outputVariable))) errors.push(`Node ${node.id}: outputVariable must be a valid variable name`);
+    }
+  }
   const ids = new Set<string>();
   for (const node of workflow.nodes) {
     if (ids.has(node.id)) errors.push(`Duplicate node id: ${node.id}`);
