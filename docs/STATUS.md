@@ -92,3 +92,9 @@ These were two separate model review passes, not independent human approvals. No
 - Fixed the reported TypeScript inference issue by renaming the DOM ancestor variable and explicitly asserting its nullable element type.
 - Verification: full npm typecheck/lint/tests/build are not claimed because dependencies remain unavailable in this environment.
 - Remaining: dedicated extraction schema editor/preview and pagination/runtime tests.
+
+
+## Phase 4 follow-up
+
+- Added a visual extraction-field editor to the node inspector. Users can add/remove output fields and edit each field name and CSS selector without editing the fields JSON directly.
+- Live browser preview and pagination integration tests remain outstanding. Full project checks remain blocked while dependencies are unavailable.

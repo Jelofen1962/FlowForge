@@ -21,7 +21,8 @@
 - [ ] Phase 3 browser: runtime lifecycle tests; select-option and navigation capture; role/name locators and iframe behavior.
 - [x] Phase 3 browser (initial increment): record one click or text-input change from the managed Chrome session and insert it as a connected workflow node.
 - [x] Phase 4 scraping (initial increment): bounded repeated-item extraction with field selectors, duplicate-row suppression, optional pagination and workflow-variable output.
-- [ ] Phase 4 scraping: visual extraction schema editor, live preview UI and pagination integration tests.
+- [x] Phase 4 scraping: visual extraction schema editor for named fields and CSS selectors.
+- [ ] Phase 4 scraping: live preview UI and pagination integration tests.
 - [ ] Phase 5 variables/library: complete scopes, typed expressions, reusable workflow calls, dependency/version tracking.
 - [ ] Phase 6 data/batch: Workflow-level CSV export, nested loops, bounded concurrency, cancellation during active operations and resume checkpoints.
 - [ ] Phase 7 reliability: breakpoints, recovery, durable run history, performance profiling and cleanup tests.

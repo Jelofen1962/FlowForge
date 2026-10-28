@@ -10,3 +10,5 @@
 .execution-step .step-output{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted-2);font-size:9px}.execution-step .step-error{color:#f17d83;max-width:240px;overflow-wrap:anywhere;white-space:normal}
 /* Phase 2: execution state, logical grouping and loop ports. */
 .flow-node.run-succeeded{border-color:#52c69a;box-shadow:0 0 0 2px #52c69a20}.flow-node.run-failed{border-color:#f17d83;box-shadow:0 0 0 2px #f17d8325}.flow-node.run-skipped{opacity:.58}.flow-node.run-cancelled{border-color:#e8b45e}.node-group{display:inline-flex!important;align-self:flex-start;margin-top:4px;padding:2px 5px;border-radius:4px;background:#7787ff18;color:#a5adff!important;font-size:8px!important;line-height:1.2}
+
+.extraction-schema .field-label-row{gap:6px;margin-top:7px}.extraction-schema .field-label-row .field-input:first-child{flex:0 0 42%;min-width:0}.extraction-schema .field-label-row .field-input:nth-child(2){flex:1;min-width:0}
