@@ -119,3 +119,14 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - Workflow-save IPC now catches non-serializable input instead of throwing before returning a structured error.
 - Output-write failures return a structured error and do not report success.
 - Verification gate: run strict typecheck, lint, tests, production build, Chrome integration, and Windows packaging in CI. This environment has no installed project dependencies, so those checks remain unverified.
+
+
+## Phase 16: release candidate and full documentation
+
+**Deliverables completed:**
+
+- `docs/USER_GUIDE.md` documents each currently defined workflow node and major UI capability, with configuration examples, end-to-end recipes, troubleshooting, security notes, and explicit limitations.
+- `docs/RELEASE_ACCEPTANCE.md` defines the evidence required for typecheck, unit tests, lint, production build, browser integration, data/persistence checks, and Windows installer smoke tests.
+- `README.md` links to the full guide and release checklist.
+
+**Acceptance still pending:** run the complete GitHub Actions quality job and Windows packaging job; review their logs; smoke-test install, launch, and uninstall on Windows; and update release notes with the tested versions and run URL. No unavailable check is reported as passing.

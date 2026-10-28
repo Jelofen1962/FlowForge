@@ -2,6 +2,16 @@
 
 FlowForge is a Windows-focused desktop application for visual browser automation, scraping and batch data processing. FlowForge is under active development. The core graph, browser automation, scraping, data, reusable-workflow, and run-history paths are implemented in increments; remaining product gaps and release gates are tracked in `docs/IMPLEMENTATION_PLAN.md`.
 
+
+## Documentation
+
+- [Full User Guide](docs/USER_GUIDE.md): node-by-node reference, variables, recorder, scraping, data processing, worked examples, and troubleshooting.
+- [Release Acceptance Checklist](docs/RELEASE_ACCEPTANCE.md): required test, browser, data-safety, and Windows packaging gates.
+- [Implementation Plan](docs/IMPLEMENTATION_PLAN.md): roadmap and remaining work.
+- [Status](docs/STATUS.md): phase notes and verification caveats.
+
+The user guide documents the current repository behavior and explicitly labels unfinished features. Documentation is not a substitute for passing CI or Windows installer validation.
+
 ## Requirements
 
 - Node.js 22+

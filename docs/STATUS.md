@@ -207,3 +207,12 @@ The managed Chrome smoke test now scopes link extraction to the titled `Continue
 ## Phase 15: persistence and data-safety hardening
 
 Workflow saves, run-history updates, and output-file writes now share an atomic-write helper that writes to a unique temporary file in the destination directory and renames it into place. Temporary files are removed after failures. Workflow-save IPC catches JSON serialization failures and output-save IPC returns a structured failure rather than claiming success. Full dependency-backed CI and Windows packaging remain required.
+
+
+## Phase 16: release candidate documentation and acceptance
+
+- Added `docs/USER_GUIDE.md`, a full feature guide covering setup, canvas editing, workflow validation and JSON structure, every currently defined node type, variables and expressions, managed Chrome actions, recorder behavior and limits, scraping and pagination, conditions and loops, reusable workflows, JSON/CSV/TXT data tools, output files, run history, security notes, examples, troubleshooting, and incomplete capabilities.
+- Added `docs/RELEASE_ACCEPTANCE.md` with explicit source-quality, browser-integration, workflow-engine, data-safety, Windows-package, and documentation release gates.
+- Linked the guide and acceptance checklist from `README.md`.
+- Documentation status: authored and cross-checked against the current workflow schema, engine, automation action registrations, README, and recorded limitations.
+- Verification limitation: dependency-backed typecheck, tests, lint, production build, Chrome integration, and Windows packaging are not claimed as run in this environment. Phase 16 is documentation-complete; release acceptance remains pending CI and Windows evidence.
