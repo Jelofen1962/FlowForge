@@ -132,6 +132,12 @@ function registerIpc(): void {
     try { return { ok: true, action: await chromeSession.recordNextAction() }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
   });
+  ipcMain.handle('browser:preview-items', async (event, itemSelector: unknown, fields: unknown) => {
+    assertTrustedSender(event);
+    if (typeof itemSelector !== 'string' || itemSelector.length > 2048 || !fields || typeof fields !== 'object' || Array.isArray(fields) || Object.entries(fields as Record<string, unknown>).some(([name, selector]) => !name.trim() || typeof selector !== 'string' || selector.length > 2048)) return { ok: false, error: 'Invalid extraction schema' };
+    try { return { ok: true, rows: await chromeSession.previewItems(itemSelector, fields as Record<string, string>) }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+  });
   ipcMain.handle('browser:test-locator', async (event, strategy: unknown, value: unknown) => {
     assertTrustedSender(event);
     if (!['css', 'xpath', 'id'].includes(String(strategy)) || typeof value !== 'string' || value.length > 2048) return { ok: false, error: 'Invalid locator' };

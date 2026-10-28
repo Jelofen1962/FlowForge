@@ -47,6 +47,10 @@ export class ChromeSession {
         .map((element) => ({ text: element.innerText.trim().slice(0, 500), href: element.href.slice(0, 2048), title: element.title.slice(0, 200) })), selector);
   }
 
+  async previewItems(itemSelector: string, fields: Record<string, string>): Promise<ScrapedItem[]> {
+    return this.extractItems(itemSelector, fields, '', 1);
+  }
+
   async extractItems(itemSelector: string, fields: Record<string, string>, nextSelector = '', maxPages = 1): Promise<ScrapedItem[]> {
     if (!itemSelector.trim() || itemSelector.length > 2048) throw new Error('A valid repeated-item selector is required');
     const fieldEntries = Object.entries(fields).filter(([name, selector]) => name.trim() && selector.trim());

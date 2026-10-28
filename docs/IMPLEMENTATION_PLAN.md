@@ -46,3 +46,12 @@
 - Review A: separate architecture/correctness/security pass recorded in `docs/STATUS.md`.
 - Review B: separate UX/recorder/batch-safety pass recorded in `docs/STATUS.md`.
 - Independent human reviewers are not available in this execution context; no human approvals are claimed.
+
+## Phase 9 start: feature completion increment
+
+- Implemented a real `subworkflow` action: a node can embed a saved workflow, pass resolved input variables, receive child variables as its result, propagate cancellation/errors, and stop recursive nesting at 10 levels.
+- Added a reusable-workflow picker to the node inspector, using the existing local workflow library. Selected workflows are embedded in the parent node so it remains portable after saving.
+- Added a current-page scraping preview that uses the configured item selector and field map without triggering pagination.
+- Added a regression test for subworkflow input/output behavior.
+- Remaining Phase 9: recorder navigation/select-option capture, locator strategy coverage, richer image extraction where supported, and broader node/config validation.
+- Verification: TypeScript syntax transpilation passes; full project typecheck, tests, lint, and build remain blocked by unavailable npm dependencies.

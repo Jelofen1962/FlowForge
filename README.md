@@ -100,3 +100,8 @@ Use the **Export CSV** action with `rows` set to an array of objects (for exampl
 ### Run history
 
 The desktop app stores up to 50 recent run summaries in its local user-data directory. Summaries include workflow name, timestamp, duration, status, step count, and an optional error. Variable values and execution logs are not saved in this history.
+
+
+### Reusable workflows and scraping preview
+
+Save a workflow in the local library, add a **Run workflow** node, and select the saved workflow. Configure input mappings as a JSON object; the child workflow's variables are returned by the action and can be captured in the configured output variable. Nested workflow calls are limited to ten levels. For scraping, launch managed Chrome and use **Preview current page** in an Extract repeated items node to inspect up to 500 matching rows before running the full workflow.

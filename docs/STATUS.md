@@ -124,3 +124,12 @@ These were two separate model review passes, not independent human approvals. No
 - Hardened workflow-run input sizing against non-serializable values and ensured unexpected execution errors become a failed/cancelled result rather than escaping the run handler.
 - Remaining: breakpoints, recovery checkpoints, accessibility/E2E coverage, dependency refresh, and Windows packaging validation.
 - Verification limitation: dependencies are unavailable in this environment; only syntax transpilation and archive integrity can be checked here. No full typecheck, test, lint, build, or installer success is claimed.
+
+
+## Phase 9 start: reusable workflows and scraping preview
+
+- Added subworkflow execution with input mapping, output-variable capture, cancellation/error propagation, and a 10-level nesting ceiling.
+- Added a library selector in the node inspector; the selected workflow definition is embedded into the node configuration for portability.
+- Added current-page extraction preview via trusted IPC; preview does not click pagination controls.
+- Added a subworkflow regression test.
+- Verification: 15 TypeScript/TSX files transpiled without syntax diagnostics. Full typecheck, test suite, lint, and production build remain unverified because dependencies are unavailable.

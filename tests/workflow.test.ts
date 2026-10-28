@@ -84,6 +84,25 @@ describe('workflow validation and execution', () => {
     expect(result.status).toBe('failed');
     expect(result.error).toContain('10,000 total loop iterations');
   });
+  it('invokes a saved subworkflow with inputs and returns its variables', async () => {
+    const child: Workflow = {
+      schemaVersion: 1, id: 'child', name: 'Child',
+      nodes: [
+        { id: 'child-start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'child-set', type: 'setVariable', label: 'Set result', position: { x: 0, y: 1 }, config: { name: 'result', value: '{{variables.inputValue}}' }, disabled: false },
+      ], edges: [{ id: 'child-edge', source: 'child-start', target: 'child-set' }], variables: [],
+    };
+    const parent: Workflow = {
+      schemaVersion: 1, id: 'parent', name: 'Parent',
+      nodes: [
+        { id: 'parent-start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'call', type: 'subworkflow', label: 'Call child', position: { x: 0, y: 1 }, config: { workflow: child, inputs: { inputValue: 'hello' }, outputVariable: 'childResult' }, disabled: false },
+      ], edges: [{ id: 'parent-edge', source: 'parent-start', target: 'call' }], variables: [],
+    };
+    const result = await executeWorkflow(parent);
+    expect(result.status).toBe('succeeded');
+    expect(result.variables.childResult).toMatchObject({ result: 'hello' });
+  });
   it('rejects invalid loop output handles', () => {
     const invalid: Workflow = { ...workflow, nodes: [...workflow.nodes, { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 0 }, config: {}, disabled: false }], edges: [...workflow.edges, { id: 'loop-edge', source: 'loop', target: 'log', sourceHandle: 'other' }] };
     expect(validateWorkflow(invalid).errors.join(' ')).toContain('item or done');

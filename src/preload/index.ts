@@ -17,6 +17,7 @@ const api: FlowForgeApi = {
     navigate: (url) => ipcRenderer.invoke('browser:navigate', url) as Promise<{ ok: boolean; url?: string; title?: string; error?: string }>,
     selectElement: () => ipcRenderer.invoke('browser:select-element') as Promise<{ ok: boolean; element?: import('../automation/chromeSession').ElementSnapshot; error?: string }>,
     recordNextAction: () => ipcRenderer.invoke('browser:record-next-action') as Promise<{ ok: boolean; action?: import('../automation/chromeSession').RecordedAction; error?: string }>,
+    previewItems: (itemSelector, fields) => ipcRenderer.invoke('browser:preview-items', itemSelector, fields) as Promise<{ ok: boolean; rows?: Record<string, string>[]; error?: string }>,
     testLocator: (strategy, value) => ipcRenderer.invoke('browser:test-locator', strategy, value) as Promise<{ ok: boolean; matches?: number; firstText?: string; error?: string }>,
   },
 };

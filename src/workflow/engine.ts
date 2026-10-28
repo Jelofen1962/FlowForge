@@ -5,9 +5,9 @@ import { resolveExpression } from './expression';
 export type RunStatus = 'succeeded' | 'failed' | 'cancelled';
 export interface StepResult { nodeId: string; status: RunStatus; startedAt: string; durationMs: number; output?: unknown; error?: string }
 export interface RunResult { status: RunStatus; steps: StepResult[]; variables: Record<string, unknown>; logs: string[]; error?: string }
-export interface RunOptions { signal?: AbortSignal; onStep?: (result: StepResult) => void; maxSteps?: number }
+export interface RunOptions { signal?: AbortSignal; onStep?: (result: StepResult) => void; maxSteps?: number; initialVariables?: Record<string, unknown>; depth?: number }
 export type ActionHandler = (config: Record<string, unknown>, context: ActionContext) => Promise<unknown>;
-export interface ActionContext { variables: Record<string, unknown>; item?: unknown; index?: number; signal?: AbortSignal; log: (message: string) => void }
+export interface ActionContext { variables: Record<string, unknown>; item?: unknown; index?: number; signal?: AbortSignal; depth?: number; log: (message: string) => void }
 
 export class ActionRegistry {
   private handlers = new Map<string, ActionHandler>();
@@ -44,6 +44,17 @@ export function createDefaultRegistry(): ActionRegistry {
   let loopIterations = 0;
   registry.register('start', async () => undefined);
   registry.register('if', async (config) => evaluateCondition(config));
+  registry.register('subworkflow', async (config, context) => {
+    if ((context.depth ?? 0) >= 10) throw new Error('Subworkflow nesting exceeds the 10-level limit');
+    if (config.inputs !== undefined && (!config.inputs || typeof config.inputs !== 'object' || Array.isArray(config.inputs))) throw new Error('Subworkflow inputs must be an object');
+    const inputs = (config.inputs ?? {}) as Record<string, unknown>;
+    const outputVariable = config.outputVariable;
+    if (outputVariable !== undefined && (typeof outputVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(outputVariable) || ['__proto__', 'prototype', 'constructor'].includes(outputVariable))) throw new Error('Subworkflow output variable name is invalid or reserved');
+    const result = await executeWorkflow(config.workflow, registry, { signal: context.signal, depth: (context.depth ?? 0) + 1, initialVariables: inputs, maxSteps: 1000 });
+    if (result.status !== 'succeeded') throw new Error(result.error ?? `Subworkflow ${result.status}`);
+    if (typeof outputVariable === 'string' && outputVariable) context.variables[outputVariable] = result.variables;
+    return result.variables;
+  });
   registry.register('setVariable', async (config, context) => {
     const name = String(config.name ?? '');
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || ['__proto__', 'prototype', 'constructor'].includes(name)) throw new Error('Variable name is invalid or reserved');
@@ -122,7 +133,8 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
     }
   }
   if (executionOrder.length !== reachable.size) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow graph contains a cycle' };
-  const variables = Object.fromEntries(workflow.variables.filter((v) => v.scope === 'workflow').map((v) => [v.name, v.value]));
+  if ((options.depth ?? 0) > 10) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Subworkflow nesting exceeds the 10-level limit' };
+  const variables = { ...Object.fromEntries(workflow.variables.filter((v) => v.scope === 'workflow').map((v) => [v.name, v.value])), ...(options.initialVariables ?? {}) };
   const steps: StepResult[] = [];
   const logs: string[] = [];
   const outputs: Record<string, unknown> = {};
@@ -147,8 +159,10 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
       const expressionContext = { variables, steps: outputs };
       const config = node.type === 'forEach'
         ? { ...node.config, items: resolveExpression(node.config.items, expressionContext), maxItems: resolveExpression(node.config.maxItems ?? 1000, expressionContext) }
-        : resolveExpression(node.config, expressionContext);
-      const output = await handler(config as Record<string, unknown>, { variables, signal: options.signal, log });
+        : node.type === 'subworkflow'
+          ? { ...node.config, inputs: resolveExpression(node.config.inputs ?? {}, expressionContext) }
+          : resolveExpression(node.config, expressionContext);
+      const output = await handler(config as Record<string, unknown>, { variables, signal: options.signal, depth: options.depth ?? 0, log });
       outputs[node.id] = { output };
       result = { nodeId: id, status: 'succeeded', startedAt: new Date(started).toISOString(), durationMs: Date.now() - started, output };
     } catch (error) {
