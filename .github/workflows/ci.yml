@@ -24,6 +24,9 @@ jobs:
           node-version: 22
           # Do not enable setup-node's npm cache until package-lock.json is committed.
 
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
@@ -32,6 +35,11 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Browser integration smoke test
+        run: npm run test:browser
+        env:
+          FLOWFORGE_CHROME_INTEGRATION: '1'
 
       - name: Lint
         run: npm run lint

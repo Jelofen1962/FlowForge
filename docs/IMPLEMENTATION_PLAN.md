@@ -71,3 +71,10 @@
 
 - Cancellation requests now stop the managed Chrome session to interrupt in-flight browser actions; final cleanup handles a browser startup that races with cancellation.
 - Validate with a real Chrome integration test and the full CI gate before treating cancellation as release-ready.
+
+
+## Phase 11: browser integration and CI confidence
+
+- Added a local-fixture integration test for managed Chrome navigation, DOM extraction, links, select-option changes, image extraction, and shutdown.
+- CI provisions Chrome and runs this smoke test without relying on external websites.
+- Acceptance gate remains: full CI quality job and Windows packaging job must pass; no release verification is claimed from syntax-only checks.

@@ -155,3 +155,11 @@ These were two separate model review passes, not independent human approvals. No
 - Phase 10 follow-up: cancelling an active workflow now requests the managed Chrome session to stop, allowing WebDriver work to be interrupted instead of merely waiting for the current command. Final cleanup also stops a session that finishes starting during cancellation. Browser integration and dependency-backed CI still need to verify this behavior.
 
 - Phase 10 shutdown-race fix: concurrent Chrome `stop()` calls now share the same quit promise, and `start()` waits for an in-progress quit before creating another driver. This prevents cleanup from appearing complete while the prior browser process is still shutting down.
+
+
+## Phase 11: browser integration and CI gate
+
+- Added an opt-in managed-Chrome integration smoke test using a local HTTP fixture. It exercises navigation, DOM text extraction, link extraction, native select changes, image extraction, and session cleanup without depending on external websites.
+- ChromeSession enables headless/no-sandbox flags in CI or when `FLOWFORGE_HEADLESS=1` is set.
+- CI installs Chrome and runs the browser integration test after the unit suite. The integration test remains opt-in locally via `FLOWFORGE_CHROME_INTEGRATION=1 npm run test:browser`.
+- Verification in this workspace is still dependency-limited; CI must execute npm tests, typecheck, lint, build, and the browser smoke test before this phase can be called release-verified.

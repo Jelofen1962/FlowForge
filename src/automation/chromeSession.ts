@@ -22,6 +22,9 @@ export class ChromeSession {
     if (this.driver) return;
     const options = new chrome.Options();
     options.addArguments('--start-maximized', '--disable-notifications');
+    if (process.env.CI || process.env.FLOWFORGE_HEADLESS === '1') {
+      options.addArguments('--headless=new', '--no-sandbox', '--disable-dev-shm-usage');
+    }
     const driver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
     this.driver = driver;
     try { await driver.manage().setTimeouts({ implicit: 0, pageLoad: 45_000, script: 15_000 }); }

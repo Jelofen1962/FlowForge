@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.app.json --pretty false && tsc -p tsconfig.main.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:browser": "vitest run tests/chrome.integration.test.ts",
     "lint": "eslint .",
     "package:win": "npm run build && electron-builder --win nsis",
     "test:coverage": "vitest run --coverage"
