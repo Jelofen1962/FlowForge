@@ -174,8 +174,10 @@ describe('workflow validation and execution', () => {
     expect(result.error).toContain('reserved');
   });
   it('fails visibly for an unregistered action', async () => {
-    const changed = { ...workflow, nodes: workflow.nodes.map((node) => node.id === 'log' ? { ...node, type: 'openUrl' as const } : node) };
-    const result = await executeWorkflow(changed, createDefaultRegistry());
+    const changed = { ...workflow, nodes: workflow.nodes.map((node) => node.id === 'log' ? { ...node, type: 'openUrl' as const, config: { url: 'https://example.com' } } : node) };
+    const registry = new ActionRegistry();
+    registry.register('start', async () => undefined);
+    const result = await executeWorkflow(changed, registry);
     expect(result.status).toBe('failed');
     expect(result.error).toContain('No handler registered');
   });
