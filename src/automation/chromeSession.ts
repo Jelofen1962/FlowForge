@@ -218,13 +218,24 @@ export class ChromeSession {
           const name = element.getAttribute('name') ?? '';
           const cssMatches = (selector: string) => { try { return document.querySelectorAll(selector).length; } catch { return 0; } };
           const xpathMatches = (selector: string) => { try { return document.evaluate(selector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength; } catch { return 0; } };
-          const selectors = [
-            ...(id ? [{ strategy: 'id', value: id, matches: cssMatches(`#${cssEscape(id)}`) }] : []),
-            ...(name ? [{ strategy: 'css', value: `[name="${name.replace(/"/g, '\\"')}"]`, matches: cssMatches(`[name="${name.replace(/"/g, '\\"')}"]`) }] : []),
-            { strategy: 'css', value: css, matches: cssMatches(css) },
-            { strategy: 'xpath', value: xpath, matches: xpathMatches(xpath) },
-            ...((element.getAttribute('aria-label') || element.getAttribute('title') || (element.textContent ?? '').trim().slice(0, 120)) ? [{ strategy: 'xpath', value: `//${element.tagName.toLowerCase()}[@aria-label=${xpathLiteral(element.getAttribute('aria-label') || '__no_match__')} or @title=${xpathLiteral(element.getAttribute('title') || '__no_match__')} or normalize-space(.)=${xpathLiteral((element.textContent ?? '').trim().slice(0, 120))}]`, matches: xpathMatches(`//${element.tagName.toLowerCase()}[@aria-label=${xpathLiteral(element.getAttribute('aria-label') || '__no_match__')} or @title=${xpathLiteral(element.getAttribute('title') || '__no_match__')} or normalize-space(.)=${xpathLiteral((element.textContent ?? '').trim().slice(0, 120))}]`) }] : []),
-          ];
+          const selectors: ElementSnapshot['selectors'] = [];
+          const addCss = (value: string) => selectors.push({ strategy: 'css', value, matches: cssMatches(value) });
+          const addXpath = (value: string) => selectors.push({ strategy: 'xpath', value, matches: xpathMatches(value) });
+          if (id) selectors.push({ strategy: 'id', value: id, matches: cssMatches(`#${cssEscape(id)}`) });
+          for (const attribute of ['data-testid', 'data-test', 'data-qa', 'name']) {
+            const value = element.getAttribute(attribute);
+            if (value) addCss(`[${attribute}=${JSON.stringify(value)}]`);
+          }
+          const ariaLabel = element.getAttribute('aria-label');
+          const title = element.getAttribute('title');
+          if (ariaLabel) addXpath(`//${element.tagName.toLowerCase()}[@aria-label=${xpathLiteral(ariaLabel)}]`);
+          if (title) addXpath(`//${element.tagName.toLowerCase()}[@title=${xpathLiteral(title)}]`);
+          const text = (element.textContent ?? '').trim().slice(0, 120);
+          if (text && !['INPUT', 'TEXTAREA', 'SELECT', 'IMG'].includes(element.tagName)) {
+            addXpath(`//${element.tagName.toLowerCase()}[normalize-space(.)=${xpathLiteral(text)}]`);
+          }
+          addCss(css);
+          addXpath(xpath);
           const attributes: Record<string, string> = {};
           for (const attr of [...element.attributes].slice(0, 30)) attributes[attr.name] = attr.value.slice(0, 500);
           return { tagName: element.tagName.toLowerCase(), text: (element.textContent ?? '').trim().slice(0, 1000), attributes, selectors };
@@ -270,7 +281,7 @@ export class ChromeSession {
         const selectorFor = (element: Element): string => {
           if (element.id) return `#${CSS.escape(element.id)}`;
           const name = element.getAttribute('name');
-          if (name) return `${element.tagName.toLowerCase()}[name="${CSS.escape(name)}"]`;
+          if (name) return `${element.tagName.toLowerCase()}[name=${JSON.stringify(name)}]`;
           const parts: string[] = [];
           let current: Element | null = element;
           while (current && current !== document.documentElement && parts.length < 6) {

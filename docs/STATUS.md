@@ -167,9 +167,20 @@ These were two separate model review passes, not independent human approvals. No
 
 ## Phase 12: CI and build stabilization (2026-10-28)
 
-- Added explicit Node.js 22+/npm 10+ engine requirements so local development and CI use the supported toolchain.
-- Added bounded job timeouts and disabled npm progress output in GitHub Actions to keep CI failure logs more useful and avoid indefinitely stalled jobs.
-- Hardened the Chrome integration test cleanup: the test server is closed even if Chrome shutdown fails, and cleanup safely handles setup failures before the server starts.
-- Corrected README status text that still described already-implemented conditional routing, loops, subworkflow calls, undo/redo, grouping, and run history as wholly unimplemented.
-- Verification attempted: `npm install --package-lock-only --ignore-scripts --no-audit --no-fund` timed out because the npm registry is not reachable from this environment. No dependency-backed test, typecheck, lint, build, Chrome, or Windows installer result is claimed.
-- Phase 12 remains **blocked on an external dependency-install step**: generate and commit a real `package-lock.json` from the npm registry, switch CI from `npm install` to `npm ci`, then run the complete GitHub Actions workflow and fix any reported failures. A fabricated lockfile was deliberately not added.
+- Added explicit Node.js 22+/npm 10+ engine requirements.
+- Added bounded CI job timeouts and quieter npm install logs.
+- Hardened Chrome integration-test cleanup so the fixture server closes even when browser shutdown fails, including setup failures.
+- Reconciled README implementation notes with the reported Phase 9-10 source changes.
+- The project owner reports that the GitHub Actions CI workflow completed with no errors. The remote run was not directly accessible from this workspace, so this is recorded as owner-reported verification rather than an independently inspected run.
+- Local lockfile generation still times out because the npm registry is unreachable here. No fabricated `package-lock.json` was added.
+
+**Phase 12: complete based on the reported green CI run.** Follow-up hardening: generate and review a real `package-lock.json` in a network-enabled environment, then switch to `npm ci` and enable npm caching in a separate change. The current workflow continues to use `npm install`, matching the reported passing run.
+
+## Phase 13: browser recorder and scraping completion
+
+- Expanded element locator candidates to include stable test attributes (`data-testid`, `data-test`, `data-qa`), `name`, ID, CSS path, XPath path, accessible label, title, and visible text. Candidate match counts are reported for choosing unique selectors.
+- Hardened CSS attribute selector quoting for names and test attributes containing punctuation.
+- Expanded the opt-in Chrome integration suite to exercise Alt+click element selection, locator candidates, recording click/type/select actions, and repeated-item extraction across two pages.
+- Enabled the existing image-extraction action from the quick-tools panel instead of leaving it incorrectly marked as planned.
+- Updated stale workflow-library help text to describe embedded subworkflow snapshots.
+- Validation: source-level syntax checks and ZIP integrity are run for this archive. The Chrome integration suite must pass in the project's GitHub Actions environment to verify real browser behavior.

@@ -1,6 +1,6 @@
 # FlowForge
 
-FlowForge is a Windows-focused desktop application for visual browser automation, scraping and batch data processing. This is an actively incomplete foundation. It contains working graph, browser, data and persistence slices, but it is not yet the complete product described in the master requirements.
+FlowForge is a Windows-focused desktop application for visual browser automation, scraping and batch data processing. FlowForge is under active development. The core graph, browser automation, scraping, data, reusable-workflow, and run-history paths are implemented in increments; remaining product gaps and release gates are tracked in `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Requirements
 
@@ -47,8 +47,8 @@ npm run package:win
 
 - Retry/try-catch graph nodes, library dependency/version tracking, and full workflow variable scopes. Conditional routing, bounded loops, and reusable subworkflow calls are implemented but still require complete integration verification.
 - Full workflow/run/item/environment variable scopes, typed expression interpolation, secret masking, and environment injection.
-- Full recorder action capture for typing/select changes, pause/resume/replay, iframe support and accessible role/name locators.
-- Embedded live-browser preview, guided scraping schemas, repeated-item detection, pagination, workflow-level CSV export, OCR and image downloading.
+- Recorder still captures one action per request; pause/resume/replay and iframe support are not complete. Locator candidates include CSS/XPath/ID and accessible-name XPath, but broad page compatibility needs more validation.
+- OCR and image downloading are not implemented; scraping preview, repeated-item extraction, pagination, and workflow-level CSV export have initial implementations that still need broader integration coverage.
 - Checkpoint/resume, scheduling, multi-project management, and full accessibility/E2E coverage. Undo/redo, grouping, copy/paste, and capped durable run-summary history are implemented but need full regression verification.
 - Independent human reviews, end-to-end browser/Electron testing and Windows install/uninstall smoke tests.
 
@@ -68,28 +68,34 @@ See `docs/IMPLEMENTATION_PLAN.md` and `docs/STATUS.md` for acceptance criteria, 
 
 ## GitHub Actions release configuration
 
-- CI deliberately does not enable `setup-node`'s npm cache because a `package-lock.json` is not committed. A lockfile is required before dependency installation can be made fully reproducible with `npm ci`.
+- Phase 12's GitHub Actions workflow is reported green by the project owner. CI currently uses `npm install` because a `package-lock.json` is not committed; a reviewed lockfile and `npm ci` are recommended follow-up improvements for reproducible dependency resolution.
 - The Windows packaging job receives `GH_TOKEN` from the repository Actions secret named `GH_TOKEN`. Never put the token value in this repository or workflow file.
 - The Windows packaging job runs on manual dispatch, `main` pushes, and `v*` tags, not on pull requests. It uploads `release/*Setup.exe` as the `FlowForge-Windows-Installer` Actions artifact.
 - Add `GH_TOKEN` under **Repository Settings → Secrets and variables → Actions**. The token needs permission to publish releases to this repository. For a fine-grained token, grant repository **Contents: Read and write**.
-- Phase 12 attempted lockfile generation, but the npm registry was unreachable from the current environment. Do not hand-author a lockfile; generate it with `npm install --package-lock-only` in a network-enabled environment, review and commit it, then switch CI to `npm ci` and enable `cache: npm`.
+- This workspace cannot independently run dependency-backed checks because registry access times out. The owner reports that GitHub Actions passed. Do not hand-author a lockfile; generate it with `npm install --package-lock-only` in a network-enabled environment, review and commit it, then switch CI to `npm ci` and enable `cache: npm` as a separate hardening change.
 
 
 ## Phase 2 graph editing
 
 The graph editor supports true/false condition ports, bounded `forEach` loops with nested inline action lists (`items`, `maxItems`, `actions`), item/index expressions, undo/redo, copy/paste of selected nodes and their internal edges, logical grouping labels, and per-node run result styling. Use Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) to redo, and Ctrl/Cmd+C/V to copy/paste. Select multiple nodes with Ctrl/Cmd-click to group them. Workflow validation checks node/edge IDs, graph cycles, start-node rules, variables, and conditional/loop output handles.
 
-The full npm verification gate remains pending when dependencies cannot be installed: run `npm install`, `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` before packaging.
+The project owner reports the GitHub Actions quality workflow passed, including the configured checks. This workspace could not independently rerun those dependency-backed checks because registry access timed out; see `docs/STATUS.md` for the verification distinction.
 
+
+### Recorder and scraping validation (Phase 13)
+
+The Alt+click picker now offers stable test-attribute and `name` CSS candidates alongside ID, CSS path, XPath path, accessible-label, title, and visible-text candidates. Each candidate reports its match count so you can prefer unique locators. The quick-tools panel can insert the implemented image-extraction node. The opt-in Chrome integration suite now covers picker selection, click/type/select recording, and repeated-item pagination across a local two-page fixture.
+
+Run the expanded browser suite with `FLOWFORGE_CHROME_INTEGRATION=1 npm run test:browser` after installing project dependencies and Chrome.
 
 ### Recorder (Phase 3 initial increment)
 
-In the desktop app, launch Managed Chrome in the Recorder or Web Scraping view and choose **Record next**. The next click or text-input change is captured as an editable workflow node; press Escape to cancel. This initial recorder captures one action per request and does not yet record navigation or select-option changes.
+In the desktop app, launch Managed Chrome in the Recorder or Web Scraping view and choose **Record next**. A click, text-input change, HTTP(S) link navigation, or native select change can be captured as an editable workflow node; press Escape to cancel. Recording is still one action per request, and pause/resume/replay and iframe support remain incomplete.
 
 
 ### Variables and workflow library
 
-Use the **Variables** panel to add, edit, type, and remove workflow variables. Reference them in node settings with `{{variables.name}}`. The **Library** panel can save the current workflow locally and reopen saved copies. Library entries are stored in this renderer's local storage; they are not yet callable as nested workflow actions or shared across devices.
+Use the **Variables** panel to add, edit, type, and remove workflow variables. Reference them in node settings with `{{variables.name}}`. The **Library** panel stores workflows locally. A **Run workflow** node can call a saved workflow with mapped inputs; child variables are returned as the action result. Library entries are local to the app profile and are not shared across devices.
 
 
 ### Workflow CSV export

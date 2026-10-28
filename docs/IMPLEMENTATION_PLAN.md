@@ -85,8 +85,16 @@
 - [x] Declare supported Node/npm engine versions.
 - [x] Add CI job timeouts and quieter dependency-install logs.
 - [x] Ensure browser-test cleanup closes the local fixture server even when browser cleanup fails.
-- [x] Reconcile README implementation notes with the reported Phase 9-10 source changes.
-- [ ] Generate and commit a registry-resolved `package-lock.json`; switch CI to `npm ci` and enable npm caching.
-- [ ] Run the full GitHub Actions workflow and fix typecheck, unit, browser integration, lint, build, and Windows packaging failures.
+- [x] Reconcile README implementation notes with the implemented Phase 9-10 source changes.
+- [x] Run the GitHub Actions CI workflow and resolve failures. The project owner reports the workflow completed without errors; this environment cannot independently inspect the remote run.
+- [x] Keep CI's dependency installation aligned with the currently passing workflow (`npm install`).
 
-Phase 12 is not release-verified: lockfile generation timed out because registry access is unavailable in this environment. The remaining items require a network-enabled npm environment and a remote CI run.
+**Phase 12 complete based on the reported green GitHub Actions run.** A committed registry-resolved `package-lock.json` and switching to `npm ci` remain recommended reproducibility improvements, not a claim about the currently passing pipeline. Do not hand-author a lockfile; generate and review it in a network-enabled environment as a separate hardening change.
+
+## Phase 13: browser recorder and scraping completion
+
+- [x] Improve stable CSS/XPath locator candidate generation and expose unique-match counts.
+- [x] Add real-browser integration coverage for element picking, action recording, and two-page repeated-item extraction.
+- [x] Make the existing image-extraction action discoverable from quick tools.
+- [ ] Confirm the expanded Chrome integration suite passes in GitHub Actions and address any browser timing/platform failures.
+- [ ] Manually verify record/replay against a representative real website, including navigation, forms, and dynamic content.

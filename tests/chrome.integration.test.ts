@@ -10,16 +10,48 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
   let url = '';
 
   beforeAll(async () => {
-    const testServer = createServer((_request, response) => {
+    const testServer = createServer((request, response) => {
+      const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+      if (requestUrl.pathname === '/pixel.png') {
+        response.writeHead(204);
+        response.end();
+        return;
+      }
+      const secondPage = requestUrl.pathname === '/page/2';
+      const items = secondPage
+        ? '<article class="item"><h2 class="title">Gamma</h2><a href="/gamma">Open gamma</a></article>'
+        : '<article class="item"><h2 class="title">Alpha</h2><a href="/alpha">Open alpha</a></article><article class="item"><h2 class="title">Beta</h2><a href="/beta">Open beta</a></article>';
+      const nextLink = secondPage ? '' : '<a class="next" href="/page/2">Next page</a>';
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(`<!doctype html><html><head><title>FlowForge smoke</title></head><body>
-        <main><h1 id="heading">Browser is alive</h1><a href="/next" title="Next page">Continue</a>
+        <main><h1 id="heading" data-testid="page-heading">Browser is alive</h1>
+        <a href="/next" title="Next page">Continue</a>
+        <button id="record-button">Record click</button>
+        <input id="record-input" name="record-input" value="">
         <select id="choice"><option value="a">Alpha</option><option value="b">Beta</option></select>
         <img src="/pixel.png" alt="tiny pixel" width="1" height="1">
-        </main></body></html>`);
+        <section id="items">${items}</section>${nextLink}
+        </main><script>
+          const query = new URLSearchParams(location.search);
+          if (query.get('pick') === '1') setTimeout(() => {
+            const heading = document.querySelector('#heading');
+            window.__pickerOverlaySeen = [...document.querySelectorAll('div')].some((el) => getComputedStyle(el).backgroundColor === 'rgba(255, 0, 0, 0.4)');
+            heading.dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
+          }, 800);
+          if (query.get('record') === 'click') setTimeout(() => document.querySelector('#record-button').dispatchEvent(new MouseEvent('click', { bubbles: true })), 800);
+          if (query.get('record') === 'type') setTimeout(() => {
+            const input = document.querySelector('#record-input'); input.value = 'typed value'; input.dispatchEvent(new Event('change', { bubbles: true }));
+          }, 800);
+          if (query.get('record') === 'select') setTimeout(() => {
+            const select = document.querySelector('#choice'); select.value = 'b'; select.dispatchEvent(new Event('change', { bubbles: true }));
+          }, 800);
+        </script></body></html>`);
     });
     server = testServer;
-    await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve, reject) => {
+      testServer.once('error', reject);
+      testServer.listen(0, '127.0.0.1', resolve);
+    });
     const address = testServer.address();
     if (!address || typeof address === 'string') throw new Error('Local test server did not bind');
     url = `http://127.0.0.1:${address.port}/`;
@@ -47,4 +79,32 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
     expect(await session.readAttribute('#choice', 'value')).toBe('b');
     expect(await session.extractImages()).toMatchObject([{ alt: 'tiny pixel' }]);
   }, 45_000);
+
+  it('picks an element with Alt+click and returns unique locator candidates', async () => {
+    await session.navigate(`${url}?pick=1`);
+    const selected = await session.selectElement(5_000);
+    expect(selected.tagName).toBe('h1');
+    expect(selected.text).toBe('Browser is alive');
+    expect(selected.selectors.some((item) => item.strategy === 'id' && item.value === 'heading' && item.matches === 1)).toBe(true);
+    expect(selected.selectors.some((item) => item.strategy === 'css' && item.value === '[data-testid="page-heading"]' && item.matches === 1)).toBe(true);
+  }, 10_000);
+
+  it.each([
+    ['click', { kind: 'click', selector: '#record-button', strategy: 'css', tagName: 'button' }],
+    ['type', { kind: 'typeText', selector: '#record-input', strategy: 'css', value: 'typed value', tagName: 'input' }],
+    ['select', { kind: 'selectOption', selector: '#choice', strategy: 'css', value: 'b', tagName: 'select' }],
+  ] as const)('records a %s action', async (record, expected) => {
+    await session.navigate(`${url}?record=${record}`);
+    await expect(session.recordNextAction(5_000)).resolves.toMatchObject(expected);
+  }, 10_000);
+
+  it('extracts repeated items across a next-page link', async () => {
+    await session.navigate(url);
+    const rows = await session.extractItems('article.item', { title: '.title', url: 'a' }, 'a.next', 2);
+    expect(rows).toEqual([
+      { title: 'Alpha', url: `${url}alpha` },
+      { title: 'Beta', url: `${url}beta` },
+      { title: 'Gamma', url: `${url}gamma` },
+    ]);
+  }, 20_000);
 });
