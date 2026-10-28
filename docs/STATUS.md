@@ -190,3 +190,8 @@ These were two separate model review passes, not independent human approvals. No
 
 - Fixed GitHub Actions ESLint failure at `src/automation/chromeSession.ts:218` by removing an unused local `name` variable. The locator loop already reads the `name` attribute directly, so behavior is unchanged.
 - Verification in this archive: package metadata, workflow YAML, and TypeScript syntax checks; rerun GitHub Actions to confirm the remote quality job is green.
+
+
+### Phase 13 browser-test correction
+
+The managed Chrome smoke test now scopes link extraction to the titled `Continue` link. The extraction API intentionally returns all matching links, so asserting a single result against the entire page was an incorrect test assumption, not a browser extraction defect.

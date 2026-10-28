@@ -74,7 +74,7 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
     const page = await session.navigate(url);
     expect(page.title).toBe('FlowForge smoke');
     expect(await session.snapshot('#heading')).toEqual([{ text: 'Browser is alive' }]);
-    expect(await session.extractLinks()).toMatchObject([{ text: 'Continue', href: `${url}next`, title: 'Next page' }]);
+    expect(await session.extractLinks('a[title="Next page"]')).toEqual([{ text: 'Continue', href: `${url}next`, title: 'Next page' }]);
     expect(await session.selectOption('#choice', 'b')).toEqual({ selected: 'b' });
     expect(await session.readAttribute('#choice', 'value')).toBe('b');
     expect(await session.extractImages()).toMatchObject([{ alt: 'tiny pixel' }]);

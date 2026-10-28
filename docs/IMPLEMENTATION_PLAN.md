@@ -98,3 +98,8 @@
 - [x] Make the existing image-extraction action discoverable from quick tools.
 - [ ] Confirm the expanded Chrome integration suite passes in GitHub Actions and address any browser timing/platform failures.
 - [ ] Manually verify record/replay against a representative real website, including navigation, forms, and dynamic content.
+
+
+### Phase 13 CI correction
+
+The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continue` link, matching the test's intent without rejecting other valid links returned by the default extractor. Re-run `FLOWFORGE_CHROME_INTEGRATION=1 npm run test:browser` in CI to verify.
