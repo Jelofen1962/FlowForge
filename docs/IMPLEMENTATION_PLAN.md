@@ -78,3 +78,11 @@
 - Added a local-fixture integration test for managed Chrome navigation, DOM extraction, links, select-option changes, image extraction, and shutdown.
 - CI provisions Chrome and runs this smoke test without relying on external websites.
 - Acceptance gate remains: full CI quality job and Windows packaging job must pass; no release verification is claimed from syntax-only checks.
+
+
+## Phase 11 completion and verification result
+
+- [x] Added opt-in real Chrome integration coverage against a local fixture and wired it into the CI quality job.
+- [x] Hardened fixture setup/teardown so bind failures surface and the local server is closed even if Chrome shutdown fails.
+- [x] TypeScript syntax transpilation passed across 18 TS/TSX files.
+- [ ] Release verification: blocked in this workspace because npm registry access fails with `EAI_AGAIN`; dependencies could not be installed. Strict typecheck, Vitest, ESLint, production build, and the live Chrome integration test therefore remain unverified. Run the GitHub Actions workflow in a network-enabled environment before release.

@@ -6,7 +6,7 @@ const enabled = process.env.FLOWFORGE_CHROME_INTEGRATION === '1';
 
 describe.skipIf(!enabled)('managed Chrome integration', () => {
   const session = new ChromeSession();
-  let server: Server;
+  let server: Server | undefined;
   let url = '';
 
   beforeAll(async () => {
@@ -18,7 +18,10 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
         <img src="/pixel.png" alt="tiny pixel" width="1" height="1">
         </main></body></html>`);
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve, reject) => {
+      server!.once('error', reject);
+      server!.listen(0, '127.0.0.1', resolve);
+    });
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Local test server did not bind');
     url = `http://127.0.0.1:${address.port}/`;
@@ -26,8 +29,13 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
   }, 45_000);
 
   afterAll(async () => {
-    await session.stop();
-    await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
+    try {
+      await session.stop();
+    } finally {
+      if (server?.listening) {
+        await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+      }
+    }
   });
 
   it('navigates and extracts DOM data through the managed browser', async () => {
