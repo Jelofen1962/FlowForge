@@ -79,9 +79,9 @@ See `docs/IMPLEMENTATION_PLAN.md` and `docs/STATUS.md` for acceptance criteria, 
 ## GitHub Actions release configuration
 
 - Phase 12's GitHub Actions workflow is reported green by the project owner. CI currently uses `npm install` because a `package-lock.json` is not committed; a reviewed lockfile and `npm ci` are recommended follow-up improvements for reproducible dependency resolution.
-- The Windows packaging job receives `GH_TOKEN` from the repository Actions secret named `GH_TOKEN`. Never put the token value in this repository or workflow file.
+- Windows packaging uses `electron-builder --publish never`; publishing is handled separately by the release job so packaging does not need a personal access token.
 - The Windows packaging job runs on manual dispatch, `main` pushes, and `v*` tags, not on pull requests. It uploads `release/*Setup.exe` as the `FlowForge-Windows-Installer` Actions artifact.
-- Add `GH_TOKEN` under **Repository Settings → Secrets and variables → Actions**. The token needs permission to publish releases to this repository. For a fine-grained token, grant repository **Contents: Read and write**.
+- The release job uses GitHub Actions’ built-in `${{ github.token }}` as `GH_TOKEN` and declares `contents: write`. In **Settings → Actions → General → Workflow permissions**, enable read/write permissions if required by repository policy. No personal `GH_TOKEN` secret should be necessary for this workflow.
 - This workspace cannot independently run dependency-backed checks because registry access times out. The owner reports that GitHub Actions passed. Do not hand-author a lockfile; generate it with `npm install --package-lock-only` in a network-enabled environment, review and commit it, then switch CI to `npm ci` and enable `cache: npm` as a separate hardening change.
 
 

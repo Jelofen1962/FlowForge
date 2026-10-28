@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:browser": "vitest run tests/chrome.integration.test.ts",
     "lint": "eslint .",
-    "package:win": "npm run build && electron-builder --win nsis",
+    "package:win": "npm run build && electron-builder --win nsis --publish never",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

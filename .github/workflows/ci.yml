@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          # Do not enable setup-node's npm cache until package-lock.json is committed.
+          # Do not enable npm caching until package-lock.json is committed.
 
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v1
@@ -52,7 +52,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     needs: quality
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -61,13 +64,15 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          # Cache requires a committed package-lock.json; intentionally omitted for now.
+          # Cache requires a committed package-lock.json.
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-progress
 
       - name: Package Windows installer
         run: npm run package:win
+        env:
+          GH_TOKEN: ''
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
@@ -97,11 +102,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
+        shell: bash
         run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          installers=(release-assets/*Setup.exe)
+
+          if [ ${#installers[@]} -eq 0 ]; then
+            echo "No Windows installer found."
+            exit 1
+          fi
+
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" release-assets/*Setup.exe --clobber
+            gh release upload "$TAG_NAME" "${installers[@]}" --clobber
           else
-            gh release create "$TAG_NAME" release-assets/*Setup.exe \
+            gh release create "$TAG_NAME" "${installers[@]}" \
               --title "FlowForge $TAG_NAME" \
               --notes-file docs/RELEASE_NOTES_v1.1.5.md
           fi
