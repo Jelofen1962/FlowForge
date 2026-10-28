@@ -1,11 +1,14 @@
 import type { ElementSnapshot, RecordedAction } from '../automation/chromeSession';
 import type { RunResult } from '../workflow/engine';
 
+export interface RunHistoryEntry { id: string; workflowName: string; startedAt: string; durationMs: number; status: RunResult['status']; steps: number; error?: string }
+
 export interface FlowForgeApi {
   appVersion: () => Promise<string>;
   loadWorkflow: () => Promise<unknown | null>;
   saveWorkflow: (workflow: unknown) => Promise<{ ok: boolean; path?: string; error?: string }>;
   runWorkflow: (workflow: unknown, runId: string) => Promise<RunResult>;
+  getRunHistory: () => Promise<RunHistoryEntry[]>;
   cancelWorkflow: (runId: string) => Promise<boolean>;
   chooseInputFile: () => Promise<{ path: string; content: string } | null>;
   writeOutput: (filename: string, content: string) => Promise<{ ok: boolean; path?: string; error?: string }>;

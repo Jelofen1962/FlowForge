@@ -6,6 +6,7 @@ const api: FlowForgeApi = {
   loadWorkflow: () => ipcRenderer.invoke('workflow:load') as Promise<unknown | null>,
   saveWorkflow: (workflow) => ipcRenderer.invoke('workflow:save', workflow) as Promise<{ ok: boolean; path?: string; error?: string }>,
   runWorkflow: (workflow, runId) => ipcRenderer.invoke('workflow:run', workflow, runId) as Promise<import('../workflow/engine').RunResult>,
+  getRunHistory: () => ipcRenderer.invoke('workflow:history') as Promise<import('../shared/ipc').RunHistoryEntry[]>,
   cancelWorkflow: (runId) => ipcRenderer.invoke('workflow:cancel', runId) as Promise<boolean>,
   chooseInputFile: () => ipcRenderer.invoke('file:choose-input') as Promise<{ path: string; content: string } | null>,
   writeOutput: (filename, content) => ipcRenderer.invoke('file:write-output', filename, content) as Promise<{ ok: boolean; path?: string; error?: string }>,

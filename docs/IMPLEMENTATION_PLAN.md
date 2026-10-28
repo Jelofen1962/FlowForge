@@ -27,7 +27,8 @@
 - [ ] Phase 6 variables/library: editable workflow variables and locally persisted reusable-workflow library started; subworkflow invocation, secret/environment handling and dependency/version tracking remain.
 - [x] Phase 7 data/batch (initial increment): Workflow-level CSV export action and a 10,000-total-iteration ceiling across nested loops. Existing loops already check cancellation between iterations.
 - [ ] Phase 7 remaining: bounded concurrency for non-browser batch tasks, cancellation of in-flight browser commands, and resume checkpoints.
-- [ ] Phase 8 reliability/release: breakpoints, recovery, durable run history, security/accessibility, integration/E2E tests and Windows installer validation.
+- [x] Phase 8 reliability/release (initial increment): durable, capped run-summary history stored atomically; renderer displays the latest 50 summaries without persisting variable values or logs.
+- [ ] Phase 8 remaining: breakpoints, resume/recovery checkpoints, broader accessibility review, integration/E2E tests, dependency refresh and Windows installer validation.
 
 ## Acceptance criteria
 

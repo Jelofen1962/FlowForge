@@ -4,13 +4,30 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromeSession } from '../automation/chromeSession';
 import { serializeWorkflow, validateWorkflow } from '../workflow/schema';
-import { createDefaultRegistry, executeWorkflow } from '../workflow/engine';
+import { createDefaultRegistry, executeWorkflow, type RunResult } from '../workflow/engine';
 import { registerAutomationActions } from '../automation/actions';
+import type { RunHistoryEntry } from '../shared/ipc';
 
 let mainWindow: BrowserWindow | null = null;
 const isDev = !app.isPackaged;
 const activeRuns = new Map<string, AbortController>();
 const workflowsDir = () => path.join(app.getPath('userData'), 'workflows');
+const runHistoryPath = () => path.join(app.getPath('userData'), 'run-history.json');
+
+async function readRunHistory(): Promise<RunHistoryEntry[]> {
+  try {
+    const parsed: unknown = JSON.parse(await fs.readFile(runHistoryPath(), 'utf8'));
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is RunHistoryEntry => Boolean(entry && typeof entry.id === 'string' && typeof entry.workflowName === 'string' && typeof entry.startedAt === 'string' && typeof entry.durationMs === 'number' && ['succeeded', 'failed', 'cancelled'].includes(entry.status) && typeof entry.steps === 'number')).slice(0, 50) : [];
+  } catch { return []; }
+}
+
+async function saveRunHistory(entries: RunHistoryEntry[]): Promise<void> {
+  const file = runHistoryPath();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.tmp`;
+  await fs.writeFile(temporary, JSON.stringify(entries.slice(0, 50), null, 2), 'utf8');
+  await fs.rename(temporary, file);
+}
 
 function assertTrustedSender(event: Electron.IpcMainInvokeEvent): void {
   const url = event.senderFrame?.url ?? '';
@@ -33,17 +50,29 @@ function registerIpc(): void {
     if (!validation.workflow) throw new Error(`Invalid workflow file: ${validation.errors.join('; ')}`);
     return validation.workflow;
   });
+  ipcMain.handle('workflow:history', async (event) => { assertTrustedSender(event); return readRunHistory(); });
   ipcMain.handle('workflow:run', async (event, input: unknown, runId: unknown) => {
     assertTrustedSender(event);
-    if (Buffer.byteLength(JSON.stringify(input) ?? '', 'utf8') > 10 * 1024 * 1024) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow exceeds the 10 MB limit' };
+    let serialized: string;
+    try { serialized = JSON.stringify(input) ?? ''; } catch { return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow input is not serializable' }; }
+    if (Buffer.byteLength(serialized, 'utf8') > 10 * 1024 * 1024) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow exceeds the 10 MB limit' };
     if (typeof runId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(runId) || activeRuns.has(runId)) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Invalid or duplicate run id' };
     if (activeRuns.size > 0) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Only one workflow can run at a time because the browser session is shared' };
     const controller = new AbortController();
     activeRuns.set(runId, controller);
+    const startedAt = new Date().toISOString();
+    const started = Date.now();
     const registry = createDefaultRegistry();
     registerAutomationActions(registry, path.join(app.getPath('userData'), 'outputs'));
-    try { return await executeWorkflow(input, registry, { maxSteps: 1000, signal: controller.signal }); }
-    finally { activeRuns.delete(runId); }
+    try {
+      let result: RunResult;
+      try { result = await executeWorkflow(input, registry, { maxSteps: 1000, signal: controller.signal }); }
+      catch (error) { result = { status: controller.signal.aborted ? 'cancelled' as const : 'failed' as const, steps: [], variables: {}, logs: [], ...(!controller.signal.aborted ? { error: error instanceof Error ? error.message : String(error) } : {}) }; }
+      const parsed = validateWorkflow(input).workflow;
+      const entry: RunHistoryEntry = { id: runId, workflowName: parsed?.name ?? 'Invalid workflow', startedAt, durationMs: Date.now() - started, status: result.status, steps: result.steps.length, ...(result.error ? { error: result.error.slice(0, 1000) } : {}) };
+      try { await saveRunHistory([entry, ...await readRunHistory()]); } catch (error) { console.error('Could not persist workflow run history:', error); }
+      return result;
+    } finally { activeRuns.delete(runId); }
   });
   ipcMain.handle('workflow:cancel', (event, runId: unknown) => {
     assertTrustedSender(event);

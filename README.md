@@ -95,3 +95,8 @@ Use the **Variables** panel to add, edit, type, and remove workflow variables. R
 ### Workflow CSV export
 
 Use the **Export CSV** action with `rows` set to an array of objects (for example `{{variables.items}}`) and a `.csv` filename. The action uses the built-in CSV encoder, rejects unsafe filenames, and caps output at 50 MB. Nested loops share a 10,000-iteration ceiling per workflow run.
+
+
+### Run history
+
+The desktop app stores up to 50 recent run summaries in its local user-data directory. Summaries include workflow name, timestamp, duration, status, step count, and an optional error. Variable values and execution logs are not saved in this history.

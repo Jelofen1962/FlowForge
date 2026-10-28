@@ -115,3 +115,12 @@ These were two separate model review passes, not independent human approvals. No
 - Added a regression test for the nested-loop ceiling.
 - Verification: pending syntax transpilation; full npm typecheck/lint/tests/build remain blocked by unavailable dependencies.
 - Remaining Phase 7 work: bounded concurrency for safe non-browser batch tasks, in-flight WebDriver cancellation, and resume checkpoints.
+
+
+## Phase 8 start: durable run summaries
+
+- Added main-process run-history persistence under the app's user-data directory. Each run records workflow name, start time, duration, status, step count, and a bounded error message; the history is atomically replaced and capped at 50 entries.
+- Added a trusted IPC read method and a Runs panel list. Workflow variable values and execution logs are intentionally excluded from history.
+- Hardened workflow-run input sizing against non-serializable values and ensured unexpected execution errors become a failed/cancelled result rather than escaping the run handler.
+- Remaining: breakpoints, recovery checkpoints, accessibility/E2E coverage, dependency refresh, and Windows packaging validation.
+- Verification limitation: dependencies are unavailable in this environment; only syntax transpilation and archive integrity can be checked here. No full typecheck, test, lint, build, or installer success is claimed.
