@@ -25,6 +25,7 @@ const nodeMeta: Record<string, { label: string; description: string; icon: typeo
   forEach: { label: 'For each item', description: 'Iterate over a bounded collection.', icon: GitBranch, tint: 'orange' },
   if: { label: 'Condition', description: 'Route execution based on a condition.', icon: GitBranch, tint: 'orange' },
   writeFile: { label: 'Save output', description: 'Write data to a selected output file.', icon: Save, tint: 'green' },
+  exportCsv: { label: 'Export CSV', description: 'Export an array of row objects to a CSV file.', icon: ArrowDownToLine, tint: 'green' },
   log: { label: 'Log message', description: 'Write a message to the execution console.', icon: Activity, tint: 'slate' },
   subworkflow: { label: 'Run workflow', description: 'Call a reusable workflow from the library.', icon: Puzzle, tint: 'violet' },
 };
@@ -44,7 +45,7 @@ function previewOutput(value: unknown): string {
 }
 
 const modes = ['Workflow Builder', 'Web Scraping', 'Task Automation', 'Recorder', 'Data Processing', 'Runs / History'];
-const implementedActions = new Set(['start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'extractItems', 'setVariable', 'writeFile', 'log', 'if', 'forEach']);
+const implementedActions = new Set(['start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'extractItems', 'setVariable', 'writeFile', 'exportCsv', 'log', 'if', 'forEach']);
 
 function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
   const meta = nodeMeta[data.kind] ?? nodeMeta.log;
@@ -184,7 +185,7 @@ function App() {
   const addNode = (kind: string) => {
     const meta = nodeMeta[kind];
     const id = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
-    const node: FlowNode = { id, type: 'flowNode', position: { x: 380 + Math.random() * 60, y: 120 + nodes.length * 95 }, data: { label: meta.label, kind, description: meta.description, config: kind === 'openUrl' ? { url: '{{variables.startUrl}}' } : ['extractText', 'click', 'typeText', 'waitForElement', 'readAttribute'].includes(kind) ? { selector: 'h1', strategy: 'css', ...(kind === 'extractText' ? { outputVariable: 'pageTitle' } : {}), ...(kind === 'typeText' ? { text: '', clear: true } : {}), ...(kind === 'waitForElement' ? { timeoutMs: 10000 } : {}), ...(kind === 'readAttribute' ? { attribute: 'textContent', outputVariable: 'result' } : {}) } : kind === 'extractLinks' ? { selector: 'a[href]', outputVariable: 'links' } : kind === 'extractItems' ? { itemSelector: '.product-card', fields: { title: 'h2', link: 'a[href]' }, nextSelector: '', maxPages: 1, outputVariable: 'items' } : kind === 'setVariable' ? { name: 'result', value: '' } : kind === 'log' ? { message: 'Workflow step completed' } : kind === 'writeFile' ? { filename: 'output.json', content: '{{variables.result}}' } : kind === 'forEach' ? { items: '{{variables.items}}', maxItems: 1000, actions: [{ type: 'log', config: { message: '{{item}}' } }] } : kind === 'if' ? { left: '{{variables.value}}', operator: 'equals', right: '' } : {} } };
+    const node: FlowNode = { id, type: 'flowNode', position: { x: 380 + Math.random() * 60, y: 120 + nodes.length * 95 }, data: { label: meta.label, kind, description: meta.description, config: kind === 'openUrl' ? { url: '{{variables.startUrl}}' } : ['extractText', 'click', 'typeText', 'waitForElement', 'readAttribute'].includes(kind) ? { selector: 'h1', strategy: 'css', ...(kind === 'extractText' ? { outputVariable: 'pageTitle' } : {}), ...(kind === 'typeText' ? { text: '', clear: true } : {}), ...(kind === 'waitForElement' ? { timeoutMs: 10000 } : {}), ...(kind === 'readAttribute' ? { attribute: 'textContent', outputVariable: 'result' } : {}) } : kind === 'extractLinks' ? { selector: 'a[href]', outputVariable: 'links' } : kind === 'extractItems' ? { itemSelector: '.product-card', fields: { title: 'h2', link: 'a[href]' }, nextSelector: '', maxPages: 1, outputVariable: 'items' } : kind === 'setVariable' ? { name: 'result', value: '' } : kind === 'log' ? { message: 'Workflow step completed' } : kind === 'writeFile' ? { filename: 'output.json', content: '{{variables.result}}' } : kind === 'exportCsv' ? { filename: 'output.csv', rows: '{{variables.items}}' } : kind === 'forEach' ? { items: '{{variables.items}}', maxItems: 1000, actions: [{ type: 'log', config: { message: '{{item}}' } }] } : kind === 'if' ? { left: '{{variables.value}}', operator: 'equals', right: '' } : {} } };
     setNodes((current) => [...current, node]);
     setSelectedId(id);
     setNotice(`${meta.label} added to canvas`);

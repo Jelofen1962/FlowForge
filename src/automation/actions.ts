@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ActionRegistry } from '../workflow/engine';
 import { chromeSession } from './chromeSession';
+import { stringifyCsv } from '../data/formats';
 
 export function registerAutomationActions(registry: ActionRegistry, outputDirectory: string): void {
   registry.register('click', async (config) => {
@@ -55,6 +56,19 @@ export function registerAutomationActions(registry: ActionRegistry, outputDirect
     const rows = await chromeSession.extractItems(config.itemSelector, fields as Record<string, string>, typeof config.nextSelector === 'string' ? config.nextSelector : '', Number(config.maxPages ?? 1));
     if (typeof config.outputVariable === 'string' && config.outputVariable) context.variables[config.outputVariable] = rows;
     return rows;
+  });
+  registry.register('exportCsv', async (config) => {
+    const filename = typeof config.filename === 'string' ? config.filename : 'output.csv';
+    if (filename !== path.basename(filename) || !/^[^\\/:*?"<>|]+\.csv$/i.test(filename) || filename === '.' || filename === '..') throw new Error('CSV filename must be a simple .csv filename');
+    if (!Array.isArray(config.rows) || config.rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) throw new Error('CSV export requires an array of row objects');
+    const serialized = stringifyCsv(config.rows as object[]);
+    if (Buffer.byteLength(serialized, 'utf8') > 50 * 1024 * 1024) throw new Error('CSV output exceeds the 50 MB limit');
+    await fs.mkdir(outputDirectory, { recursive: true });
+    const destination = path.join(outputDirectory, filename);
+    const temporary = `${destination}.tmp`;
+    await fs.writeFile(temporary, serialized, 'utf8');
+    await fs.rename(temporary, destination);
+    return { path: destination, rows: config.rows.length, bytes: Buffer.byteLength(serialized, 'utf8') };
   });
   registry.register('writeFile', async (config) => {
     const filename = typeof config.filename === 'string' ? config.filename : 'output.json';

@@ -25,7 +25,8 @@
 - [ ] Phase 4 scraping: live preview UI and pagination integration tests.
 - [x] Phase 5 initial increment: visual extraction-field editor. Live preview and pagination tests remain.
 - [ ] Phase 6 variables/library: editable workflow variables and locally persisted reusable-workflow library started; subworkflow invocation, secret/environment handling and dependency/version tracking remain.
-- [ ] Phase 7 data/batch: Workflow-level CSV export, nested loops, bounded concurrency, cancellation during active operations and resume checkpoints.
+- [x] Phase 7 data/batch (initial increment): Workflow-level CSV export action and a 10,000-total-iteration ceiling across nested loops. Existing loops already check cancellation between iterations.
+- [ ] Phase 7 remaining: bounded concurrency for non-browser batch tasks, cancellation of in-flight browser commands, and resume checkpoints.
 - [ ] Phase 8 reliability/release: breakpoints, recovery, durable run history, security/accessibility, integration/E2E tests and Windows installer validation.
 
 ## Acceptance criteria

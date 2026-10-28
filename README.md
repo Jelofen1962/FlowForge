@@ -90,3 +90,8 @@ In the desktop app, launch Managed Chrome in the Recorder or Web Scraping view a
 ### Variables and workflow library
 
 Use the **Variables** panel to add, edit, type, and remove workflow variables. Reference them in node settings with `{{variables.name}}`. The **Library** panel can save the current workflow locally and reopen saved copies. Library entries are stored in this renderer's local storage; they are not yet callable as nested workflow actions or shared across devices.
+
+
+### Workflow CSV export
+
+Use the **Export CSV** action with `rows` set to an array of objects (for example `{{variables.items}}`) and a `.csv` filename. The action uses the built-in CSV encoder, rejects unsafe filenames, and caps output at 50 MB. Nested loops share a 10,000-iteration ceiling per workflow run.

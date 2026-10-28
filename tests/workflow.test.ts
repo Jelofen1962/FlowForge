@@ -72,6 +72,18 @@ describe('workflow validation and execution', () => {
     expect(result.status).toBe('succeeded');
     expect(result.logs).toEqual(['1', '0', '1', '2', '0', '1']);
   });
+  it('caps total iterations across nested loops', async () => {
+    const nested: Workflow = {
+      schemaVersion: 1, id: 'loop-cap', name: 'Loop cap', variables: [],
+      nodes: [
+        { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 1 }, config: { items: Array.from({ length: 101 }, (_, i) => i), maxItems: 101, actions: [{ type: 'forEach', config: { items: Array.from({ length: 101 }, (_, i) => i), maxItems: 101, actions: [{ type: 'log', config: { message: 'x' } }] } }] }, disabled: false },
+      ], edges: [{ id: 'start-loop', source: 'start', target: 'loop' }],
+    };
+    const result = await executeWorkflow(nested);
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('10,000 total loop iterations');
+  });
   it('rejects invalid loop output handles', () => {
     const invalid: Workflow = { ...workflow, nodes: [...workflow.nodes, { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 0 }, config: {}, disabled: false }], edges: [...workflow.edges, { id: 'loop-edge', source: 'loop', target: 'log', sourceHandle: 'other' }] };
     expect(validateWorkflow(invalid).errors.join(' ')).toContain('item or done');

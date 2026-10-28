@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const NodeKind = z.enum([
-  'start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'extractItems', 'setVariable', 'forEach', 'if', 'writeFile', 'log', 'subworkflow',
+  'start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'extractItems', 'setVariable', 'forEach', 'if', 'writeFile', 'exportCsv', 'log', 'subworkflow',
 ]);
 export type NodeKind = z.infer<typeof NodeKind>;
 

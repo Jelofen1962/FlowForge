@@ -41,6 +41,7 @@ function evaluateCondition(config: Record<string, unknown>): boolean {
 
 export function createDefaultRegistry(): ActionRegistry {
   const registry = new ActionRegistry();
+  let loopIterations = 0;
   registry.register('start', async () => undefined);
   registry.register('if', async (config) => evaluateCondition(config));
   registry.register('setVariable', async (config, context) => {
@@ -63,6 +64,7 @@ export function createDefaultRegistry(): ActionRegistry {
     const results: unknown[] = [];
     for (let index = 0; index < items.length; index++) {
       if (context.signal?.aborted) throw new Error('Loop cancelled');
+      if (++loopIterations > 10000) throw new Error('Workflow exceeded 10,000 total loop iterations');
       const itemResults: unknown[] = [];
       for (const action of config.actions as { type?: unknown; config?: unknown }[]) {
         if (!action || typeof action.type !== 'string' || !action.config || typeof action.config !== 'object' || Array.isArray(action.config)) {
@@ -70,7 +72,7 @@ export function createDefaultRegistry(): ActionRegistry {
         }
         const handler = registry.get(action.type);
         if (!handler) throw new Error(`No handler registered for loop action: ${action.type}`);
-        const actionContext = { variables: context.variables, item: items[index], index };
+        const actionContext = { variables: context.variables, item: items[index], index, signal: context.signal, log: context.log };
         const rawConfig = action.config as Record<string, unknown>;
         const resolved = action.type === 'forEach'
           ? { ...rawConfig, items: resolveExpression(rawConfig.items, actionContext), maxItems: resolveExpression(rawConfig.maxItems ?? 1000, actionContext) }

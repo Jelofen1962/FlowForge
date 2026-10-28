@@ -106,3 +106,12 @@ These were two separate model review passes, not independent human approvals. No
 - Added a local reusable-workflow library backed by renderer localStorage. Users can save a copy of the current workflow, load a saved workflow, or remove it from the library.
 - Scope is deliberately limited: library workflows can be reopened/reused as starting points, but calling a library workflow as a subworkflow node, shared cross-project storage, secret masking/environment injection, and version/dependency tracking are not implemented yet.
 - Full npm typecheck/lint/tests/build remain unverified because dependencies are unavailable.
+
+
+## Phase 7 start: data export and loop safety (2026-10-28)
+
+- Added an `Export CSV` workflow action that writes arrays of row objects to a `.csv` file using the existing CSV encoder and atomic temporary-file rename. Output filename and 50 MB size are validated.
+- Added a 10,000-total-iteration ceiling shared across nested `forEach` actions, preventing nested-loop multiplication from running unbounded. Loop cancellation is checked between iterations and signals are passed to nested handlers.
+- Added a regression test for the nested-loop ceiling.
+- Verification: pending syntax transpilation; full npm typecheck/lint/tests/build remain blocked by unavailable dependencies.
+- Remaining Phase 7 work: bounded concurrency for safe non-browser batch tasks, in-flight WebDriver cancellation, and resume checkpoints.
