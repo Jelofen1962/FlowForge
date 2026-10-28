@@ -111,3 +111,11 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - Validate output mapping shape, identifier names, and reserved property names before execution; the node inspector edits the mapping as JSON.
 - Added regression tests for mapped values flowing into downstream nodes and invalid output mappings.
 - Verification gate: run unit tests, strict typecheck, lint, build, and browser integration in CI. Dependencies are not installed in this workspace, so this phase is not claimed as test-verified.
+
+## Phase 15: persistence and data-safety hardening
+
+- Centralized workflow, run-history, and user-selected output writes through a same-directory temporary file followed by rename, with cleanup on failure.
+- Unique temporary names avoid collisions between interrupted writes and stale `.tmp` files.
+- Workflow-save IPC now catches non-serializable input instead of throwing before returning a structured error.
+- Output-write failures return a structured error and do not report success.
+- Verification gate: run strict typecheck, lint, tests, production build, Chrome integration, and Windows packaging in CI. This environment has no installed project dependencies, so those checks remain unverified.

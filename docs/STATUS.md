@@ -203,3 +203,7 @@ The managed Chrome smoke test now scopes link extraction to the titled `Continue
 - Schema validation checks output mapping shape and rejects invalid/reserved variable names. The inspector parses `outputs` as JSON like `inputs`.
 - Added regression tests for downstream use of mapped outputs and malformed mappings.
 - Verification: source syntax transpilation and archive integrity only. Vitest, strict typecheck, ESLint, production build, and Chrome integration still require the dependency-backed CI run.
+
+## Phase 15: persistence and data-safety hardening
+
+Workflow saves, run-history updates, and output-file writes now share an atomic-write helper that writes to a unique temporary file in the destination directory and renames it into place. Temporary files are removed after failures. Workflow-save IPC catches JSON serialization failures and output-save IPC returns a structured failure rather than claiming success. Full dependency-backed CI and Windows packaging remain required.

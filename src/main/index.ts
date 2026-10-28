@@ -14,6 +14,18 @@ const activeRuns = new Map<string, AbortController>();
 const workflowsDir = () => path.join(app.getPath('userData'), 'workflows');
 const runHistoryPath = () => path.join(app.getPath('userData'), 'run-history.json');
 
+async function writeFileAtomically(file: string, content: string): Promise<void> {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(temporary, content, { encoding: 'utf8', flag: 'wx' });
+    await fs.rename(temporary, file);
+  } catch (error) {
+    await fs.rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
 async function readRunHistory(): Promise<RunHistoryEntry[]> {
   try {
     const parsed: unknown = JSON.parse(await fs.readFile(runHistoryPath(), 'utf8'));
@@ -22,11 +34,7 @@ async function readRunHistory(): Promise<RunHistoryEntry[]> {
 }
 
 async function saveRunHistory(entries: RunHistoryEntry[]): Promise<void> {
-  const file = runHistoryPath();
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.tmp`;
-  await fs.writeFile(temporary, JSON.stringify(entries.slice(0, 50), null, 2), 'utf8');
-  await fs.rename(temporary, file);
+  await writeFileAtomically(runHistoryPath(), JSON.stringify(entries.slice(0, 50), null, 2));
 }
 
 function assertTrustedSender(event: Electron.IpcMainInvokeEvent): void {
@@ -95,17 +103,16 @@ function registerIpc(): void {
   });
   ipcMain.handle('workflow:save', async (event, input: unknown) => {
     assertTrustedSender(event);
-    if (Buffer.byteLength(JSON.stringify(input) ?? '', 'utf8') > 10 * 1024 * 1024) return { ok: false, error: 'Workflow exceeds the 10 MB limit' };
+    let serialized: string;
+    try { serialized = JSON.stringify(input) ?? ''; } catch { return { ok: false, error: 'Workflow input is not serializable' }; }
+    if (Buffer.byteLength(serialized, 'utf8') > 10 * 1024 * 1024) return { ok: false, error: 'Workflow exceeds the 10 MB limit' };
     const validation = validateWorkflow(input);
     if (!validation.workflow) return { ok: false, error: `Workflow validation failed: ${validation.errors.join('; ')}` };
     const workflow = validation.workflow;
-    await fs.mkdir(workflowsDir(), { recursive: true });
     const safeName = workflow.name.replace(/[^a-z0-9-_ ]/gi, '').trim().slice(0, 80) || 'workflow';
     const safeId = workflow.id.replace(/[^a-z0-9-_]/gi, '').slice(0, 12) || 'workflow';
     const filePath = path.join(workflowsDir(), `${safeName}-${safeId}.flow.json`);
-    const tempPath = `${filePath}.tmp`;
-    await fs.writeFile(tempPath, serializeWorkflow(workflow), 'utf8');
-    await fs.rename(tempPath, filePath);
+    await writeFileAtomically(filePath, serializeWorkflow(workflow));
     return { ok: true, path: filePath };
   });
   ipcMain.handle('file:choose-input', async (event) => {
@@ -161,7 +168,8 @@ function registerIpc(): void {
     if (Buffer.byteLength(content, 'utf8') > 50 * 1024 * 1024) return { ok: false, error: 'Output exceeds the 50 MB limit' };
     const result = await dialog.showSaveDialog({ defaultPath: filename, title: 'Save FlowForge output' });
     if (result.canceled || !result.filePath) return { ok: false, error: 'Save cancelled' };
-    await fs.writeFile(result.filePath, content, 'utf8');
+    try { await writeFileAtomically(result.filePath, content); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
     return { ok: true, path: result.filePath };
   });
 }
