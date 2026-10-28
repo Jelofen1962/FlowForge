@@ -1,4 +1,4 @@
-const EXPRESSION = /^\{\{\s*([A-Za-z_][A-Za-z0-9_.\[\]]*)\s*\}\}$/;
+const EXPRESSION = /^\{\{\s*([A-Za-z_][A-Za-z0-9_.]*(?:\[\d+\])*(?:\.[A-Za-z_][A-Za-z0-9_]*(?:\[\d+\])*)*)\s*\}\}$/;
 
 function readPath(path: string, context: Record<string, unknown>): unknown {
   const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');

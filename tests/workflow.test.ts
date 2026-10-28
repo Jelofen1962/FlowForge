@@ -103,7 +103,7 @@ describe('batch processing', () => {
 
 describe('text and CSV formats', () => {
   it('parses quoted CSV cells and escapes output', () => {
-    const rows = parseCsv('name,notes\r\nAda,\"hello, world\"\r\nLin,\"said \"\"hi\"\"\"');
+    const rows = parseCsv('name,notes\r\nAda,"hello, world"\r\nLin,"said ""hi"""');
     expect(rows[0].notes).toBe('hello, world');
     expect(parseCsv(stringifyCsv(rows))).toEqual(rows);
   });

@@ -89,7 +89,7 @@ export class ChromeSession {
         const overlay = document.createElement('div');
         Object.assign(overlay.style, { position: 'fixed', zIndex: '2147483647', pointerEvents: 'none', background: 'rgba(255, 0, 0, 0.4)', border: '2px solid rgba(255, 0, 0, 0.95)', boxSizing: 'border-box', display: 'none' });
         document.documentElement.appendChild(overlay);
-        let timer: number;
+        let timer = 0;
         const cssEscape = (value: string) => CSS.escape(value);
         const cssPath = (element: Element): string => {
           if (element.id) return `#${cssEscape(element.id)}`;
