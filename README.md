@@ -55,3 +55,11 @@ Checks that did run successfully:
 - `package.json` parses as valid JSON.
 
 See `docs/IMPLEMENTATION_PLAN.md` and `docs/STATUS.md` for acceptance criteria, review notes and remaining work.
+
+## GitHub Actions release configuration
+
+- CI deliberately does not enable `setup-node`'s npm cache until `package-lock.json` is committed. This prevents setup-node from failing before installation because it cannot find a lockfile.
+- The Windows packaging job receives `GH_TOKEN` from the repository Actions secret named `GH_TOKEN`. Never put the token value in this repository or workflow file.
+- The Windows packaging job runs on manual dispatch, `main` pushes, and `v*` tags, not on pull requests. It uploads `release/*Setup.exe` as the `FlowForge-Windows-Installer` Actions artifact.
+- Add `GH_TOKEN` under **Repository Settings → Secrets and variables → Actions**. The token needs permission to publish releases to this repository. For a fine-grained token, grant repository **Contents: Read and write**.
+- A committed npm lockfile is still recommended for deterministic CI. Generate it locally with `npm install`, commit `package-lock.json`, and then `cache: npm` can safely be enabled.
