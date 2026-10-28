@@ -150,3 +150,6 @@ These were two separate model review passes, not independent human approvals. No
 - Verification remains partial in this workspace: Vitest is not installed, so the new regression test and full suite cannot be run here. TypeScript syntax transpilation and archive integrity are checked separately; CI must still confirm typecheck, tests, lint, build, and Chrome integration.
 
 - Phase 10 follow-up: cancellation is now checked before every inline loop action, preventing later actions in the same iteration from running after an earlier action requests cancellation. Added a regression test asserting the workflow returns `cancelled` and the following action is skipped. Full Vitest/typecheck/lint/build remain unverified until dependencies are installed.
+
+
+- Phase 10 follow-up: cancelling an active workflow now requests the managed Chrome session to stop, allowing WebDriver work to be interrupted instead of merely waiting for the current command. Final cleanup also stops a session that finishes starting during cancellation. Browser integration and dependency-backed CI still need to verify this behavior.

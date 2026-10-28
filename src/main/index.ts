@@ -59,6 +59,10 @@ function registerIpc(): void {
     if (typeof runId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(runId) || activeRuns.has(runId)) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Invalid or duplicate run id' };
     if (activeRuns.size > 0) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Only one workflow can run at a time because the browser session is shared' };
     const controller = new AbortController();
+    const stopBrowserOnCancel = () => {
+      void chromeSession.stop().catch((error) => console.error('Could not stop browser after cancellation:', error));
+    };
+    controller.signal.addEventListener('abort', stopBrowserOnCancel, { once: true });
     activeRuns.set(runId, controller);
     const startedAt = new Date().toISOString();
     const started = Date.now();
@@ -72,7 +76,14 @@ function registerIpc(): void {
       const entry: RunHistoryEntry = { id: runId, workflowName: parsed?.name ?? 'Invalid workflow', startedAt, durationMs: Date.now() - started, status: result.status, steps: result.steps.length, ...(result.error ? { error: result.error.slice(0, 1000) } : {}) };
       try { await saveRunHistory([entry, ...await readRunHistory()]); } catch (error) { console.error('Could not persist workflow run history:', error); }
       return result;
-    } finally { activeRuns.delete(runId); }
+    } finally {
+      controller.signal.removeEventListener('abort', stopBrowserOnCancel);
+      // Also catch a browser session that finished starting after cancellation was requested.
+      if (controller.signal.aborted) {
+        try { await chromeSession.stop(); } catch (error) { console.error('Could not clean up cancelled browser session:', error); }
+      }
+      activeRuns.delete(runId);
+    }
   });
   ipcMain.handle('workflow:cancel', (event, runId: unknown) => {
     assertTrustedSender(event);

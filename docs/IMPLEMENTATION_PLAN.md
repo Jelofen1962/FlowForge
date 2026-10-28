@@ -65,3 +65,9 @@
 - Shared the same iteration budget with nested subworkflow calls so nesting cannot reset the safety ceiling.
 - Added a regression test that runs a 10,000-iteration workflow twice with the same registry and expects both independent runs to succeed.
 - Phase 10 verification gate: run dependency-backed tests, strict typecheck, lint, production build, and a real-browser smoke test in CI before calling the phase release-verified.
+
+
+## Phase 10 reliability follow-up
+
+- Cancellation requests now stop the managed Chrome session to interrupt in-flight browser actions; final cleanup handles a browser startup that races with cancellation.
+- Validate with a real Chrome integration test and the full CI gate before treating cancellation as release-ready.
