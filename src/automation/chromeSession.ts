@@ -215,7 +215,6 @@ export class ChromeSession {
           const css = cssPath(element);
           const xpath = xpathPath(element);
           const id = element.id;
-          const name = element.getAttribute('name') ?? '';
           const cssMatches = (selector: string) => { try { return document.querySelectorAll(selector).length; } catch { return 0; } };
           const xpathMatches = (selector: string) => { try { return document.evaluate(selector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength; } catch { return 0; } };
           const selectors: ElementSnapshot['selectors'] = [];

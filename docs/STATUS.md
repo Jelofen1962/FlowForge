@@ -184,3 +184,9 @@ These were two separate model review passes, not independent human approvals. No
 - Enabled the existing image-extraction action from the quick-tools panel instead of leaving it incorrectly marked as planned.
 - Updated stale workflow-library help text to describe embedded subworkflow snapshots.
 - Validation: source-level syntax checks and ZIP integrity are run for this archive. The Chrome integration suite must pass in the project's GitHub Actions environment to verify real browser behavior.
+
+
+## Phase 13 CI follow-up
+
+- Fixed GitHub Actions ESLint failure at `src/automation/chromeSession.ts:218` by removing an unused local `name` variable. The locator loop already reads the `name` attribute directly, so behavior is unchanged.
+- Verification in this archive: package metadata, workflow YAML, and TypeScript syntax checks; rerun GitHub Actions to confirm the remote quality job is green.
