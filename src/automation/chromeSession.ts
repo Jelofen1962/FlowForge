@@ -190,7 +190,7 @@ export class ChromeSession {
           let current: Element | null = element;
           while (current && current !== document.documentElement && parts.length < 6) {
             let part = current.tagName.toLowerCase();
-            const parent = current.parentElement;
+            const parent: Element | null = current.parentElement;
             if (parent) {
               const siblings = [...parent.children].filter((child) => child.tagName === current!.tagName);
               if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
