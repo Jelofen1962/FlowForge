@@ -40,3 +40,16 @@ Release risk: the dependency manifest uses initial compatibility versions (inclu
 - Remaining blockers: recorder action capture is limited to element selection-to-click-node conversion; no keyboard navigation/E2E audit was possible; history/resume and true nested loops remain unimplemented.
 
 These were two separate model review passes, not independent human approvals. No human reviewer approval is claimed.
+
+
+## 2026-10-28 quality-fix pass
+
+- Fixed the reported React JSX runtime warning by importing `StrictMode` from React.
+- Removed the `Workflow` icon/type name collision by aliasing the Lucide icon to `WorkflowIcon`.
+- Explicitly typed React Flow edge state.
+- Split Vitest configuration into `vitest.config.ts` and kept `vite.config.ts` on Vite's own `defineConfig` type to avoid Vite/Vitest config overload conflicts.
+- Simplified the CSS selector escaping branch to use the standard `CSS.escape` API.
+- Upgraded GitHub Actions checkout/setup-node to v5, which uses the Node 24 action runtime and addresses the Node 20 deprecation warning.
+- Verification limitation: `npm install --no-audit --no-fund` timed out in this environment, so full typecheck, lint, test, and build results remain unverified here.
+
+**Current phase:** Phase 1 quality/build-blocker fixes, with Phase 2 (graph editor and graph schema) already partially implemented. Phase 1 is not complete until CI checks pass.

@@ -90,7 +90,7 @@ export class ChromeSession {
         Object.assign(overlay.style, { position: 'fixed', zIndex: '2147483647', pointerEvents: 'none', background: 'rgba(255, 0, 0, 0.4)', border: '2px solid rgba(255, 0, 0, 0.95)', boxSizing: 'border-box', display: 'none' });
         document.documentElement.appendChild(overlay);
         let timer: number;
-        const cssEscape = (value: string) => window.CSS?.escape ? CSS.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+        const cssEscape = (value: string) => CSS.escape(value);
         const cssPath = (element: Element): string => {
           if (element.id) return `#${cssEscape(element.id)}`;
           const parts: string[] = [];
