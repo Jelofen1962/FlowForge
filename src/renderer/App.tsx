@@ -7,7 +7,7 @@ import { detectJsonFields, parseJson } from '../data/jsonFields';
 import { parseCsv, parseTextLines, stringifyCsv } from '../data/formats';
 import { createDefaultRegistry, executeWorkflow, type RunResult } from '../workflow/engine';
 import { validateWorkflow, type Workflow, type WorkflowNode } from '../workflow/schema';
-import type { ElementSnapshot } from '../automation/chromeSession';
+import type { ElementSnapshot, RecordedAction } from '../automation/chromeSession';
 
 type FlowNodeData = { label: string; kind: string; description: string; config: Record<string, unknown>; status?: string; group?: string };
 type FlowNode = Node<FlowNodeData>;
@@ -159,12 +159,20 @@ function App() {
       const mod = event.ctrlKey || event.metaKey;
       if (mod && event.key.toLowerCase() === 'z') {
         event.preventDefault();
-        if (event.shiftKey) redo();
-        else undo();
+        if (event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if (mod && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        redo();
+      } else if (mod && event.key.toLowerCase() === 'c') {
+        copySelected();
+      } else if (mod && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        pasteCopied();
       }
-      else if (mod && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
-      else if (mod && event.key.toLowerCase() === 'c') copySelected();
-      else if (mod && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteCopied(); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -246,6 +254,32 @@ function App() {
     const preferred = result.element.selectors.find((selector) => selector.strategy === 'id' && selector.matches === 1) ?? result.element.selectors.find((selector) => selector.strategy === 'css' && selector.matches === 1) ?? result.element.selectors[0];
     setLocatorStrategy(preferred.strategy); setLocatorValue(preferred.value); setLocatorResult(`${preferred.matches} match(es)`); setNotice(`Selected <${result.element.tagName}>`);
   };
+  const recordNextAction = async () => {
+    if (!window.flowforge || !browserReady) { setNotice('Launch the managed Chrome session first.'); return; }
+    setNotice('Recording next browser action. Interact with the page in Chrome; press Escape to cancel.');
+    const result = await window.flowforge.browser.recordNextAction();
+    if (!result.ok || !result.action) { setNotice(result.error ?? 'Action recording failed'); return; }
+    const action: RecordedAction = result.action;
+    const id = `${action.kind}-${Math.random().toString(36).slice(2, 7)}`;
+    const node: FlowNode = {
+      id, type: 'flowNode',
+      position: { x: selectedNode?.position.x ?? 110, y: Math.max(...nodes.map((item) => item.position.y), 0) + 150 },
+      data: {
+        label: action.kind === 'click' ? `Click ${action.tagName}` : `Type into ${action.tagName}`,
+        kind: action.kind, description: nodeMeta[action.kind].description,
+        config: { selector: action.selector, strategy: action.strategy, ...(action.value !== undefined ? { text: action.value } : {}) },
+      },
+    };
+    setNodes((current) => [...current, node]);
+    if (selectedNode) setEdges((current) => {
+      const downstream = current.filter((edge) => edge.source === selectedNode.id);
+      const remaining = current.filter((edge) => edge.source !== selectedNode.id);
+      return [...remaining, { id: `e-${selectedNode.id}-${id}`, source: selectedNode.id, target: id, animated: true, style: { stroke: '#6d82ff', strokeWidth: 1.6 } }, ...downstream.map((edge) => ({ ...edge, source: id, sourceHandle: undefined }))];
+    });
+    setSelectedId(id);
+    setNotice(`Recorded ${action.kind} on <${action.tagName}> and added it to the workflow`);
+  };
+
   const addSelectedElementAction = () => {
     if (!selectedElement) return;
     const id = `click-${Math.random().toString(36).slice(2, 7)}`;
@@ -317,7 +351,7 @@ function App() {
 
       <section className="editor-area">
         <div className="editor-toolbar"><div className="editor-title"><span className="canvas-icon"><WorkflowIcon size={16}/></span><div><strong>Workflow canvas</strong><small>{nodes.length} nodes <span>·</span> {edges.length} connections</small></div></div><div className="toolbar-actions"><button className="toolbar-button" onClick={undo} disabled={!undoReady} title="Undo (Ctrl/Cmd+Z)">Undo</button><button className="toolbar-button" onClick={redo} disabled={!redoReady} title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button><button className="toolbar-button" onClick={groupSelected} title="Select multiple nodes with Ctrl/Cmd-click"><Layers3 size={14}/> Group</button><button className="toolbar-button" onClick={() => { setNodes(initialNodes); setEdges(initialEdges); setNotice('Canvas reset to example workflow'); }}><ArrowDownToLine size={14}/> Reset example</button><span className="toolbar-separator"/><button className="icon-button subtle" title="Minimap is visible in canvas" onClick={() => setNotice('Use the minimap to navigate larger workflows.')}><ListTree size={15}/></button><button className="icon-button subtle" title="Step debugging is not implemented yet" disabled><Bug size={15}/></button><button className="icon-button subtle" title="Additional canvas settings are not implemented yet" disabled><Settings2 size={15}/></button></div></div>
-        {(mode === 'Recorder' || mode === 'Web Scraping') && <div className="browser-toolbar"><div className="browser-toolbar-title"><span className={`browser-live-dot ${browserReady ? 'on' : ''}`}/><strong>Managed Chrome</strong><small>{browserReady ? 'Session connected' : 'Session stopped'}</small></div><input aria-label="Browser URL" value={browserUrl} onChange={(event) => setBrowserUrl(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void navigateBrowser(); }} placeholder="https://example.com"/><button className="button-secondary small" onClick={startBrowser} disabled={browserReady}><Play size={13}/> Launch</button><button className="button-secondary small" onClick={navigateBrowser} disabled={!browserReady}><Globe2 size={13}/> Go</button><button className="button-primary small" onClick={pickElement} disabled={!browserReady}><MousePointer2 size={13}/> Alt+click picker</button><button className="icon-button" title="Stop Chrome" onClick={stopBrowser} disabled={!browserReady}><Square size={13}/></button></div>}
+        {(mode === 'Recorder' || mode === 'Web Scraping') && <div className="browser-toolbar"><div className="browser-toolbar-title"><span className={`browser-live-dot ${browserReady ? 'on' : ''}`}/><strong>Managed Chrome</strong><small>{browserReady ? 'Session connected' : 'Session stopped'}</small></div><input aria-label="Browser URL" value={browserUrl} onChange={(event) => setBrowserUrl(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void navigateBrowser(); }} placeholder="https://example.com"/><button className="button-secondary small" onClick={startBrowser} disabled={browserReady}><Play size={13}/> Launch</button><button className="button-secondary small" onClick={navigateBrowser} disabled={!browserReady}><Globe2 size={13}/> Go</button><button className="button-primary small" onClick={pickElement} disabled={!browserReady}><MousePointer2 size={13}/> Alt+click picker</button><button className="button-secondary small" onClick={() => void recordNextAction()} disabled={!browserReady}><CircleHelp size={13}/> Record next</button><button className="icon-button" title="Stop Chrome" onClick={stopBrowser} disabled={!browserReady}><Square size={13}/></button></div>}
         <div className="canvas-wrap"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} multiSelectionKeyCode={['Control', 'Meta']} selectionOnDrag={false} onNodeClick={(_event, node) => setSelectedId(node.id)} onPaneClick={() => setSelectedId('')} fitView minZoom={0.25} maxZoom={1.5} defaultEdgeOptions={{ animated: true }} proOptions={{ hideAttribution: true }}><Background color={dark ? '#252b3b' : '#dce1ec'} gap={23} size={1} variant={BackgroundVariant.Dots}/><Controls position="bottom-left" showInteractive={false}/><MiniMap position="bottom-right" nodeColor={(node) => ({ start: '#8b7cff', openUrl: '#6d82ff', extractText: '#43b7c5', extractLinks: '#43b7c5', setVariable: '#e8b45e', forEach: '#f08c52', if: '#f08c52', writeFile: '#4bbd8b', log: '#8b97aa', subworkflow: '#8b7cff' }[String((node.data as FlowNodeData).kind)] ?? '#6d82ff')} maskColor={dark ? 'rgba(10,13,20,.65)' : 'rgba(235,239,247,.65)'}/></ReactFlow><button className="canvas-add" onClick={() => addNode('log')}><Plus size={15}/> Add node</button><div className="canvas-hint"><span className="hint-key">Drag</span> to move <span className="hint-dot"/> <span className="hint-key">Connect</span> node ports</div></div>
         <div className="runbar"><div className="runbar-left"><span className={`run-light ${running ? 'active' : ''}`}/><span>{notice}</span></div><div className="runbar-right"><button className="button-secondary small" onClick={() => { const validation = validateWorkflow(workflow); setNotice(validation.errors.length ? validation.errors[0] : 'Graph validation passed'); }}><ShieldCheck size={14}/> Validate</button><button className="button-primary run-button" disabled={running} onClick={execute}>{running ? <Activity size={14} className="spin"/> : <Play size={14} fill="currentColor"/>}{running ? 'Running…' : 'Run workflow'}</button><button className="icon-button" title="Stop run" disabled={!running} onClick={async () => { if (activeRunId && window.flowforge) { const cancelled = await window.flowforge.cancelWorkflow(activeRunId); setNotice(cancelled ? 'Cancellation requested' : 'Run is already finishing'); } }}><Square size={14}/></button></div></div>
         {run && <div className="execution-panel"><div className="execution-head"><div><Activity size={15}/><strong>Latest execution</strong><span className={`run-tag ${run.status}`}>{run.status}</span></div><button className="icon-button subtle" onClick={() => setRun(null)}><X size={14}/></button></div><div className="execution-steps">{run.steps.map((step) => <div className="execution-step" key={step.nodeId}><span className={`step-check ${step.status}`}>{step.status === 'succeeded' ? <Check size={12}/> : <X size={12}/>}</span><strong>{nodes.find((node) => node.id === step.nodeId)?.data.label ?? step.nodeId}</strong><span>{step.durationMs} ms</span>{step.error && <code className="step-error">{step.error}</code>}{step.output !== undefined && <code className="step-output">{previewOutput(step.output)}</code>}</div>)}</div>{run.error && <p className="error-text">{run.error}</p>}{run.logs.length > 0 && <div className="run-logs">{run.logs.map((message, index) => <p key={`${index}:${message}`}>{message}</p>)}</div>}</div>}

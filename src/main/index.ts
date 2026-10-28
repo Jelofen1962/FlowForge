@@ -98,6 +98,11 @@ function registerIpc(): void {
     try { return { ok: true, element: await chromeSession.selectElement() }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
   });
+  ipcMain.handle('browser:record-next-action', async (event) => {
+    assertTrustedSender(event);
+    try { return { ok: true, action: await chromeSession.recordNextAction() }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+  });
   ipcMain.handle('browser:test-locator', async (event, strategy: unknown, value: unknown) => {
     assertTrustedSender(event);
     if (!['css', 'xpath', 'id'].includes(String(strategy)) || typeof value !== 'string' || value.length > 2048) return { ok: false, error: 'Invalid locator' };

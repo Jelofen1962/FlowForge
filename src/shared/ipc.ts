@@ -1,4 +1,4 @@
-import type { ElementSnapshot } from '../automation/chromeSession';
+import type { ElementSnapshot, RecordedAction } from '../automation/chromeSession';
 import type { RunResult } from '../workflow/engine';
 
 export interface FlowForgeApi {
@@ -15,6 +15,7 @@ export interface FlowForgeApi {
     status: () => Promise<boolean>;
     navigate: (url: string) => Promise<{ ok: boolean; url?: string; title?: string; error?: string }>;
     selectElement: () => Promise<{ ok: boolean; element?: ElementSnapshot; error?: string }>;
+    recordNextAction: () => Promise<{ ok: boolean; action?: RecordedAction; error?: string }>;
     testLocator: (strategy: string, value: string) => Promise<{ ok: boolean; matches?: number; firstText?: string; error?: string }>;
   };
 }

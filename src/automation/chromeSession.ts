@@ -1,6 +1,8 @@
 import { Builder, By, until, type WebDriver } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
 
+export interface RecordedAction { kind: 'click' | 'typeText'; selector: string; strategy: 'css'; value?: string; tagName: string }
+
 export interface ElementSnapshot {
   tagName: string;
   text: string;
@@ -170,6 +172,65 @@ export class ChromeSession {
     }
     if ('error' in selected) throw new Error(selected.error);
     return selected;
+  }
+
+  async recordNextAction(timeoutMs = 60_000): Promise<RecordedAction> {
+    const driver = this.requireDriver();
+    let result: RecordedAction | { error: string };
+    try {
+      result = await driver.executeAsyncScript<RecordedAction | { error: string }>((timeout: number, done: (value: RecordedAction | { error: string }) => void) => {
+        const w = window as Window & { __flowforgeRecorderCleanup?: () => void };
+        w.__flowforgeRecorderCleanup?.();
+        let timer = 0;
+        const selectorFor = (element: Element): string => {
+          if (element.id) return `#${CSS.escape(element.id)}`;
+          const name = element.getAttribute('name');
+          if (name) return `${element.tagName.toLowerCase()}[name="${CSS.escape(name)}"]`;
+          const parts: string[] = [];
+          let current: Element | null = element;
+          while (current && current !== document.documentElement && parts.length < 6) {
+            let part = current.tagName.toLowerCase();
+            const parent = current.parentElement;
+            if (parent) {
+              const siblings = [...parent.children].filter((child) => child.tagName === current!.tagName);
+              if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+            }
+            parts.unshift(part);
+            current = parent;
+          }
+          return parts.join(' > ');
+        };
+        const cleanup = () => {
+          clearTimeout(timer);
+          document.removeEventListener('click', onClick, true);
+          document.removeEventListener('change', onChange, true);
+          document.removeEventListener('keydown', onKey, true);
+          delete w.__flowforgeRecorderCleanup;
+        };
+        const finish = (action: RecordedAction | { error: string }) => { cleanup(); done(action); };
+        const onClick = (event: MouseEvent) => {
+          const target = event.target;
+          if (!(target instanceof Element) || target.closest('input,textarea,select,option,button') && target.closest('input,textarea,select')) return;
+          finish({ kind: 'click', selector: selectorFor(target), strategy: 'css', tagName: target.tagName.toLowerCase() });
+        };
+        const onChange = (event: Event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) return;
+          if (target instanceof HTMLInputElement && ['checkbox', 'radio', 'button', 'submit', 'file'].includes(target.type)) return;
+          finish({ kind: 'typeText', selector: selectorFor(target), strategy: 'css', value: target.value.slice(0, 100_000), tagName: target.tagName.toLowerCase() });
+        };
+        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') finish({ error: 'Recording cancelled' }); };
+        w.__flowforgeRecorderCleanup = cleanup;
+        document.addEventListener('click', onClick, true);
+        document.addEventListener('change', onChange, true);
+        document.addEventListener('keydown', onKey, true);
+        timer = window.setTimeout(() => finish({ error: 'Recording timed out' }), timeout);
+      }, timeoutMs);
+    } finally {
+      await driver.manage().setTimeouts({ script: 15_000 });
+    }
+    if ('error' in result) throw new Error(result.error);
+    return result;
   }
 
   async stop(): Promise<void> {

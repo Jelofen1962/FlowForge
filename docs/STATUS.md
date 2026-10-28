@@ -74,3 +74,12 @@ These were two separate model review passes, not independent human approvals. No
 - Added per-node execution result styling and distinct item/done loop ports.
 - Strengthened schema validation for conditional and loop connection handles; added regression tests for nested loops and invalid handles.
 - Verification is still blocked by missing npm dependencies. The implementation is not release-verified until typecheck, Vitest, ESLint, and production build pass.
+
+
+## Phase 3 start: browser action recording (2026-10-28)
+
+- Fixed the reported ESLint `no-unused-expressions` error in the undo/redo keyboard shortcut by using explicit `if/else` branches.
+- Added a one-action recorder in the managed Chrome session for click and text-input change events. It captures a CSS locator, action kind, tag name, and text value where applicable; Escape cancels and capture times out after 60 seconds.
+- Exposed recording through a trusted IPC handler and preload API; added a Recorder toolbar button that inserts the captured action as a workflow node and reconnects the selected node's downstream path.
+- Verification: 13 TypeScript/TSX files transpiled with zero syntax diagnostics. Full ESLint, strict typecheck, tests, and build are still unverified because project dependencies are not installed in this workspace. The recorded action capture has not been runtime-tested against Chrome.
+- Remaining Phase 3 work: select-option capture, navigation recording, role/name locators, iframe behavior, and Chrome runtime integration tests.

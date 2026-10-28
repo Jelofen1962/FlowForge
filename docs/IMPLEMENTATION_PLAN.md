@@ -18,7 +18,8 @@
 - [x] Phase 2 graph (initial increment): explicit true/false conditional routing, condition operators, real React Flow connection handles, disabled-node pass-through, branch regression tests.
 - [x] Phase 2 graph: bounded nested loops (inline action lists), undo/redo, node clipboard, logical grouping, run-state visualization, conditional/loop handle validation.
 - [ ] Phase 2 verification gate: install dependencies, strict typecheck, tests, lint and production build.
-- [ ] Phase 3 browser: test Chrome lifecycle in runtime; recorder capture for typing/select/navigation; role/name locators and iframe behavior.
+- [ ] Phase 3 browser: runtime lifecycle tests; select-option and navigation capture; role/name locators and iframe behavior.
+- [x] Phase 3 browser (initial increment): record one click or text-input change from the managed Chrome session and insert it as a connected workflow node.
 - [ ] Phase 4 scraping: repeated item detection, extraction schema editor, pagination and preview.
 - [ ] Phase 5 variables/library: complete scopes, typed expressions, reusable workflow calls, dependency/version tracking.
 - [ ] Phase 6 data/batch: Workflow-level CSV export, nested loops, bounded concurrency, cancellation during active operations and resume checkpoints.

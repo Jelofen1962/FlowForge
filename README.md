@@ -70,3 +70,8 @@ See `docs/IMPLEMENTATION_PLAN.md` and `docs/STATUS.md` for acceptance criteria, 
 The graph editor supports true/false condition ports, bounded `forEach` loops with nested inline action lists (`items`, `maxItems`, `actions`), item/index expressions, undo/redo, copy/paste of selected nodes and their internal edges, logical grouping labels, and per-node run result styling. Use Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) to redo, and Ctrl/Cmd+C/V to copy/paste. Select multiple nodes with Ctrl/Cmd-click to group them. Workflow validation checks node/edge IDs, graph cycles, start-node rules, variables, and conditional/loop output handles.
 
 The full npm verification gate remains pending when dependencies cannot be installed: run `npm install`, `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` before packaging.
+
+
+### Recorder (Phase 3 initial increment)
+
+In the desktop app, launch Managed Chrome in the Recorder or Web Scraping view and choose **Record next**. The next click or text-input change is captured as an editable workflow node; press Escape to cancel. This initial recorder captures one action per request and does not yet record navigation or select-option changes.
