@@ -137,6 +137,34 @@ describe('workflow validation and execution', () => {
     expect(result.status).toBe('succeeded');
     expect(result.variables.childResult).toMatchObject({ result: 'hello' });
   });
+  it('maps selected subworkflow outputs into parent variables', async () => {
+    const child: Workflow = {
+      schemaVersion: 1, id: 'mapped-child', name: 'Mapped child', variables: [],
+      nodes: [
+        { id: 'child-start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'child-set', type: 'setVariable', label: 'Set result', position: { x: 0, y: 1 }, config: { name: 'answer', value: 42 }, disabled: false },
+      ], edges: [{ id: 'child-edge', source: 'child-start', target: 'child-set' }],
+    };
+    const parent: Workflow = {
+      schemaVersion: 1, id: 'mapped-parent', name: 'Mapped parent', variables: [],
+      nodes: [
+        { id: 'parent-start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'call', type: 'subworkflow', label: 'Call child', position: { x: 0, y: 1 }, config: { workflow: child, outputs: { childAnswer: 'answer' } }, disabled: false },
+        { id: 'log', type: 'log', label: 'Log mapped value', position: { x: 0, y: 2 }, config: { message: '{{variables.childAnswer}}' }, disabled: false },
+      ], edges: [{ id: 'parent-edge-1', source: 'parent-start', target: 'call' }, { id: 'parent-edge-2', source: 'call', target: 'log' }],
+    };
+    const result = await executeWorkflow(parent);
+    expect(result.status).toBe('succeeded');
+    expect(result.variables.childAnswer).toBe(42);
+    expect(result.logs).toContain('42');
+  });
+  it('rejects invalid subworkflow output mappings', () => {
+    const invalid: Workflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node) => node.id === 'log' ? { ...node, type: 'subworkflow' as const, config: { workflow, outputs: { '__proto__': 'safe', target: 7 } } } : node),
+    };
+    expect(validateWorkflow(invalid).errors.join(' ')).toContain('output mapping for target must name a valid child variable');
+  });
   it('validates required browser selectors and select values before execution', () => {
     const invalid: Workflow = {
       ...workflow,

@@ -195,3 +195,11 @@ These were two separate model review passes, not independent human approvals. No
 ### Phase 13 browser-test correction
 
 The managed Chrome smoke test now scopes link extraction to the titled `Continue` link. The extraction API intentionally returns all matching links, so asserting a single result against the entire page was an incorrect test assumption, not a browser extraction defect.
+
+## Phase 14: workflow data-flow increment
+
+- Subworkflow nodes now support `outputs`, a JSON mapping of parent variable name to child variable name. The selected child values are written to the parent scope before downstream nodes execute.
+- Missing requested child variables fail visibly rather than silently producing `undefined`. Existing `outputVariable` remains supported for capturing all child variables as an object.
+- Schema validation checks output mapping shape and rejects invalid/reserved variable names. The inspector parses `outputs` as JSON like `inputs`.
+- Added regression tests for downstream use of mapped outputs and malformed mappings.
+- Verification: source syntax transpilation and archive integrity only. Vitest, strict typecheck, ESLint, production build, and Chrome integration still require the dependency-backed CI run.

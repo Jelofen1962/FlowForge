@@ -103,3 +103,11 @@
 ### Phase 13 CI correction
 
 The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continue` link, matching the test's intent without rejecting other valid links returned by the default extractor. Re-run `FLOWFORGE_CHROME_INTEGRATION=1 npm run test:browser` in CI to verify.
+
+## Phase 14: workflow data-flow correctness
+
+- Added explicit subworkflow output mapping: map parent variable names to named child variables, with a clear runtime error if a requested child output is missing.
+- Preserved the existing `outputVariable` behavior for workflows that want the complete child-variable object; explicit `outputs` mappings can be used alongside it.
+- Validate output mapping shape, identifier names, and reserved property names before execution; the node inspector edits the mapping as JSON.
+- Added regression tests for mapped values flowing into downstream nodes and invalid output mappings.
+- Verification gate: run unit tests, strict typecheck, lint, build, and browser integration in CI. Dependencies are not installed in this workspace, so this phase is not claimed as test-verified.

@@ -110,7 +110,7 @@ The desktop app stores up to 50 recent run summaries in its local user-data dire
 
 ### Reusable workflows and scraping preview
 
-Save a workflow in the local library, add a **Run workflow** node, and select the saved workflow. Configure input mappings as a JSON object; the child workflow's variables are returned by the action and can be captured in the configured output variable. Nested workflow calls are limited to ten levels. For scraping, launch managed Chrome and use **Preview current page** in an Extract repeated items node to inspect up to 500 matching rows before running the full workflow.
+Save a workflow in the local library, add a **Run workflow** node, and select the saved workflow. Configure `inputs` as a JSON object. Use `outputs` to map parent variable names to child variable names, for example `{{\"productTitle\":\"title\"}}`; the selected values are available to downstream nodes. For backward compatibility, `outputVariable` can capture the complete child-variable object. Nested workflow calls are limited to ten levels. For scraping, launch managed Chrome and use **Preview current page** in an Extract repeated items node to inspect up to 500 matching rows before running the full workflow.
 
 
 ### Phase 9 recorder and extraction additions

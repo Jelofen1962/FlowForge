@@ -76,6 +76,13 @@ export function validateWorkflow(input: unknown): { workflow?: Workflow; errors:
         if (child.errors.length) errors.push(...child.errors.map((error) => `Node ${node.id} subworkflow: ${error}`));
       }
       if (node.config.inputs !== undefined && (!node.config.inputs || typeof node.config.inputs !== 'object' || Array.isArray(node.config.inputs))) errors.push(`Node ${node.id}: inputs must be an object`);
+      if (node.config.outputs !== undefined && (!node.config.outputs || typeof node.config.outputs !== 'object' || Array.isArray(node.config.outputs))) errors.push(`Node ${node.id}: outputs must map parent variable names to child variable names`);
+      if (node.config.outputs && typeof node.config.outputs === 'object' && !Array.isArray(node.config.outputs)) {
+        for (const [parentName, childName] of Object.entries(node.config.outputs as Record<string, unknown>)) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(parentName) || ['__proto__', 'prototype', 'constructor'].includes(parentName)) errors.push(`Node ${node.id}: invalid or reserved parent output name: ${parentName}`);
+          if (typeof childName !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(childName) || ['__proto__', 'prototype', 'constructor'].includes(childName)) errors.push(`Node ${node.id}: output mapping for ${parentName} must name a valid child variable`);
+        }
+      }
       if (node.config.outputVariable !== undefined && (typeof node.config.outputVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(node.config.outputVariable) || ['__proto__', 'prototype', 'constructor'].includes(node.config.outputVariable))) errors.push(`Node ${node.id}: outputVariable must be a valid variable name`);
     }
   }

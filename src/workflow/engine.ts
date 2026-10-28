@@ -52,6 +52,14 @@ export function createDefaultRegistry(): ActionRegistry {
     if (outputVariable !== undefined && (typeof outputVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(outputVariable) || ['__proto__', 'prototype', 'constructor'].includes(outputVariable))) throw new Error('Subworkflow output variable name is invalid or reserved');
     const result = await executeWorkflow(config.workflow, registry, { signal: context.signal, depth: (context.depth ?? 0) + 1, initialVariables: inputs, maxSteps: 1000, loopState: context.loopState });
     if (result.status !== 'succeeded') throw new Error(result.error ?? `Subworkflow ${result.status}`);
+    if (config.outputs !== undefined) {
+      if (!config.outputs || typeof config.outputs !== 'object' || Array.isArray(config.outputs)) throw new Error('Subworkflow outputs must be an object');
+      for (const [parentName, childName] of Object.entries(config.outputs as Record<string, unknown>)) {
+        if (typeof childName !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(parentName) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(childName) || ['__proto__', 'prototype', 'constructor'].includes(parentName) || ['__proto__', 'prototype', 'constructor'].includes(childName)) throw new Error(`Invalid subworkflow output mapping: ${parentName}`);
+        if (!Object.hasOwn(result.variables, childName)) throw new Error(`Subworkflow output variable not found: ${childName}`);
+        context.variables[parentName] = result.variables[childName];
+      }
+    }
     if (typeof outputVariable === 'string' && outputVariable) context.variables[outputVariable] = result.variables;
     return result.variables;
   });
