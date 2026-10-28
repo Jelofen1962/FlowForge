@@ -98,3 +98,11 @@ These were two separate model review passes, not independent human approvals. No
 
 - Added a visual extraction-field editor to the node inspector. Users can add/remove output fields and edit each field name and CSS selector without editing the fields JSON directly.
 - Live browser preview and pagination integration tests remain outstanding. Full project checks remain blocked while dependencies are unavailable.
+
+
+## Phase 6 start: variable editor and reusable workflow library (2026-10-28)
+
+- Replaced the placeholder variable panel with editable workflow variables (name, type, default value, add/remove). Workflow variables now serialize with the graph and load from saved workflows.
+- Added a local reusable-workflow library backed by renderer localStorage. Users can save a copy of the current workflow, load a saved workflow, or remove it from the library.
+- Scope is deliberately limited: library workflows can be reopened/reused as starting points, but calling a library workflow as a subworkflow node, shared cross-project storage, secret masking/environment injection, and version/dependency tracking are not implemented yet.
+- Full npm typecheck/lint/tests/build remain unverified because dependencies are unavailable.

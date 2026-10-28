@@ -23,10 +23,10 @@
 - [x] Phase 4 scraping (initial increment): bounded repeated-item extraction with field selectors, duplicate-row suppression, optional pagination and workflow-variable output.
 - [x] Phase 4 scraping: visual extraction schema editor for named fields and CSS selectors.
 - [ ] Phase 4 scraping: live preview UI and pagination integration tests.
-- [ ] Phase 5 variables/library: complete scopes, typed expressions, reusable workflow calls, dependency/version tracking.
-- [ ] Phase 6 data/batch: Workflow-level CSV export, nested loops, bounded concurrency, cancellation during active operations and resume checkpoints.
-- [ ] Phase 7 reliability: breakpoints, recovery, durable run history, performance profiling and cleanup tests.
-- [ ] Phase 8 release: security, accessibility, integration/E2E tests and Windows installer validation.
+- [x] Phase 5 initial increment: visual extraction-field editor. Live preview and pagination tests remain.
+- [ ] Phase 6 variables/library: editable workflow variables and locally persisted reusable-workflow library started; subworkflow invocation, secret/environment handling and dependency/version tracking remain.
+- [ ] Phase 7 data/batch: Workflow-level CSV export, nested loops, bounded concurrency, cancellation during active operations and resume checkpoints.
+- [ ] Phase 8 reliability/release: breakpoints, recovery, durable run history, security/accessibility, integration/E2E tests and Windows installer validation.
 
 ## Acceptance criteria
 

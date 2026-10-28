@@ -85,3 +85,8 @@ The full npm verification gate remains pending when dependencies cannot be insta
 ### Recorder (Phase 3 initial increment)
 
 In the desktop app, launch Managed Chrome in the Recorder or Web Scraping view and choose **Record next**. The next click or text-input change is captured as an editable workflow node; press Escape to cancel. This initial recorder captures one action per request and does not yet record navigation or select-option changes.
+
+
+### Variables and workflow library
+
+Use the **Variables** panel to add, edit, type, and remove workflow variables. Reference them in node settings with `{{variables.name}}`. The **Library** panel can save the current workflow locally and reopen saved copies. Library entries are stored in this renderer's local storage; they are not yet callable as nested workflow actions or shared across devices.
