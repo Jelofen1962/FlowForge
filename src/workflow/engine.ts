@@ -79,6 +79,7 @@ export function createDefaultRegistry(): ActionRegistry {
       if (++loopState.iterations > 10000) throw new Error('Workflow exceeded 10,000 total loop iterations');
       const itemResults: unknown[] = [];
       for (const action of config.actions as { type?: unknown; config?: unknown }[]) {
+        if (context.signal?.aborted) throw new Error('Loop cancelled');
         if (!action || typeof action.type !== 'string' || !action.config || typeof action.config !== 'object' || Array.isArray(action.config)) {
           throw new Error('Each loop action needs a type and config object');
         }

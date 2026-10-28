@@ -110,3 +110,5 @@ Save a workflow in the local library, add a **Run workflow** node, and select th
 ### Phase 9 recorder and extraction additions
 
 The managed-browser recorder can now convert HTTP(S) link clicks into navigation nodes and native select changes into `selectOption` nodes. The `extractImages` action collects resolved image URLs, alt/title text, dimensions, loading mode, and completion state. The element picker includes XPath candidates based on visible text and accessible labels. Workflow preflight validates browser selectors, scraping field maps, pagination limits, and loop bounds before execution.
+
+- Phase 10 reliability pass: loop budgets are scoped to a workflow run, and cancellation is checked between inline loop actions so remaining actions do not run after a cancellation request. Regression coverage added; full dependency-backed suite remains to be confirmed in CI.

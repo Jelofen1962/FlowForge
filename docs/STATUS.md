@@ -148,3 +148,5 @@ These were two separate model review passes, not independent human approvals. No
 - Fixed loop-budget state leaking across executions when the same `ActionRegistry` is reused. The counter is now created per run and explicitly shared with nested subworkflows, preserving the total 10,000-iteration ceiling within each run.
 - Added a regression test that executes a 10,000-iteration workflow twice with the same registry.
 - Verification remains partial in this workspace: Vitest is not installed, so the new regression test and full suite cannot be run here. TypeScript syntax transpilation and archive integrity are checked separately; CI must still confirm typecheck, tests, lint, build, and Chrome integration.
+
+- Phase 10 follow-up: cancellation is now checked before every inline loop action, preventing later actions in the same iteration from running after an earlier action requests cancellation. Added a regression test asserting the workflow returns `cancelled` and the following action is skipped. Full Vitest/typecheck/lint/build remain unverified until dependencies are installed.

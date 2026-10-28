@@ -84,6 +84,27 @@ describe('workflow validation and execution', () => {
     expect(result.status).toBe('failed');
     expect(result.error).toContain('10,000 total loop iterations');
   });
+  it('stops remaining inline loop actions immediately after cancellation', async () => {
+    const controller = new AbortController();
+    let laterActionRan = false;
+    const registry = createDefaultRegistry();
+    registry.register('cancelNow', async () => { controller.abort(); });
+    registry.register('shouldNotRun', async () => { laterActionRan = true; });
+    const loop: Workflow = {
+      schemaVersion: 1, id: 'cancel-loop', name: 'Cancel loop', variables: [],
+      nodes: [
+        { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 1 }, config: { items: [1, 2], actions: [
+          { type: 'cancelNow', config: {} },
+          { type: 'shouldNotRun', config: {} },
+        ] }, disabled: false },
+      ],
+      edges: [{ id: 'start-loop', source: 'start', target: 'loop' }],
+    };
+    const result = await executeWorkflow(loop, registry, { signal: controller.signal });
+    expect(result.status).toBe('cancelled');
+    expect(laterActionRan).toBe(false);
+  });
   it('resets the total loop budget for each run when reusing a registry', async () => {
     const repeated: Workflow = {
       schemaVersion: 1, id: 'repeat-loop', name: 'Repeat loop', variables: [],
