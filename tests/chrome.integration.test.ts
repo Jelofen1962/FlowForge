@@ -10,7 +10,7 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
   let url = '';
 
   beforeAll(async () => {
-    server = createServer((_request, response) => {
+    const testServer = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(`<!doctype html><html><head><title>FlowForge smoke</title></head><body>
         <main><h1 id="heading">Browser is alive</h1><a href="/next" title="Next page">Continue</a>
@@ -18,11 +18,9 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
         <img src="/pixel.png" alt="tiny pixel" width="1" height="1">
         </main></body></html>`);
     });
-    await new Promise<void>((resolve, reject) => {
-      server!.once('error', reject);
-      server!.listen(0, '127.0.0.1', resolve);
-    });
-    const address = server.address();
+    server = testServer;
+    await new Promise<void>((resolve) => testServer.listen(0, '127.0.0.1', resolve));
+    const address = testServer.address();
     if (!address || typeof address === 'string') throw new Error('Local test server did not bind');
     url = `http://127.0.0.1:${address.port}/`;
     await session.start();
@@ -33,7 +31,9 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
       await session.stop();
     } finally {
       if (server?.listening) {
-        await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+        await new Promise<void>((resolve, reject) => {
+          server?.close((error) => error ? reject(error) : resolve());
+        });
       }
     }
   });

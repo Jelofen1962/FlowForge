@@ -162,7 +162,14 @@ These were two separate model review passes, not independent human approvals. No
 - Added an opt-in managed-Chrome integration smoke test using a local HTTP fixture. It exercises navigation, DOM text extraction, link extraction, native select changes, image extraction, and session cleanup without depending on external websites.
 - ChromeSession enables headless/no-sandbox flags in CI or when `FLOWFORGE_HEADLESS=1` is set.
 - CI installs Chrome and runs the browser integration test after the unit suite. The integration test remains opt-in locally via `FLOWFORGE_CHROME_INTEGRATION=1 npm run test:browser`.
-- Hardened the integration fixture cleanup: server bind errors now fail immediately, and the local HTTP server is closed even if Chrome shutdown fails.
-- Local CI attempt: `npm install --no-audit --no-fund --prefer-offline` could not resolve `registry.npmjs.org` (`EAI_AGAIN`) and timed out. As a result, `npm run typecheck` fails because `vite/client` and `vitest/globals` are absent, while `npm test` and `npm run lint` cannot find Vitest/ESLint. `npm run build` stops at the same typecheck failure. Chromium is present locally, but Selenium and project dependencies are not installed, so the live browser test cannot run.
-- Syntax transpilation passed for 18 TypeScript/TSX files with zero syntax errors. This is not a substitute for strict typecheck or runtime tests.
-- Phase 11 implementation is complete; release verification is **blocked** until dependency installation succeeds and the CI quality job passes. No green CI run is claimed.
+- Verification in this workspace is still dependency-limited; CI must execute npm tests, typecheck, lint, build, and the browser smoke test before this phase can be called release-verified.
+
+
+## Phase 12: CI and build stabilization (2026-10-28)
+
+- Added explicit Node.js 22+/npm 10+ engine requirements so local development and CI use the supported toolchain.
+- Added bounded job timeouts and disabled npm progress output in GitHub Actions to keep CI failure logs more useful and avoid indefinitely stalled jobs.
+- Hardened the Chrome integration test cleanup: the test server is closed even if Chrome shutdown fails, and cleanup safely handles setup failures before the server starts.
+- Corrected README status text that still described already-implemented conditional routing, loops, subworkflow calls, undo/redo, grouping, and run history as wholly unimplemented.
+- Verification attempted: `npm install --package-lock-only --ignore-scripts --no-audit --no-fund` timed out because the npm registry is not reachable from this environment. No dependency-backed test, typecheck, lint, build, Chrome, or Windows installer result is claimed.
+- Phase 12 remains **blocked on an external dependency-install step**: generate and commit a real `package-lock.json` from the npm registry, switch CI from `npm install` to `npm ci`, then run the complete GitHub Actions workflow and fix any reported failures. A fabricated lockfile was deliberately not added.

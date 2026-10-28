@@ -50,5 +50,9 @@
     "playwright": "^1.49.1",
     "@vitest/coverage-v8": "^2.1.8"
   },
-  "author": "FlowForge Contributors"
+  "author": "FlowForge Contributors",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  }
 }

@@ -80,9 +80,13 @@
 - Acceptance gate remains: full CI quality job and Windows packaging job must pass; no release verification is claimed from syntax-only checks.
 
 
-## Phase 11 completion and verification result
+## Phase 12: CI and build stabilization
 
-- [x] Added opt-in real Chrome integration coverage against a local fixture and wired it into the CI quality job.
-- [x] Hardened fixture setup/teardown so bind failures surface and the local server is closed even if Chrome shutdown fails.
-- [x] TypeScript syntax transpilation passed across 18 TS/TSX files.
-- [ ] Release verification: blocked in this workspace because npm registry access fails with `EAI_AGAIN`; dependencies could not be installed. Strict typecheck, Vitest, ESLint, production build, and the live Chrome integration test therefore remain unverified. Run the GitHub Actions workflow in a network-enabled environment before release.
+- [x] Declare supported Node/npm engine versions.
+- [x] Add CI job timeouts and quieter dependency-install logs.
+- [x] Ensure browser-test cleanup closes the local fixture server even when browser cleanup fails.
+- [x] Reconcile README implementation notes with the reported Phase 9-10 source changes.
+- [ ] Generate and commit a registry-resolved `package-lock.json`; switch CI to `npm ci` and enable npm caching.
+- [ ] Run the full GitHub Actions workflow and fix typecheck, unit, browser integration, lint, build, and Windows packaging failures.
+
+Phase 12 is not release-verified: lockfile generation timed out because registry access is unavailable in this environment. The remaining items require a network-enabled npm environment and a remote CI run.

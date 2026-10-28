@@ -45,11 +45,11 @@ npm run package:win
 
 ## Explicitly not complete
 
-- Conditional routing, real `forEach`/nested-loop execution, retry/try-catch graph nodes, reusable subworkflows and dependency/version tracking.
-- Full workflow/run/item/environment variable scopes and typed expression interpolation.
+- Retry/try-catch graph nodes, library dependency/version tracking, and full workflow variable scopes. Conditional routing, bounded loops, and reusable subworkflow calls are implemented but still require complete integration verification.
+- Full workflow/run/item/environment variable scopes, typed expression interpolation, secret masking, and environment injection.
 - Full recorder action capture for typing/select changes, pause/resume/replay, iframe support and accessible role/name locators.
 - Embedded live-browser preview, guided scraping schemas, repeated-item detection, pagination, workflow-level CSV export, OCR and image downloading.
-- Durable run history, checkpoint/resume, scheduling, undo/redo, grouping, copy/paste and multi-project management.
+- Checkpoint/resume, scheduling, multi-project management, and full accessibility/E2E coverage. Undo/redo, grouping, copy/paste, and capped durable run-summary history are implemented but need full regression verification.
 - Independent human reviews, end-to-end browser/Electron testing and Windows install/uninstall smoke tests.
 
 The action library disables unsupported control-flow nodes rather than presenting them as working. Imported workflows that contain unsupported action types fail visibly during execution.
@@ -68,11 +68,11 @@ See `docs/IMPLEMENTATION_PLAN.md` and `docs/STATUS.md` for acceptance criteria, 
 
 ## GitHub Actions release configuration
 
-- CI deliberately does not enable `setup-node`'s npm cache until `package-lock.json` is committed. This prevents setup-node from failing before installation because it cannot find a lockfile.
+- CI deliberately does not enable `setup-node`'s npm cache because a `package-lock.json` is not committed. A lockfile is required before dependency installation can be made fully reproducible with `npm ci`.
 - The Windows packaging job receives `GH_TOKEN` from the repository Actions secret named `GH_TOKEN`. Never put the token value in this repository or workflow file.
 - The Windows packaging job runs on manual dispatch, `main` pushes, and `v*` tags, not on pull requests. It uploads `release/*Setup.exe` as the `FlowForge-Windows-Installer` Actions artifact.
 - Add `GH_TOKEN` under **Repository Settings → Secrets and variables → Actions**. The token needs permission to publish releases to this repository. For a fine-grained token, grant repository **Contents: Read and write**.
-- A committed npm lockfile is still recommended for deterministic CI. Generate it locally with `npm install`, commit `package-lock.json`, and then `cache: npm` can safely be enabled.
+- Phase 12 attempted lockfile generation, but the npm registry was unreachable from the current environment. Do not hand-author a lockfile; generate it with `npm install --package-lock-only` in a network-enabled environment, review and commit it, then switch CI to `npm ci` and enable `cache: npm`.
 
 
 ## Phase 2 graph editing
