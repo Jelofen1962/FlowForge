@@ -83,3 +83,12 @@ These were two separate model review passes, not independent human approvals. No
 - Exposed recording through a trusted IPC handler and preload API; added a Recorder toolbar button that inserts the captured action as a workflow node and reconnects the selected node's downstream path.
 - Verification: 13 TypeScript/TSX files transpiled with zero syntax diagnostics. Full ESLint, strict typecheck, tests, and build are still unverified because project dependencies are not installed in this workspace. The recorded action capture has not been runtime-tested against Chrome.
 - Remaining Phase 3 work: select-option capture, navigation recording, role/name locators, iframe behavior, and Chrome runtime integration tests.
+
+
+## Phase 4 start: bounded structured scraping (2026-10-28)
+
+- Added `extractItems`, which extracts named fields from repeated CSS-selected containers, caps each page at 500 containers and total output at 10,000 rows, suppresses duplicate rows, and supports optional bounded pagination (maximum 100 pages).
+- Added the action to the workflow schema, registry, and action library with starter field configuration.
+- Fixed the reported TypeScript inference issue by renaming the DOM ancestor variable and explicitly asserting its nullable element type.
+- Verification: full npm typecheck/lint/tests/build are not claimed because dependencies remain unavailable in this environment.
+- Remaining: dedicated extraction schema editor/preview and pagination/runtime tests.

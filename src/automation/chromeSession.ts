@@ -2,6 +2,7 @@ import { Builder, By, until, type WebDriver } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
 
 export interface RecordedAction { kind: 'click' | 'typeText'; selector: string; strategy: 'css'; value?: string; tagName: string }
+export type ScrapedItem = Record<string, string>;
 
 export interface ElementSnapshot {
   tagName: string;
@@ -44,6 +45,50 @@ export class ChromeSession {
       [...document.querySelectorAll<HTMLAnchorElement>(query)].slice(0, 2000)
         .filter((element) => Boolean(element.href))
         .map((element) => ({ text: element.innerText.trim().slice(0, 500), href: element.href.slice(0, 2048), title: element.title.slice(0, 200) })), selector);
+  }
+
+  async extractItems(itemSelector: string, fields: Record<string, string>, nextSelector = '', maxPages = 1): Promise<ScrapedItem[]> {
+    if (!itemSelector.trim() || itemSelector.length > 2048) throw new Error('A valid repeated-item selector is required');
+    const fieldEntries = Object.entries(fields).filter(([name, selector]) => name.trim() && selector.trim());
+    if (!fieldEntries.length) throw new Error('Configure at least one extraction field');
+    if (fieldEntries.some(([, selector]) => selector.length > 2048)) throw new Error('Field selectors must be 2048 characters or fewer');
+    if (nextSelector.length > 2048) throw new Error('Pagination selector exceeds the 2048 character limit');
+    const pageLimit = Math.min(100, Math.max(1, Math.floor(maxPages) || 1));
+    const driver = this.requireDriver();
+    const rows: ScrapedItem[] = [];
+    const seen = new Set<string>();
+    for (let page = 0; page < pageLimit; page++) {
+      const pageRows = await driver.executeScript<ScrapedItem[]>((containerSelector: string, configuredFields: [string, string][]) => {
+        const containers = [...document.querySelectorAll(containerSelector)].slice(0, 500);
+        return containers.map((container) => Object.fromEntries(configuredFields.map(([name, selector]) => {
+          const element = container.matches(selector) ? container : container.querySelector(selector);
+          if (!element) return [name, ''];
+          const value = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement
+            ? element.value
+            : element instanceof HTMLAnchorElement ? element.href
+            : element instanceof HTMLImageElement ? element.currentSrc || element.src
+            : (element instanceof HTMLElement ? element.innerText : element.textContent ?? '').trim();
+          return [name, value.slice(0, 5000)];
+        })));
+      }, itemSelector, fieldEntries);
+      let added = 0;
+      for (const row of pageRows) {
+        const fingerprint = JSON.stringify(row);
+        if (seen.has(fingerprint)) continue;
+        seen.add(fingerprint); rows.push(row); added++;
+        if (rows.length >= 10_000) return rows;
+      }
+      if (page + 1 >= pageLimit || !nextSelector || !pageRows.length || added === 0) break;
+      const next = await driver.findElements(this.locator('css', nextSelector));
+      if (!next.length || !(await next[0].isDisplayed()) || !(await next[0].isEnabled())) break;
+      const previousUrl = await driver.getCurrentUrl();
+      const previousSource = await driver.getPageSource();
+      await next[0].click();
+      try {
+        await driver.wait(async () => (await driver.getCurrentUrl()) !== previousUrl || (await driver.getPageSource()) !== previousSource, 10_000);
+      } catch { break; }
+    }
+    return rows;
   }
 
   async click(selector: string, strategy = 'css'): Promise<{ clicked: true }> {
@@ -101,12 +146,12 @@ export class ChromeSession {
             let part = current.tagName.toLowerCase();
             const stableClass = [...current.classList].find((name) => name.length < 40 && !/^(active|selected|hover|focus|ng-|css-)/i.test(name));
             if (stableClass) part += `.${cssEscape(stableClass)}`;
-            const parent: Element | null = current.parentElement;
-            if (parent) {
-              const siblings = [...parent.children].filter((child) => child.tagName === current!.tagName);
+            const parentElement = current.parentElement as Element | null;
+            if (parentElement) {
+              const siblings = [...parentElement.children].filter((child) => child.tagName === current!.tagName);
               if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
             }
-            parts.unshift(part); current = parent;
+            parts.unshift(part); current = parentElement;
           }
           return parts.join(' > ');
         };
@@ -190,13 +235,13 @@ export class ChromeSession {
           let current: Element | null = element;
           while (current && current !== document.documentElement && parts.length < 6) {
             let part = current.tagName.toLowerCase();
-            const parent: Element | null = current.parentElement;
-            if (parent) {
-              const siblings = [...parent.children].filter((child) => child.tagName === current!.tagName);
+            const parentElement = current.parentElement as Element | null;
+            if (parentElement) {
+              const siblings = [...parentElement.children].filter((child) => child.tagName === current!.tagName);
               if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
             }
             parts.unshift(part);
-            current = parent;
+            current = parentElement;
           }
           return parts.join(' > ');
         };

@@ -43,6 +43,19 @@ export function registerAutomationActions(registry: ActionRegistry, outputDirect
     if (typeof config.outputVariable === 'string' && config.outputVariable) context.variables[config.outputVariable] = links;
     return links;
   });
+  registry.register('extractItems', async (config, context) => {
+    if (typeof config.itemSelector !== 'string' || !config.itemSelector.trim()) throw new Error('Extract items requires a repeated-item selector');
+    let fields = config.fields;
+    if (typeof fields === 'string') {
+      try { fields = JSON.parse(fields); } catch { throw new Error('Extraction fields must be a JSON object mapping field names to selectors'); }
+    }
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields) || Object.values(fields).some((value) => typeof value !== 'string')) {
+      throw new Error('Extraction fields must map field names to CSS selectors');
+    }
+    const rows = await chromeSession.extractItems(config.itemSelector, fields as Record<string, string>, typeof config.nextSelector === 'string' ? config.nextSelector : '', Number(config.maxPages ?? 1));
+    if (typeof config.outputVariable === 'string' && config.outputVariable) context.variables[config.outputVariable] = rows;
+    return rows;
+  });
   registry.register('writeFile', async (config) => {
     const filename = typeof config.filename === 'string' ? config.filename : 'output.json';
     if (filename !== path.basename(filename) || /[\\/]/.test(filename) || filename === '.' || filename === '..') throw new Error('Output filename must not contain a path');

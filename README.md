@@ -9,6 +9,16 @@ FlowForge is a Windows-focused desktop application for visual browser automation
 - Google Chrome installed for Selenium browser automation
 - Windows for final installer validation; most pure utility tests can run on Linux
 
+### Structured scraping (Phase 4 initial increment)
+
+Add an **Extract repeated items** node to scrape card/list/table rows. Configure `itemSelector` as the repeated container CSS selector and `fields` as a JSON object mapping output field names to selectors, for example:
+
+```json
+{ "title": "h2", "link": "a[href]", "price": ".price" }
+```
+
+Optional `nextSelector` clicks a pagination control; `maxPages` is bounded to 100. Extraction is capped at 500 containers per page and 10,000 total rows, and duplicate rows are skipped. Set `outputVariable` to make the resulting array available to downstream workflow nodes.
+
 ## Development
 
 ```bash
