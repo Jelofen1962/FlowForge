@@ -16,7 +16,8 @@
 - [x] JSON/CSV/TXT field inspection helpers and JSON/CSV/TXT field-report export.
 - [ ] Phase 1 verification: dependency install, strict typecheck, tests, lint and production build.
 - [x] Phase 2 graph (initial increment): explicit true/false conditional routing, condition operators, real React Flow connection handles, disabled-node pass-through, branch regression tests.
-- [ ] Phase 2 graph (remaining): nested-loop execution, undo/redo, clipboard/grouping, run-state visualization, full validation/build gate.
+- [x] Phase 2 graph: bounded nested loops (inline action lists), undo/redo, node clipboard, logical grouping, run-state visualization, conditional/loop handle validation.
+- [ ] Phase 2 verification gate: install dependencies, strict typecheck, tests, lint and production build.
 - [ ] Phase 3 browser: test Chrome lifecycle in runtime; recorder capture for typing/select/navigation; role/name locators and iframe behavior.
 - [ ] Phase 4 scraping: repeated item detection, extraction schema editor, pagination and preview.
 - [ ] Phase 5 variables/library: complete scopes, typed expressions, reusable workflow calls, dependency/version tracking.

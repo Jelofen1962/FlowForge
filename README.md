@@ -63,3 +63,10 @@ See `docs/IMPLEMENTATION_PLAN.md` and `docs/STATUS.md` for acceptance criteria, 
 - The Windows packaging job runs on manual dispatch, `main` pushes, and `v*` tags, not on pull requests. It uploads `release/*Setup.exe` as the `FlowForge-Windows-Installer` Actions artifact.
 - Add `GH_TOKEN` under **Repository Settings → Secrets and variables → Actions**. The token needs permission to publish releases to this repository. For a fine-grained token, grant repository **Contents: Read and write**.
 - A committed npm lockfile is still recommended for deterministic CI. Generate it locally with `npm install`, commit `package-lock.json`, and then `cache: npm` can safely be enabled.
+
+
+## Phase 2 graph editing
+
+The graph editor supports true/false condition ports, bounded `forEach` loops with nested inline action lists (`items`, `maxItems`, `actions`), item/index expressions, undo/redo, copy/paste of selected nodes and their internal edges, logical grouping labels, and per-node run result styling. Use Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) to redo, and Ctrl/Cmd+C/V to copy/paste. Select multiple nodes with Ctrl/Cmd-click to group them. Workflow validation checks node/edge IDs, graph cycles, start-node rules, variables, and conditional/loop output handles.
+
+The full npm verification gate remains pending when dependencies cannot be installed: run `npm install`, `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` before packaging.

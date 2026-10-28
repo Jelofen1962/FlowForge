@@ -12,6 +12,7 @@ export const WorkflowNodeSchema = z.object({
   position: z.object({ x: z.number(), y: z.number() }),
   config: z.record(z.unknown()).default({}),
   disabled: z.boolean().default(false),
+  group: z.string().min(1).optional(),
 });
 export type WorkflowNode = z.infer<typeof WorkflowNodeSchema>;
 
@@ -58,6 +59,12 @@ export function validateWorkflow(input: unknown): { workflow?: Workflow; errors:
     if (sourceNode?.type === 'if' && edge.sourceHandle && !['true', 'false'].includes(edge.sourceHandle)) {
       errors.push(`Conditional edge ${edge.id} must use the true or false output handle`);
     }
+    if (sourceNode?.type === 'forEach' && edge.sourceHandle && !['item', 'done'].includes(edge.sourceHandle)) {
+      errors.push(`Loop edge ${edge.id} must use the item or done output handle`);
+    }
+  }
+  if (workflow.nodes.some((node) => node.type === 'if' && workflow.edges.filter((edge) => edge.source === node.id).some((edge) => !edge.sourceHandle))) {
+    errors.push('Conditional connections must use true or false output handles');
   }
   const variableNames = new Set<string>();
   for (const variable of workflow.variables) {

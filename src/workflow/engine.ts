@@ -54,6 +54,33 @@ export function createDefaultRegistry(): ActionRegistry {
     context.log(message);
     return message;
   });
+  registry.register('forEach', async (config, context) => {
+    if (!Array.isArray(config.items)) throw new Error('For each requires an array in "items"');
+    if (!Array.isArray(config.actions)) throw new Error('For each requires an "actions" array');
+    const maxItems = Math.max(0, Math.min(Number(config.maxItems ?? 1000), 10000));
+    if (!Number.isFinite(maxItems)) throw new Error('For each maxItems must be a finite number');
+    const items = config.items.slice(0, Math.floor(maxItems));
+    const results: unknown[] = [];
+    for (let index = 0; index < items.length; index++) {
+      if (context.signal?.aborted) throw new Error('Loop cancelled');
+      const itemResults: unknown[] = [];
+      for (const action of config.actions as { type?: unknown; config?: unknown }[]) {
+        if (!action || typeof action.type !== 'string' || !action.config || typeof action.config !== 'object' || Array.isArray(action.config)) {
+          throw new Error('Each loop action needs a type and config object');
+        }
+        const handler = registry.get(action.type);
+        if (!handler) throw new Error(`No handler registered for loop action: ${action.type}`);
+        const actionContext = { variables: context.variables, item: items[index], index };
+        const rawConfig = action.config as Record<string, unknown>;
+        const resolved = action.type === 'forEach'
+          ? { ...rawConfig, items: resolveExpression(rawConfig.items, actionContext), maxItems: resolveExpression(rawConfig.maxItems ?? 1000, actionContext) }
+          : resolveExpression(rawConfig, actionContext) as Record<string, unknown>;
+        itemResults.push(await handler(resolved, { ...context, item: items[index], index }));
+      }
+      results.push(itemResults);
+    }
+    return results;
+  });
   return registry;
 }
 
@@ -115,7 +142,10 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
     try {
       const handler = registry.get(node.type);
       if (!handler) throw new Error(`No handler registered for action: ${node.type}`);
-      const config = resolveExpression(node.config, { variables, steps: outputs });
+      const expressionContext = { variables, steps: outputs };
+      const config = node.type === 'forEach'
+        ? { ...node.config, items: resolveExpression(node.config.items, expressionContext), maxItems: resolveExpression(node.config.maxItems ?? 1000, expressionContext) }
+        : resolveExpression(node.config, expressionContext);
       const output = await handler(config as Record<string, unknown>, { variables, signal: options.signal, log });
       outputs[node.id] = { output };
       result = { nodeId: id, status: 'succeeded', startedAt: new Date(started).toISOString(), durationMs: Date.now() - started, output };
@@ -131,6 +161,9 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
       for (const edge of outgoing.get(id) ?? []) {
         if (edge.sourceHandle === branch || (!edge.sourceHandle && branch === 'true')) activeNodes.add(edge.target);
       }
+    } else if (node.type === 'forEach') {
+      const branch = Array.isArray(result.output) && result.output.length ? 'item' : 'done';
+      for (const edge of outgoing.get(id) ?? []) if (edge.sourceHandle === branch) activeNodes.add(edge.target);
     } else {
       for (const edge of outgoing.get(id) ?? []) activeNodes.add(edge.target);
     }

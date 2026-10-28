@@ -65,3 +65,12 @@ These were two separate model review passes, not independent human approvals. No
 - Verification: global TypeScript transpile syntax check passed for 15 source/test files. `npm test` is blocked (`vitest: not found`) and strict typecheck is blocked because project dependencies/types are not installed. No runtime/test pass is claimed.
 
 **Current phase:** Phase 2, graph editor and execution semantics (in progress). Phase 1's full CI gate remains an outstanding release blocker.
+
+
+## Phase 2 completion pass (2026-10-28)
+
+- Added bounded `forEach` execution with nested inline action lists, item/index expressions, cancellation checks, and a 10,000-item hard ceiling.
+- Added canvas undo/redo (up to 100 snapshots), keyboard shortcuts, selected-node copy/paste with internal connections, and logical node grouping by name.
+- Added per-node execution result styling and distinct item/done loop ports.
+- Strengthened schema validation for conditional and loop connection handles; added regression tests for nested loops and invalid handles.
+- Verification is still blocked by missing npm dependencies. The implementation is not release-verified until typecheck, Vitest, ESLint, and production build pass.

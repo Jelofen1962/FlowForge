@@ -57,6 +57,25 @@ describe('workflow validation and execution', () => {
     expect(result.steps.map((step) => step.nodeId)).toEqual(['start', 'if', 'yes', 'done']);
     expect(result.logs).toEqual(['yes', 'done']);
   });
+  it('runs bounded nested loops and exposes item/index expressions', async () => {
+    const loop: Workflow = {
+      schemaVersion: 1, id: 'loops', name: 'Nested loops', variables: [{ name: 'rows', type: 'array', value: [1, 2], scope: 'workflow' }],
+      nodes: [
+        { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 1 }, config: { items: '{{variables.rows}}', maxItems: 10, actions: [
+          { type: 'log', config: { message: '{{item}}' } },
+          { type: 'forEach', config: { items: [1, 2], maxItems: 2, actions: [{ type: 'log', config: { message: '{{index}}' } }] } },
+        ] }, disabled: false },
+      ], edges: [{ id: 'start-loop', source: 'start', target: 'loop' }],
+    };
+    const result = await executeWorkflow(loop);
+    expect(result.status).toBe('succeeded');
+    expect(result.logs).toEqual(['1', '0', '1', '2', '0', '1']);
+  });
+  it('rejects invalid loop output handles', () => {
+    const invalid: Workflow = { ...workflow, nodes: [...workflow.nodes, { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 0 }, config: {}, disabled: false }], edges: [...workflow.edges, { id: 'loop-edge', source: 'loop', target: 'log', sourceHandle: 'other' }] };
+    expect(validateWorkflow(invalid).errors.join(' ')).toContain('item or done');
+  });
   it('passes connections through disabled nodes without executing them', async () => {
     const disabled: Workflow = {
       ...workflow,

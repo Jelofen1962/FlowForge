@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { addEdge, Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState, type Connection, type Edge, type Node, type NodeProps, Handle, Position } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -9,7 +9,7 @@ import { createDefaultRegistry, executeWorkflow, type RunResult } from '../workf
 import { validateWorkflow, type Workflow, type WorkflowNode } from '../workflow/schema';
 import type { ElementSnapshot } from '../automation/chromeSession';
 
-type FlowNodeData = { label: string; kind: string; description: string; config: Record<string, unknown>; status?: string };
+type FlowNodeData = { label: string; kind: string; description: string; config: Record<string, unknown>; status?: string; group?: string };
 type FlowNode = Node<FlowNodeData>;
 const nodeMeta: Record<string, { label: string; description: string; icon: typeof Globe2; tint: string }> = {
   start: { label: 'Start', description: 'Entry point for this workflow.', icon: Play, tint: 'violet' },
@@ -43,16 +43,16 @@ function previewOutput(value: unknown): string {
 }
 
 const modes = ['Workflow Builder', 'Web Scraping', 'Task Automation', 'Recorder', 'Data Processing', 'Runs / History'];
-const implementedActions = new Set(['start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'setVariable', 'writeFile', 'log', 'if']);
+const implementedActions = new Set(['start', 'openUrl', 'click', 'typeText', 'waitForElement', 'readAttribute', 'extractText', 'extractLinks', 'setVariable', 'writeFile', 'log', 'if', 'forEach']);
 
 function FlowNodeCard({ data, selected }: NodeProps<FlowNode>) {
   const meta = nodeMeta[data.kind] ?? nodeMeta.log;
   const Icon = meta.icon;
-  return <div className={`flow-node ${selected ? 'selected' : ''}`}><Handle type="target" position={Position.Top} />
+  return <div className={`flow-node ${selected ? 'selected' : ''} ${data.status ? `run-${data.status}` : ''}`}><Handle type="target" position={Position.Top} />
     <div className={`node-icon ${meta.tint}`}><Icon size={16} /></div>
-    <div className="node-copy"><strong>{data.label}</strong><span>{data.description}</span></div>
+    <div className="node-copy"><strong>{data.label}</strong><span>{data.description}</span>{data.group && <small className="node-group">{data.group}</small>}</div>
     <span className={`node-state ${data.status ?? ''}`} />
-    {data.kind === 'if' ? <><Handle id="true" type="source" position={Position.Bottom} style={{ left: '35%', background: '#43b7c5' }} /><Handle id="false" type="source" position={Position.Bottom} style={{ left: '65%', background: '#e8b45e' }} /></> : <Handle type="source" position={Position.Bottom} />}
+    {data.kind === 'if' ? <><Handle id="true" type="source" position={Position.Bottom} style={{ left: '35%', background: '#43b7c5' }} /><Handle id="false" type="source" position={Position.Bottom} style={{ left: '65%', background: '#e8b45e' }} /></> : data.kind === 'forEach' ? <><Handle id="item" type="source" position={Position.Bottom} style={{ left: '35%', background: '#e8b45e' }} /><Handle id="done" type="source" position={Position.Bottom} style={{ left: '65%', background: '#43b7c5' }} /></> : <Handle type="source" position={Position.Bottom} />}
   </div>;
 }
 const nodeTypes = { flowNode: FlowNodeCard };
@@ -84,19 +84,92 @@ function App() {
   const [locatorResult, setLocatorResult] = useState<string>('');
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [fieldResults, setFieldResults] = useState<ReturnType<typeof detectJsonFields>>([]);
+  const [undoReady, setUndoReady] = useState(false);
+  const [redoReady, setRedoReady] = useState(false);
+  const history = useRef<{ nodes: FlowNode[]; edges: Edge[] }[]>([]);
+  const future = useRef<{ nodes: FlowNode[]; edges: Edge[] }[]>([]);
+  const previous = useRef<{ nodes: FlowNode[]; edges: Edge[] } | null>(null);
+  const restoring = useRef(false);
+  const clipboard = useRef<{ nodes: FlowNode[]; edges: Edge[] } | null>(null);
   const selectedNode = nodes.find((node) => node.id === selectedId) as FlowNode | undefined;
   const filteredActions = Object.entries(nodeMeta).filter(([, meta]) => meta.label.toLowerCase().includes(query.toLowerCase()));
   const onConnect = useCallback((connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true, style: { stroke: '#6d82ff', strokeWidth: 1.6 } }, eds)), [setEdges]);
   const workflow = useMemo<Workflow>(() => ({
     schemaVersion: 1, id: workflowId, name: workflowName,
-    nodes: nodes.map((node) => ({ id: node.id, type: node.data.kind as WorkflowNode['type'], label: node.data.label, position: node.position, config: node.data.config ?? {}, disabled: false })),
+    nodes: nodes.map((node) => ({ id: node.id, type: node.data.kind as WorkflowNode['type'], label: node.data.label, position: node.position, config: node.data.config ?? {}, disabled: false, ...(node.data.group ? { group: node.data.group } : {}) })),
     edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, ...(edge.sourceHandle ? { sourceHandle: edge.sourceHandle } : {}), ...(edge.targetHandle ? { targetHandle: edge.targetHandle } : {}) })),
     variables: [{ name: 'startUrl', type: 'string', value: 'https://example.com', scope: 'workflow' }],
   }), [nodes, edges, workflowName, workflowId]);
+  useEffect(() => {
+    const snapshot = { nodes, edges };
+    if (restoring.current) { restoring.current = false; previous.current = snapshot; return; }
+    if (previous.current && (previous.current.nodes !== nodes || previous.current.edges !== edges)) {
+      history.current.push(previous.current);
+      if (history.current.length > 100) history.current.shift();
+      future.current = [];
+      setUndoReady(true); setRedoReady(false);
+    }
+    previous.current = snapshot;
+  }, [nodes, edges]);
+
+  const restoreGraph = (snapshot: { nodes: FlowNode[]; edges: Edge[] }) => {
+    restoring.current = true;
+    setNodes(snapshot.nodes); setEdges(snapshot.edges);
+    setUndoReady(history.current.length > 0); setRedoReady(future.current.length > 0);
+  };
+  const undo = () => {
+    const snapshot = history.current.pop();
+    if (!snapshot) return;
+    future.current.push({ nodes, edges }); restoreGraph(snapshot); setNotice('Undo');
+  };
+  const redo = () => {
+    const snapshot = future.current.pop();
+    if (!snapshot) return;
+    history.current.push({ nodes, edges }); restoreGraph(snapshot); setNotice('Redo');
+  };
+  const groupSelected = () => {
+    const selected = nodes.filter((node) => node.selected);
+    if (selected.length < 2) { setNotice('Select at least two nodes to group (Ctrl/Cmd-click).'); return; }
+    const group = window.prompt('Group name', 'Reusable section');
+    if (!group?.trim()) return;
+    const ids = new Set(selected.map((node) => node.id));
+    setNodes((current) => current.map((node) => ids.has(node.id) ? { ...node, data: { ...node.data, group: group.trim() } } : node));
+    setNotice(`Grouped ${selected.length} nodes as “${group.trim()}”`);
+  };
+  const copySelected = () => {
+    const selected = nodes.filter((node) => node.selected);
+    if (!selected.length) return;
+    const ids = new Set(selected.map((node) => node.id));
+    clipboard.current = { nodes: selected, edges: edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)) };
+    setNotice(`Copied ${selected.length} node(s)`);
+  };
+  const pasteCopied = () => {
+    const copied = clipboard.current;
+    if (!copied?.nodes.length) return;
+    const ids = new Map(copied.nodes.map((node) => [node.id, `${node.data.kind}-${Math.random().toString(36).slice(2, 8)}`]));
+    const pasted = copied.nodes.map((node) => ({ ...node, id: ids.get(node.id)!, selected: true, position: { x: node.position.x + 40, y: node.position.y + 40 }, data: { ...node.data } }));
+    const pastedEdges = copied.edges.map((edge) => ({ ...edge, id: `e-${Math.random().toString(36).slice(2, 9)}`, source: ids.get(edge.source)!, target: ids.get(edge.target)! }));
+    setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), ...pasted]);
+    setEdges((current) => [...current, ...pastedEdges]); setSelectedId(pasted[0].id); setNotice(`Pasted ${pasted.length} node(s)`);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
+      else if (mod && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
+      else if (mod && event.key.toLowerCase() === 'c') copySelected();
+      else if (mod && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteCopied(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
   const addNode = (kind: string) => {
     const meta = nodeMeta[kind];
     const id = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
-    const node: FlowNode = { id, type: 'flowNode', position: { x: 380 + Math.random() * 60, y: 120 + nodes.length * 95 }, data: { label: meta.label, kind, description: meta.description, config: kind === 'openUrl' ? { url: '{{variables.startUrl}}' } : ['extractText', 'click', 'typeText', 'waitForElement', 'readAttribute'].includes(kind) ? { selector: 'h1', strategy: 'css', ...(kind === 'extractText' ? { outputVariable: 'pageTitle' } : {}), ...(kind === 'typeText' ? { text: '', clear: true } : {}), ...(kind === 'waitForElement' ? { timeoutMs: 10000 } : {}), ...(kind === 'readAttribute' ? { attribute: 'textContent', outputVariable: 'result' } : {}) } : kind === 'extractLinks' ? { selector: 'a[href]', outputVariable: 'links' } : kind === 'setVariable' ? { name: 'result', value: '' } : kind === 'log' ? { message: 'Workflow step completed' } : kind === 'writeFile' ? { filename: 'output.json', content: '{{variables.result}}' } : kind === 'forEach' ? { items: '{{variables.items}}', maxItems: 1000 } : kind === 'if' ? { left: '{{variables.value}}', operator: 'equals', right: '' } : {} } };
+    const node: FlowNode = { id, type: 'flowNode', position: { x: 380 + Math.random() * 60, y: 120 + nodes.length * 95 }, data: { label: meta.label, kind, description: meta.description, config: kind === 'openUrl' ? { url: '{{variables.startUrl}}' } : ['extractText', 'click', 'typeText', 'waitForElement', 'readAttribute'].includes(kind) ? { selector: 'h1', strategy: 'css', ...(kind === 'extractText' ? { outputVariable: 'pageTitle' } : {}), ...(kind === 'typeText' ? { text: '', clear: true } : {}), ...(kind === 'waitForElement' ? { timeoutMs: 10000 } : {}), ...(kind === 'readAttribute' ? { attribute: 'textContent', outputVariable: 'result' } : {}) } : kind === 'extractLinks' ? { selector: 'a[href]', outputVariable: 'links' } : kind === 'setVariable' ? { name: 'result', value: '' } : kind === 'log' ? { message: 'Workflow step completed' } : kind === 'writeFile' ? { filename: 'output.json', content: '{{variables.result}}' } : kind === 'forEach' ? { items: '{{variables.items}}', maxItems: 1000, actions: [{ type: 'log', config: { message: '{{item}}' } }] } : kind === 'if' ? { left: '{{variables.value}}', operator: 'equals', right: '' } : {} } };
     setNodes((current) => [...current, node]);
     setSelectedId(id);
     setNotice(`${meta.label} added to canvas`);
@@ -120,7 +193,7 @@ function App() {
       const validation = validateWorkflow(input);
       if (!validation.workflow) { setNotice(validation.errors[0] ?? 'Invalid workflow'); return; }
       setWorkflowId(input.id); setWorkflowName(input.name);
-      setNodes(input.nodes.map((node) => ({ id: node.id, type: 'flowNode', position: node.position, data: { label: node.label, kind: node.type, description: nodeMeta[node.type]?.description ?? '', config: node.config } })));
+      setNodes(input.nodes.map((node) => ({ id: node.id, type: 'flowNode', position: node.position, data: { label: node.label, kind: node.type, description: nodeMeta[node.type]?.description ?? '', config: node.config, ...(node.group ? { group: node.group } : {}) } })));
       setEdges(input.edges.map((edge) => ({ ...edge, animated: true, style: { stroke: '#6d82ff', strokeWidth: 1.6 } })));
       setNotice('Workflow loaded');
     } catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
@@ -137,6 +210,8 @@ function App() {
       result = { status: 'failed', steps: [], variables: {}, logs: [], error: error instanceof Error ? error.message : String(error) };
     }
     setRun(result); setRunning(false); setActiveRunId(null);
+    const statusById = Object.fromEntries(result.steps.map((step) => [step.nodeId, step.status]));
+    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: statusById[node.id] ?? (result.status === 'failed' && !statusById[node.id] ? 'skipped' : '') } })));
     if (window.flowforge) { try { setBrowserReady(await window.flowforge.browser.status()); } catch { /* the run result remains authoritative */ } }
     setNotice(result.status === 'succeeded' ? `Run completed · ${result.steps.length} steps` : `${result.status}: ${result.error ?? 'Run stopped'}`);
   };
@@ -237,14 +312,14 @@ function App() {
       </aside>
 
       <section className="editor-area">
-        <div className="editor-toolbar"><div className="editor-title"><span className="canvas-icon"><WorkflowIcon size={16}/></span><div><strong>Workflow canvas</strong><small>{nodes.length} nodes <span>·</span> {edges.length} connections</small></div></div><div className="toolbar-actions"><button className="toolbar-button" onClick={() => { setNodes(initialNodes); setEdges(initialEdges); setNotice('Canvas reset to example workflow'); }}><ArrowDownToLine size={14}/> Reset example</button><span className="toolbar-separator"/><button className="icon-button subtle" title="Minimap is visible in canvas" onClick={() => setNotice('Use the minimap to navigate larger workflows.')}><ListTree size={15}/></button><button className="icon-button subtle" title="Step debugging is not implemented yet" disabled><Bug size={15}/></button><button className="icon-button subtle" title="Additional canvas settings are not implemented yet" disabled><Settings2 size={15}/></button></div></div>
+        <div className="editor-toolbar"><div className="editor-title"><span className="canvas-icon"><WorkflowIcon size={16}/></span><div><strong>Workflow canvas</strong><small>{nodes.length} nodes <span>·</span> {edges.length} connections</small></div></div><div className="toolbar-actions"><button className="toolbar-button" onClick={undo} disabled={!undoReady} title="Undo (Ctrl/Cmd+Z)">Undo</button><button className="toolbar-button" onClick={redo} disabled={!redoReady} title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button><button className="toolbar-button" onClick={groupSelected} title="Select multiple nodes with Ctrl/Cmd-click"><Layers3 size={14}/> Group</button><button className="toolbar-button" onClick={() => { setNodes(initialNodes); setEdges(initialEdges); setNotice('Canvas reset to example workflow'); }}><ArrowDownToLine size={14}/> Reset example</button><span className="toolbar-separator"/><button className="icon-button subtle" title="Minimap is visible in canvas" onClick={() => setNotice('Use the minimap to navigate larger workflows.')}><ListTree size={15}/></button><button className="icon-button subtle" title="Step debugging is not implemented yet" disabled><Bug size={15}/></button><button className="icon-button subtle" title="Additional canvas settings are not implemented yet" disabled><Settings2 size={15}/></button></div></div>
         {(mode === 'Recorder' || mode === 'Web Scraping') && <div className="browser-toolbar"><div className="browser-toolbar-title"><span className={`browser-live-dot ${browserReady ? 'on' : ''}`}/><strong>Managed Chrome</strong><small>{browserReady ? 'Session connected' : 'Session stopped'}</small></div><input aria-label="Browser URL" value={browserUrl} onChange={(event) => setBrowserUrl(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void navigateBrowser(); }} placeholder="https://example.com"/><button className="button-secondary small" onClick={startBrowser} disabled={browserReady}><Play size={13}/> Launch</button><button className="button-secondary small" onClick={navigateBrowser} disabled={!browserReady}><Globe2 size={13}/> Go</button><button className="button-primary small" onClick={pickElement} disabled={!browserReady}><MousePointer2 size={13}/> Alt+click picker</button><button className="icon-button" title="Stop Chrome" onClick={stopBrowser} disabled={!browserReady}><Square size={13}/></button></div>}
-        <div className="canvas-wrap"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_event, node) => setSelectedId(node.id)} onPaneClick={() => setSelectedId('')} fitView minZoom={0.25} maxZoom={1.5} defaultEdgeOptions={{ animated: true }} proOptions={{ hideAttribution: true }}><Background color={dark ? '#252b3b' : '#dce1ec'} gap={23} size={1} variant={BackgroundVariant.Dots}/><Controls position="bottom-left" showInteractive={false}/><MiniMap position="bottom-right" nodeColor={(node) => ({ start: '#8b7cff', openUrl: '#6d82ff', extractText: '#43b7c5', extractLinks: '#43b7c5', setVariable: '#e8b45e', forEach: '#f08c52', if: '#f08c52', writeFile: '#4bbd8b', log: '#8b97aa', subworkflow: '#8b7cff' }[String((node.data as FlowNodeData).kind)] ?? '#6d82ff')} maskColor={dark ? 'rgba(10,13,20,.65)' : 'rgba(235,239,247,.65)'}/></ReactFlow><button className="canvas-add" onClick={() => addNode('log')}><Plus size={15}/> Add node</button><div className="canvas-hint"><span className="hint-key">Drag</span> to move <span className="hint-dot"/> <span className="hint-key">Connect</span> node ports</div></div>
+        <div className="canvas-wrap"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} multiSelectionKeyCode={['Control', 'Meta']} selectionOnDrag={false} onNodeClick={(_event, node) => setSelectedId(node.id)} onPaneClick={() => setSelectedId('')} fitView minZoom={0.25} maxZoom={1.5} defaultEdgeOptions={{ animated: true }} proOptions={{ hideAttribution: true }}><Background color={dark ? '#252b3b' : '#dce1ec'} gap={23} size={1} variant={BackgroundVariant.Dots}/><Controls position="bottom-left" showInteractive={false}/><MiniMap position="bottom-right" nodeColor={(node) => ({ start: '#8b7cff', openUrl: '#6d82ff', extractText: '#43b7c5', extractLinks: '#43b7c5', setVariable: '#e8b45e', forEach: '#f08c52', if: '#f08c52', writeFile: '#4bbd8b', log: '#8b97aa', subworkflow: '#8b7cff' }[String((node.data as FlowNodeData).kind)] ?? '#6d82ff')} maskColor={dark ? 'rgba(10,13,20,.65)' : 'rgba(235,239,247,.65)'}/></ReactFlow><button className="canvas-add" onClick={() => addNode('log')}><Plus size={15}/> Add node</button><div className="canvas-hint"><span className="hint-key">Drag</span> to move <span className="hint-dot"/> <span className="hint-key">Connect</span> node ports</div></div>
         <div className="runbar"><div className="runbar-left"><span className={`run-light ${running ? 'active' : ''}`}/><span>{notice}</span></div><div className="runbar-right"><button className="button-secondary small" onClick={() => { const validation = validateWorkflow(workflow); setNotice(validation.errors.length ? validation.errors[0] : 'Graph validation passed'); }}><ShieldCheck size={14}/> Validate</button><button className="button-primary run-button" disabled={running} onClick={execute}>{running ? <Activity size={14} className="spin"/> : <Play size={14} fill="currentColor"/>}{running ? 'Running…' : 'Run workflow'}</button><button className="icon-button" title="Stop run" disabled={!running} onClick={async () => { if (activeRunId && window.flowforge) { const cancelled = await window.flowforge.cancelWorkflow(activeRunId); setNotice(cancelled ? 'Cancellation requested' : 'Run is already finishing'); } }}><Square size={14}/></button></div></div>
         {run && <div className="execution-panel"><div className="execution-head"><div><Activity size={15}/><strong>Latest execution</strong><span className={`run-tag ${run.status}`}>{run.status}</span></div><button className="icon-button subtle" onClick={() => setRun(null)}><X size={14}/></button></div><div className="execution-steps">{run.steps.map((step) => <div className="execution-step" key={step.nodeId}><span className={`step-check ${step.status}`}>{step.status === 'succeeded' ? <Check size={12}/> : <X size={12}/>}</span><strong>{nodes.find((node) => node.id === step.nodeId)?.data.label ?? step.nodeId}</strong><span>{step.durationMs} ms</span>{step.error && <code className="step-error">{step.error}</code>}{step.output !== undefined && <code className="step-output">{previewOutput(step.output)}</code>}</div>)}</div>{run.error && <p className="error-text">{run.error}</p>}{run.logs.length > 0 && <div className="run-logs">{run.logs.map((message, index) => <p key={`${index}:${message}`}>{message}</p>)}</div>}</div>}
       </section>
 
-      <aside className="right-panel"><div className="inspector-head"><div><span className="inspector-eyebrow">CONFIGURATION</span><h2>{selectedNode?.data.label ?? 'Node inspector'}</h2></div><button className="icon-button subtle" title="Inspector options" onClick={() => setNotice('Node settings are saved with the workflow graph.')}><Settings2 size={15}/></button></div>{selectedNode ? <><div className="inspector-node-type"><span className={`action-icon ${(nodeMeta[selectedNode.data.kind] ?? nodeMeta.log).tint}`}>{(() => { const Icon = (nodeMeta[selectedNode.data.kind] ?? nodeMeta.log).icon; return <Icon size={15}/>; })()}</span><div><strong>{selectedNode.data.kind}</strong><small>Action node · ID {selectedNode.id}</small></div><span className="type-status"><span/> Ready</span></div><div className="inspector-form"><label className="field-label">Node name</label><input className="field-input" value={selectedNode.data.label} onChange={(event) => setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label: event.target.value } } : node))}/>{Object.entries(selectedNode.data.config ?? {}).map(([key, value]) => <div className="field-group" key={key}><div className="field-label-row"><label className="field-label" htmlFor={`field-${key}`}>{key.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase())}</label><button className="expression-button" title="Insert variable expression" onClick={() => updateConfig(key, '{{variables.startUrl}}')}><Braces size={13}/></button></div>{selectedNode.data.kind === 'if' && key === 'operator' ? <select id={`field-${key}`} className="field-input" value={String(value)} onChange={(event) => updateConfig(key, event.target.value)}><option value="equals">Equals</option><option value="notEquals">Does not equal</option><option value="contains">Contains</option><option value="greaterThan">Greater than</option><option value="lessThan">Less than</option><option value="isTruthy">Is truthy</option></select> : typeof value === 'boolean' ? <label className="toggle-field"><input type="checkbox" checked={value} onChange={(event) => updateConfig(key, event.target.checked)}/><span>{value ? 'Enabled' : 'Disabled'}</span></label> : <input id={`field-${key}`} className="field-input" value={typeof value === 'string' ? value : JSON.stringify(value)} onChange={(event) => updateConfig(key, event.target.value)} placeholder={`Enter ${key}`}/>}<small className="field-help">{String(value).startsWith('{{') ? 'Dynamic expression' : `Configure ${key} for this action.`}</small></div>)}<div className="inspector-note"><ShieldCheck size={14}/><p>Inputs are validated before execution. Expressions resolve against the workflow variable scope.</p></div></div><div className="inspector-footer"><button className="button-secondary small" onClick={() => { setNodes((current) => current.filter((node) => node.id !== selectedId)); setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId)); setSelectedId(''); setNotice('Node removed'); }}><X size={14}/> Delete node</button><span className="config-live-note">Live edits</span></div></> : <div className="inspector-empty"><Settings2 size={25}/><strong>Select a node to configure</strong><p>Choose any node on the canvas to inspect its settings, inputs and outputs.</p></div>}
+      <aside className="right-panel"><div className="inspector-head"><div><span className="inspector-eyebrow">CONFIGURATION</span><h2>{selectedNode?.data.label ?? 'Node inspector'}</h2></div><button className="icon-button subtle" title="Inspector options" onClick={() => setNotice('Node settings are saved with the workflow graph.')}><Settings2 size={15}/></button></div>{selectedNode ? <><div className="inspector-node-type"><span className={`action-icon ${(nodeMeta[selectedNode.data.kind] ?? nodeMeta.log).tint}`}>{(() => { const Icon = (nodeMeta[selectedNode.data.kind] ?? nodeMeta.log).icon; return <Icon size={15}/>; })()}</span><div><strong>{selectedNode.data.kind}</strong><small>Action node · ID {selectedNode.id}{selectedNode.data.group ? ` · ${selectedNode.data.group}` : ''}</small></div><span className="type-status"><span/> Ready</span></div><div className="inspector-form"><label className="field-label">Node name</label><input className="field-input" value={selectedNode.data.label} onChange={(event) => setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label: event.target.value } } : node))}/>{Object.entries(selectedNode.data.config ?? {}).map(([key, value]) => <div className="field-group" key={key}><div className="field-label-row"><label className="field-label" htmlFor={`field-${key}`}>{key.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase())}</label><button className="expression-button" title="Insert variable expression" onClick={() => updateConfig(key, '{{variables.startUrl}}')}><Braces size={13}/></button></div>{selectedNode.data.kind === 'if' && key === 'operator' ? <select id={`field-${key}`} className="field-input" value={String(value)} onChange={(event) => updateConfig(key, event.target.value)}><option value="equals">Equals</option><option value="notEquals">Does not equal</option><option value="contains">Contains</option><option value="greaterThan">Greater than</option><option value="lessThan">Less than</option><option value="isTruthy">Is truthy</option></select> : typeof value === 'boolean' ? <label className="toggle-field"><input type="checkbox" checked={value} onChange={(event) => updateConfig(key, event.target.checked)}/><span>{value ? 'Enabled' : 'Disabled'}</span></label> : <input id={`field-${key}`} className="field-input" value={typeof value === 'string' ? value : JSON.stringify(value)} onChange={(event) => { const next = event.target.value; updateConfig(key, key === 'actions' ? (() => { try { return JSON.parse(next); } catch { return next; } })() : next); }} placeholder={`Enter ${key}`}/>}<small className="field-help">{String(value).startsWith('{{') ? 'Dynamic expression' : `Configure ${key} for this action.`}</small></div>)}<div className="inspector-note"><ShieldCheck size={14}/><p>Inputs are validated before execution. Expressions resolve against the workflow variable scope.</p></div></div><div className="inspector-footer"><button className="button-secondary small" onClick={() => { setNodes((current) => current.filter((node) => node.id !== selectedId)); setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId)); setSelectedId(''); setNotice('Node removed'); }}><X size={14}/> Delete node</button><span className="config-live-note">Live edits</span></div></> : <div className="inspector-empty"><Settings2 size={25}/><strong>Select a node to configure</strong><p>Choose any node on the canvas to inspect its settings, inputs and outputs.</p></div>}
         <div className="inspector-lower"><div className="lower-section-title"><span>VARIABLES</span><button onClick={() => setLeftTab('Variables')}>View all <ArrowUpFromLine size={12}/></button></div><div className="mini-variable"><Braces size={14}/><span>startUrl</span><code>string</code></div><div className="mini-variable"><Braces size={14}/><span>pageTitle</span><code>string</code></div><div className="lower-section-title second"><span>QUICK TOOLS</span></div><button className="quick-tool" onClick={() => { setShowJson(!showJson); setMode('Data Processing'); }}><FileJson size={15}/><span>JSON Field Detector</span><ArrowUpFromLine size={13}/></button><button className="quick-tool" onClick={pickElement}><MousePointer2 size={15}/><span>Element recorder</span><span className="coming-tag">Recorder</span></button><button className="quick-tool" disabled title="Image extraction is not implemented yet"><Image size={15}/><span>Image extraction</span><span className="coming-tag">Planned</span></button></div>
         {selectedElement && <div className="selected-element-panel"><div className="lower-section-title"><span>SELECTED ELEMENT</span><button onClick={() => setSelectedElement(null)}><X size={12}/></button></div><div className="element-summary"><code>&lt;{selectedElement.tagName}&gt;</code><span>{selectedElement.text || 'No visible text'}</span></div><label className="field-label">Locator strategy</label><select className="field-input" aria-label="Locator strategy" value={locatorStrategy} onChange={(event) => { setLocatorStrategy(event.target.value); const candidate = selectedElement.selectors.find((item) => item.strategy === event.target.value); if (candidate) setLocatorValue(candidate.value); }}><option value="id">ID</option><option value="css">CSS</option><option value="xpath">XPath</option></select><label className="field-label locator-label">Locator</label><input className="field-input" aria-label="Locator value" value={locatorValue} onChange={(event) => setLocatorValue(event.target.value)}/><div className="locator-actions"><button className="button-secondary small" onClick={testLocator}><Check size={13}/> Test locator</button><button className="button-primary small" onClick={addSelectedElementAction}><Plus size={13}/> Add click node</button></div>{locatorResult && <p className="locator-result">{locatorResult}</p>}<div className="selector-candidates">{selectedElement.selectors.map((item) => <button key={`${item.strategy}:${item.value}`} onClick={() => { setLocatorStrategy(item.strategy); setLocatorValue(item.value); setLocatorResult(`${item.matches} match(es)`); }}><span>{item.strategy.toUpperCase()}</span><code>{item.value}</code><small>{item.matches}×</small></button>)}</div></div>}
       </aside>
