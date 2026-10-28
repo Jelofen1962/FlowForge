@@ -58,3 +58,10 @@
 - Added accessible-name XPath candidates to the element picker, covering text, `aria-label`, and `title` when present.
 - Added preflight validation for required browser configs, extraction field maps, pagination bounds, and loop item limits, plus regression tests.
 - Phase 9 status: implementation scope is covered in source; release-grade completion remains pending full dependency-backed typecheck, test, lint, build, and real Chrome integration runs.
+
+## Phase 10: execution reliability and regression hardening
+
+- Moved the 10,000-iteration loop budget from registry lifetime to an individual workflow run. Reusing an action registry no longer causes later runs to inherit prior iteration usage.
+- Shared the same iteration budget with nested subworkflow calls so nesting cannot reset the safety ceiling.
+- Added a regression test that runs a 10,000-iteration workflow twice with the same registry and expects both independent runs to succeed.
+- Phase 10 verification gate: run dependency-backed tests, strict typecheck, lint, production build, and a real-browser smoke test in CI before calling the phase release-verified.

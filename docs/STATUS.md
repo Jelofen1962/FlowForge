@@ -142,3 +142,9 @@ These were two separate model review passes, not independent human approvals. No
 - Element picker offers XPath candidates based on accessible name text, `aria-label`, and `title` in addition to CSS/XPath paths and IDs.
 - Workflow preflight validates required browser selectors, select values, extraction field maps, pagination limits, and loop bounds. Added regression tests for invalid selector/config handling.
 - Verification caveat: dependency-backed tests, lint, full type-check, build, and live Chrome integration are still required before Phase 9 can be declared fully verified.
+
+## Phase 10 reliability pass (2026-10-28)
+
+- Fixed loop-budget state leaking across executions when the same `ActionRegistry` is reused. The counter is now created per run and explicitly shared with nested subworkflows, preserving the total 10,000-iteration ceiling within each run.
+- Added a regression test that executes a 10,000-iteration workflow twice with the same registry.
+- Verification remains partial in this workspace: Vitest is not installed, so the new regression test and full suite cannot be run here. TypeScript syntax transpilation and archive integrity are checked separately; CI must still confirm typecheck, tests, lint, build, and Chrome integration.
