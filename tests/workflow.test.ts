@@ -34,6 +34,38 @@ describe('workflow validation and execution', () => {
     expect(result.variables.answer).toBe(42);
     expect(result.logs).toEqual(['done']);
   });
+  it('routes only the selected conditional branch', async () => {
+    const conditional: Workflow = {
+      schemaVersion: 1, id: 'branch', name: 'Conditional', variables: [{ name: 'allowed', type: 'boolean', value: true, scope: 'workflow' }],
+      nodes: [
+        { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'if', type: 'if', label: 'Condition', position: { x: 0, y: 1 }, config: { left: '{{variables.allowed}}', operator: 'equals', right: true }, disabled: false },
+        { id: 'yes', type: 'log', label: 'Yes', position: { x: 0, y: 2 }, config: { message: 'yes' }, disabled: false },
+        { id: 'no', type: 'log', label: 'No', position: { x: 1, y: 2 }, config: { message: 'no' }, disabled: false },
+        { id: 'done', type: 'log', label: 'Done', position: { x: 0, y: 3 }, config: { message: 'done' }, disabled: false },
+      ],
+      edges: [
+        { id: 'start-if', source: 'start', target: 'if' },
+        { id: 'if-yes', source: 'if', sourceHandle: 'true', target: 'yes' },
+        { id: 'if-no', source: 'if', sourceHandle: 'false', target: 'no' },
+        { id: 'yes-done', source: 'yes', target: 'done' },
+        { id: 'no-done', source: 'no', target: 'done' },
+      ],
+    };
+    const result = await executeWorkflow(conditional);
+    expect(result.status).toBe('succeeded');
+    expect(result.steps.map((step) => step.nodeId)).toEqual(['start', 'if', 'yes', 'done']);
+    expect(result.logs).toEqual(['yes', 'done']);
+  });
+  it('passes connections through disabled nodes without executing them', async () => {
+    const disabled: Workflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node) => node.id === 'set' ? { ...node, disabled: true } : node),
+    };
+    const result = await executeWorkflow(disabled);
+    expect(result.status).toBe('succeeded');
+    expect(result.steps.map((step) => step.nodeId)).toEqual(['start', 'log']);
+  });
   it('executes merged paths only after all predecessors', async () => {
     const dag: Workflow = {
       schemaVersion: 1, id: 'dag', name: 'Merged path', variables: [],

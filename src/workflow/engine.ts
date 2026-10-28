@@ -18,9 +18,31 @@ export class ActionRegistry {
   get(type: string): ActionHandler | undefined { return this.handlers.get(type); }
 }
 
+function evaluateCondition(config: Record<string, unknown>): boolean {
+  const left = config.left;
+  const right = config.right;
+  switch (config.operator ?? 'equals') {
+    case 'equals': return Object.is(left, right);
+    case 'notEquals': return !Object.is(left, right);
+    case 'contains':
+      if (typeof left === 'string' && typeof right === 'string') return left.includes(right);
+      if (Array.isArray(left)) return left.some((value) => Object.is(value, right));
+      throw new Error('Condition "contains" requires a string or array on the left');
+    case 'greaterThan':
+    case 'lessThan': {
+      const a = Number(left); const b = Number(right);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Numeric conditions require two finite numbers');
+      return config.operator === 'greaterThan' ? a > b : a < b;
+    }
+    case 'isTruthy': return Boolean(left);
+    default: throw new Error(`Unsupported condition operator: ${String(config.operator)}`);
+  }
+}
+
 export function createDefaultRegistry(): ActionRegistry {
   const registry = new ActionRegistry();
   registry.register('start', async () => undefined);
+  registry.register('if', async (config) => evaluateCondition(config));
   registry.register('setVariable', async (config, context) => {
     const name = String(config.name ?? '');
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || ['__proto__', 'prototype', 'constructor'].includes(name)) throw new Error('Variable name is invalid or reserved');
@@ -40,8 +62,8 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
   if (!validation.workflow) return { status: 'failed', steps: [], variables: {}, logs: [], error: validation.errors.join('; ') };
   const workflow = validation.workflow;
   const byId = new Map<string, WorkflowNode>(workflow.nodes.map((node) => [node.id, node] as const));
-  const outgoing = new Map<string, string[]>();
-  for (const edge of workflow.edges) outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]);
+  const outgoing = new Map<string, typeof workflow.edges>();
+  for (const edge of workflow.edges) outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge]);
   const start = workflow.nodes.find((node) => node.type === 'start');
   if (!start) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow requires a start node' };
 
@@ -51,7 +73,7 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
     const id = pending.pop()!;
     if (reachable.has(id)) continue;
     reachable.add(id);
-    pending.push(...(outgoing.get(id) ?? []));
+    pending.push(...(outgoing.get(id) ?? []).map((edge) => edge.target));
   }
   const indegree = new Map<string, number>();
   for (const id of reachable) indegree.set(id, 0);
@@ -63,11 +85,11 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
   while (ready.length) {
     const id = ready.pop()!;
     executionOrder.push(id);
-    for (const target of outgoing.get(id) ?? []) {
-      if (!reachable.has(target)) continue;
-      const degree = (indegree.get(target) ?? 0) - 1;
-      indegree.set(target, degree);
-      if (degree === 0) ready.push(target);
+    for (const edge of outgoing.get(id) ?? []) {
+      if (!reachable.has(edge.target)) continue;
+      const degree = (indegree.get(edge.target) ?? 0) - 1;
+      indegree.set(edge.target, degree);
+      if (degree === 0) ready.push(edge.target);
     }
   }
   if (executionOrder.length !== reachable.size) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow graph contains a cycle' };
@@ -75,14 +97,19 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
   const steps: StepResult[] = [];
   const logs: string[] = [];
   const outputs: Record<string, unknown> = {};
+  const activeNodes = new Set<string>([start.id]);
   const maxSteps = Math.max(1, Math.min(options.maxSteps ?? 1000, 10000));
   const log = (message: string) => { logs.push(message); };
 
   for (const id of executionOrder) {
     if (options.signal?.aborted) return { status: 'cancelled', steps, variables, logs };
-    if (steps.length >= maxSteps) return { status: 'failed', steps, variables, logs, error: `Execution exceeded ${maxSteps} steps` };
     const node = byId.get(id)!;
-    if (node.disabled) continue;
+    if (!activeNodes.has(id)) continue;
+    if (steps.length >= maxSteps) return { status: 'failed', steps, variables, logs, error: `Execution exceeded ${maxSteps} steps` };
+    if (node.disabled) {
+      for (const edge of outgoing.get(id) ?? []) activeNodes.add(edge.target);
+      continue;
+    }
     const started = Date.now();
     let result: StepResult;
     try {
@@ -99,6 +126,14 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
       return { status: cancelled ? 'cancelled' : 'failed', steps, variables, logs, ...(cancelled ? {} : { error: result.error }) };
     }
     steps.push(result); options.onStep?.(result);
+    if (node.type === 'if') {
+      const branch = result.output === true ? 'true' : 'false';
+      for (const edge of outgoing.get(id) ?? []) {
+        if (edge.sourceHandle === branch || (!edge.sourceHandle && branch === 'true')) activeNodes.add(edge.target);
+      }
+    } else {
+      for (const edge of outgoing.get(id) ?? []) activeNodes.add(edge.target);
+    }
     if (options.signal?.aborted) return { status: 'cancelled', steps, variables, logs };
   }
   return { status: 'succeeded', steps, variables, logs };

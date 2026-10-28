@@ -54,6 +54,10 @@ export function validateWorkflow(input: unknown): { workflow?: Workflow; errors:
     if (!ids.has(edge.source)) errors.push(`Edge ${edge.id} has missing source: ${edge.source}`);
     if (!ids.has(edge.target)) errors.push(`Edge ${edge.id} has missing target: ${edge.target}`);
     if (edge.source === edge.target) errors.push(`Self-loop is not allowed: ${edge.id}`);
+    const sourceNode = workflow.nodes.find((node) => node.id === edge.source);
+    if (sourceNode?.type === 'if' && edge.sourceHandle && !['true', 'false'].includes(edge.sourceHandle)) {
+      errors.push(`Conditional edge ${edge.id} must use the true or false output handle`);
+    }
   }
   const variableNames = new Set<string>();
   for (const variable of workflow.variables) {

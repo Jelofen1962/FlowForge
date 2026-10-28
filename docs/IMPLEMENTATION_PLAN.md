@@ -15,7 +15,8 @@
 - [x] Selenium session lifecycle, navigation, basic browser action handlers, Alt+click element picker, overlay and locator tests implemented in source.
 - [x] JSON/CSV/TXT field inspection helpers and JSON/CSV/TXT field-report export.
 - [ ] Phase 1 verification: dependency install, strict typecheck, tests, lint and production build.
-- [ ] Phase 2 graph: complete branch semantics, real conditional/nested-loop execution, undo/redo, clipboard/grouping.
+- [x] Phase 2 graph (initial increment): explicit true/false conditional routing, condition operators, real React Flow connection handles, disabled-node pass-through, branch regression tests.
+- [ ] Phase 2 graph (remaining): nested-loop execution, undo/redo, clipboard/grouping, run-state visualization, full validation/build gate.
 - [ ] Phase 3 browser: test Chrome lifecycle in runtime; recorder capture for typing/select/navigation; role/name locators and iframe behavior.
 - [ ] Phase 4 scraping: repeated item detection, extraction schema editor, pagination and preview.
 - [ ] Phase 5 variables/library: complete scopes, typed expressions, reusable workflow calls, dependency/version tracking.

@@ -53,3 +53,15 @@ These were two separate model review passes, not independent human approvals. No
 - Verification limitation: `npm install --no-audit --no-fund` timed out in this environment, so full typecheck, lint, test, and build results remain unverified here.
 
 **Current phase:** Phase 1 quality/build-blocker fixes, with Phase 2 (graph editor and graph schema) already partially implemented. Phase 1 is not complete until CI checks pass.
+
+
+## Phase 2 start: connected graph execution
+
+- Added an executable `if` action with `equals`, `notEquals`, `contains`, `greaterThan`, `lessThan`, and `isTruthy` operators.
+- Conditional nodes now expose real React Flow `true` and `false` source handles; outgoing edges select the matching branch. Nodes outside the chosen branch are not executed.
+- Added an inspector dropdown for condition operators and condition-specific defaults when creating a node.
+- Disabled nodes now pass execution through to their connected successors instead of silently cutting the workflow path.
+- Added regression tests for conditional routing, merge paths and disabled-node pass-through; added schema validation for invalid conditional source handles.
+- Verification: global TypeScript transpile syntax check passed for 15 source/test files. `npm test` is blocked (`vitest: not found`) and strict typecheck is blocked because project dependencies/types are not installed. No runtime/test pass is claimed.
+
+**Current phase:** Phase 2, graph editor and execution semantics (in progress). Phase 1's full CI gate remains an outstanding release blocker.
