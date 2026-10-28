@@ -128,3 +128,18 @@ Save a workflow in the local library, add a **Run workflow** node, and select th
 The managed-browser recorder can now convert HTTP(S) link clicks into navigation nodes and native select changes into `selectOption` nodes. The `extractImages` action collects resolved image URLs, alt/title text, dimensions, loading mode, and completion state. The element picker includes XPath candidates based on visible text and accessible labels. Workflow preflight validates browser selectors, scraping field maps, pagination limits, and loop bounds before execution.
 
 - Phase 10 reliability pass: loop budgets are scoped to a workflow run, and cancellation is checked between inline loop actions so remaining actions do not run after a cancellation request. Regression coverage added; full dependency-backed suite remains to be confirmed in CI.
+
+## Releases
+
+The remake release version is **1.1.5** (package version `1.1.5`). The last release before the remake was `v0.3.29`.
+
+To publish a release, push a version tag matching `v*`. For the current version, after committing the version and release-note changes, run:
+
+```bash
+git tag v1.1.5
+git push origin v1.1.5
+```
+
+GitHub Actions first runs quality checks, then builds the Windows NSIS installer. Only if both jobs succeed does it create/update the GitHub Release and attach `FlowForge-1.1.5-Setup.exe`. Re-running the tagged workflow replaces an existing installer asset with the same name. The repository's **Actions** settings must allow workflows to create releases with `GITHUB_TOKEN` (`Settings → Actions → General → Workflow permissions → Read and write permissions`) if organization policy requires that setting.
+
+See [`docs/RELEASE_NOTES_v1.1.5.md`](docs/RELEASE_NOTES_v1.1.5.md) and [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md).

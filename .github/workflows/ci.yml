@@ -1,4 +1,4 @@
-name: FlowForge CI
+name: FlowForge CI and Release
 
 on:
   push:
@@ -53,8 +53,6 @@ jobs:
     timeout-minutes: 45
     needs: quality
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    permissions:
-      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -70,8 +68,6 @@ jobs:
 
       - name: Package Windows installer
         run: npm run package:win
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
@@ -80,3 +76,32 @@ jobs:
           path: release/*Setup.exe
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    runs-on: ubuntu-24.04
+    needs: windows-package
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: FlowForge-Windows-Installer
+          path: release-assets
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" release-assets/*Setup.exe --clobber
+          else
+            gh release create "$TAG_NAME" release-assets/*Setup.exe \
+              --title "FlowForge $TAG_NAME" \
+              --notes-file docs/RELEASE_NOTES_v1.1.5.md
+          fi
