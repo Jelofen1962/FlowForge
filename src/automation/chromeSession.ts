@@ -15,8 +15,10 @@ export interface ElementSnapshot {
 
 export class ChromeSession {
   private driver: WebDriver | null = null;
+  private stopping: Promise<void> | null = null;
 
   async start(): Promise<void> {
+    if (this.stopping) await this.stopping;
     if (this.driver) return;
     const options = new chrome.Options();
     options.addArguments('--start-maximized', '--disable-notifications');
@@ -326,9 +328,12 @@ export class ChromeSession {
   }
 
   async stop(): Promise<void> {
+    if (this.stopping) return this.stopping;
     const driver = this.driver;
     this.driver = null;
-    if (driver) await driver.quit();
+    if (!driver) return;
+    this.stopping = driver.quit().finally(() => { this.stopping = null; });
+    await this.stopping;
   }
 
   isRunning(): boolean { return this.driver !== null; }

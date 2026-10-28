@@ -153,3 +153,5 @@ These were two separate model review passes, not independent human approvals. No
 
 
 - Phase 10 follow-up: cancelling an active workflow now requests the managed Chrome session to stop, allowing WebDriver work to be interrupted instead of merely waiting for the current command. Final cleanup also stops a session that finishes starting during cancellation. Browser integration and dependency-backed CI still need to verify this behavior.
+
+- Phase 10 shutdown-race fix: concurrent Chrome `stop()` calls now share the same quit promise, and `start()` waits for an in-progress quit before creating another driver. This prevents cleanup from appearing complete while the prior browser process is still shutting down.
