@@ -157,7 +157,11 @@ function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
       const mod = event.ctrlKey || event.metaKey;
-      if (mod && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
+      if (mod && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      }
       else if (mod && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
       else if (mod && event.key.toLowerCase() === 'c') copySelected();
       else if (mod && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteCopied(); }
