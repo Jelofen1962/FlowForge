@@ -75,3 +75,30 @@
 - Connected the Node name label to its input so assistive technology can identify the field correctly.
 - Kept controls hidden on desktop and reused existing React state/CSS; no dependency or workflow behavior changes.
 - Manual acceptance: [ ] close buttons appear only at compact widths; [ ] each closes its own open drawer; [ ] focus indicators are visible; [ ] Node name label focuses its input.
+
+## Phase 2 implementation closeout (2026-10-29)
+
+The planned Phase 2 source changes are complete: responsive three-panel-to-drawer layout, narrow-window sizing, compact toolbars and dialogs, shared visual tokens, node/run-state styling, visible keyboard focus, reduced-motion handling, and drawer dismissal through close controls, backdrop, Escape, and post-action close. The Node name input has an explicit label association. Workflow engine and browser automation behavior were not intentionally changed by Phase 2.
+
+### Closeout verification
+
+- [x] Responsive CSS breakpoints and drawer states are present.
+- [x] Both drawer toggles expose `aria-expanded` and have accessible names.
+- [x] Actions and Inspector drawers have explicit close buttons.
+- [x] Backdrop and Escape dismiss an open drawer.
+- [x] Adding an action dismisses the compact Actions drawer.
+- [x] Node name label is associated with its input.
+- [x] Keyboard focus styles and reduced-motion rules are present.
+- [x] TypeScript/TSX syntax transpilation, CSS brace balance, package JSON parsing, and archive integrity checks pass.
+
+### Release gates still open
+
+- [ ] `npm run typecheck`
+- [ ] `npm run lint`
+- [ ] `npm test`
+- [ ] `npm run build`
+- [ ] Manual visual inspection at wide desktop, 1100px, 700px, and short-window heights.
+- [ ] Keyboard-only and screen-reader checks for drawer opening, closing, and focus order.
+- [ ] Windows packaged-app smoke test.
+
+These are environment/acceptance gates, not claims of passing. Dependencies were unavailable in this workspace, so Phase 2 is **implementation-complete, pending dependency-backed and visual acceptance**.

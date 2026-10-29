@@ -282,3 +282,10 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Associated the Node name label with its input.
 - Kept the changes scoped to existing JSX and CSS; no dependencies added and no workflow engine behavior changed.
 - Static verification is recorded below; full dependency-backed checks and running-app accessibility inspection remain pending.
+
+## Phase 2 implementation closeout (2026-10-29)
+
+- Closed the responsive UI implementation scope: compact panel drawers, explicit close controls, backdrop/Escape dismissal, action-after-insert drawer close, responsive toolbar/dialog sizing, shared CSS tokens, node execution-state styling, focus indicators, and reduced-motion handling.
+- Added Phase 2 closeout and release-gate checklist to `docs/PHASE2_UI.md`.
+- Dependency-free validation is limited to TypeScript/TSX syntax transpilation, CSS brace balance, package metadata parsing, source assertions, and archive integrity. These checks do not replace strict typecheck, lint, unit tests, production build, visual/accessibility inspection, or Windows packaging.
+- **Phase 2 implementation: complete. Release acceptance: pending** dependency-backed CI and visual/accessibility verification.
