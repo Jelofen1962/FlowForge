@@ -73,6 +73,14 @@
 - Cancellation requests now stop the managed Chrome session to interrupt in-flight browser actions; final cleanup handles a browser startup that races with cancellation.
 - Validate with a real Chrome integration test and the full CI gate before treating cancellation as release-ready.
 
+## Phase 10 closeout hardening (2026-10-29)
+
+- Fixed the main-process debugger callback's unused `nodeId` parameter without changing pause/step behavior.
+- Fixed a batch startup failure path that could leave the in-memory active-job lock set when the first checkpoint write failed; cleanup now covers the initial write.
+- Fixed batch setup failures recording `results.length` as an item index, which could create phantom/out-of-range results. Failures now attach to the first unfinished input item and keep results ordered; if all items already succeeded, no fake item row is added.
+- Updated README claims to match run/item variable initialization and Electron `safeStorage` credential references.
+- Verification: dependency-free TypeScript syntax and source assertions plus ZIP integrity checks. Full `npm run typecheck`, Vitest, lint, production build, Electron restart/cancellation, credential migration, and Windows packaging remain release gates because dependencies/runtime are unavailable in this workspace.
+
 
 ## Phase 11: browser integration and CI confidence
 

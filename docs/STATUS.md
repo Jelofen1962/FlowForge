@@ -326,3 +326,12 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 ## Phase 9 update (2026-10-29)
 
 Persistent user-facing batch execution is now wired through the desktop main process and renderer. Batch jobs snapshot the workflow and JSON input, persist per-item status checkpoints atomically, emit progress events, and can resume unfinished items after restart. The UI exposes start, progress, saved-job listing, resume, and cancellation. Items run sequentially due to the single shared browser session. Syntax transpilation and ZIP integrity checks passed; full dependency-backed typecheck/tests/lint/build and Electron restart/cancellation integration remain unverified in this environment.
+
+
+## Phase 10 closeout hardening (2026-10-29)
+
+- Renamed the unused debugger callback argument to `_nodeId` to resolve TypeScript TS6133 without changing behavior.
+- Moved the initial batch checkpoint write inside the guarded execution path so a disk-write failure cannot leak the active-batch lock.
+- Batch setup failures now map to the first unfinished item rather than using the number of result rows as an index. Existing successful checkpoints are preserved, result rows remain ordered, and a completed batch does not receive a phantom item result if final persistence fails.
+- Corrected README descriptions for run/item scopes and `safeStorage`-backed credential references.
+- Static checks only: TypeScript syntax transpilation, source assertions, package metadata parsing, CSS brace balance, and archive integrity. Full typecheck/tests/lint/build and Electron/Chrome/Windows runtime checks remain unverified here; do not call the release verified until CI and Windows packaging pass.

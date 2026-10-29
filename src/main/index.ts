@@ -106,8 +106,8 @@ async function executeBatchJob(job: BatchJob): Promise<import('../shared/ipc').B
   const controller = new AbortController();
   activeBatchRuns.set(job.id, controller);
   job.status = 'running';
-  await saveBatchJob(job); publishBatchProgress(job);
   try {
+    await saveBatchJob(job); publishBatchProgress(job);
     const safeWorkflow = await hydrateWorkflowSecrets(validation.workflow);
     const registry = createDefaultRegistry();
     registerAutomationActions(registry, path.join(app.getPath('userData'), 'outputs'));
@@ -148,7 +148,12 @@ async function executeBatchJob(job: BatchJob): Promise<import('../shared/ipc').B
     return batchSummary(job);
   } catch (error) {
     job.status = controller.signal.aborted ? 'cancelled' : 'failed';
-    job.results.push({ index: job.results.length, status: job.status === 'cancelled' ? 'cancelled' : 'failed', steps: 0, error: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000), updatedAt: new Date().toISOString() });
+    const index = job.items.findIndex((_, itemIndex) => !job.results.some((result) => result.index === itemIndex && result.status === 'succeeded'));
+    if (index >= 0) {
+      job.results = job.results.filter((result) => result.index !== index);
+      job.results.push({ index, status: job.status === 'cancelled' ? 'cancelled' : 'failed', steps: 0, error: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000), updatedAt: new Date().toISOString() });
+      job.results.sort((a, b) => a.index - b.index);
+    }
     await saveBatchJob(job); publishBatchProgress(job);
     return batchSummary(job);
   } finally { activeBatchRuns.delete(job.id); }
