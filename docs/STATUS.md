@@ -235,3 +235,10 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 ## Typecheck cleanup (post-v1.1.7)
 - Removed unused Lucide icons, unused JSON/CSV/text parser imports, and the unused `contextMenu` state reported by TypeScript TS6133.
 - Full `npm run typecheck` remains unverified locally because project dependencies are not installed in this workspace.
+
+## 2026-10-29 Phase 1 audit pass
+
+- Inspected the source tree, architecture boundaries, current workflow/browser tests, CI configuration, and responsive UI structure at commit `278b9c2`.
+- Added `docs/PHASE1_AUDIT.md` with the architecture map, prioritized findings, UX baseline, verification evidence, and recommended next steps.
+- Re-ran `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` in the provided environment. They are blocked because dependencies are not installed: typecheck cannot resolve `vite/client` and `vitest/globals`; Vitest and ESLint executables are missing.
+- No source behavior was changed during the audit. No test/build success is claimed. Phase 1 audit is complete, but the green baseline acceptance gate remains open pending a dependency-backed CI run.
