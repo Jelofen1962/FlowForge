@@ -300,3 +300,15 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Static syntax checks and dependency-backed verification are recorded separately. Browser integration, full typecheck, lint, tests, build, and real-site recorder checks remain pending until dependencies and a supported browser/driver are available.
 
 **Phase 3 implementation increment: source and test coverage added; release verification pending.** Nested iframe chains and iframe-aware scraping/picking remain outside this increment and are explicitly documented.
+
+
+## Phase 18: scraping preview and pagination closeout (2026-10-29)
+
+- Added an explicit loading state to the current-page extraction preview and disabled repeated preview requests while one is in flight.
+- Preview errors clear old rows and surface a useful notice; editing extraction selectors, fields, pagination selector, or page limit clears the previous preview so stale results cannot masquerade as current.
+- Empty previews now provide selector troubleshooting guidance, and the preview label clarifies that it displays only the first five rows from the current page.
+- Added Chrome integration cases for current-page preview and missing extraction configuration. Existing fixture coverage continues to exercise two-page pagination and duplicate-row suppression.
+- Added `docs/PHASE4_SCRAPING.md` and updated the implementation checklist.
+- Validation limitation: dependency-backed typecheck, lint, Vitest, production build, and real Chrome integration remain unverified in this workspace because project dependencies are not installed.
+
+**Phase 4 scraping UX implementation: complete; release verification remains pending.**

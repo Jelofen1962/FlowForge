@@ -121,6 +121,20 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
     expect(await session.readAttribute('#heading')).toBe('Browser is alive');
   }, 15_000);
 
+  it('previews only the current page without following pagination', async () => {
+    await session.navigate(url);
+    await expect(session.previewItems('article.item', { title: '.title' })).resolves.toEqual([
+      { title: 'Alpha' },
+      { title: 'Beta' },
+    ]);
+  }, 10_000);
+
+  it('rejects missing extraction configuration before querying the page', async () => {
+    await session.navigate(url);
+    await expect(session.extractItems('', { title: '.title' })).rejects.toThrow('A valid repeated-item selector is required');
+    await expect(session.extractItems('article.item', {})).rejects.toThrow('Configure at least one extraction field');
+  }, 10_000);
+
   it('extracts repeated items across a next-page link', async () => {
     await session.navigate(url);
     const rows = await session.extractItems('article.item', { title: '.title', url: 'a' }, 'a.next', 2);

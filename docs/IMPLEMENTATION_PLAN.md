@@ -22,7 +22,8 @@
 - [ ] Phase 3 verification gate: run browser integration, typecheck, lint, unit tests, and production build in a dependency-enabled environment. See `docs/PHASE3_BROWSER.md` for boundaries and acceptance steps.
 - [x] Phase 4 scraping (initial increment): bounded repeated-item extraction with field selectors, duplicate-row suppression, optional pagination and workflow-variable output.
 - [x] Phase 4 scraping: visual extraction schema editor for named fields and CSS selectors.
-- [ ] Phase 4 scraping: live preview UI and pagination integration tests.
+- [x] Phase 4 scraping: live current-page preview UI, stale-preview invalidation, loading/error/empty states, and pagination integration coverage added.
+- [ ] Phase 4 verification gate: run dependency-backed unit/browser tests, typecheck, lint, build, and manual dynamic-site check. See `docs/PHASE4_SCRAPING.md`.
 - [x] Phase 5 initial increment: visual extraction-field editor. Live preview and pagination tests remain.
 - [ ] Phase 6 variables/library: editable workflow variables and locally persisted reusable-workflow library started; subworkflow invocation, secret/environment handling and dependency/version tracking remain.
 - [x] Phase 7 data/batch (initial increment): Workflow-level CSV export action and a 10,000-total-iteration ceiling across nested loops. Existing loops already check cancellation between iterations.
