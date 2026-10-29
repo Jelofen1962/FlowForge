@@ -216,3 +216,19 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Linked the guide and acceptance checklist from `README.md`.
 - Documentation status: authored and cross-checked against the current workflow schema, engine, automation action registrations, README, and recorded limitations.
 - Verification limitation: dependency-backed typecheck, tests, lint, production build, Chrome integration, and Windows packaging are not claimed as run in this environment. Phase 16 is documentation-complete; release acceptance remains pending CI and Windows evidence.
+
+## Browser discovery, shortcuts, and large-data usability
+
+- The recorder now lists detected Chrome, Edge, Firefox, Brave, Vivaldi, Opera, and Chromium installations and lets the user choose one. Chromium-family browsers use ChromeDriver; Edge and Firefox use their Selenium drivers.
+- Electron packaging unpacks Selenium Manager executables so Selenium can launch the driver manager outside `app.asar`. Browser-driver errors now include a FlowForge-specific explanation.
+- `Ctrl+K` opens the keyboard shortcut guide. Save, open, run, undo/redo, copy/paste, Escape, URL navigation, and Alt+click recorder shortcuts are documented; key controls expose hover titles.
+- The UI is enlarged to 125%, variable expressions can be inserted from a dropdown, and JSON/CSV/TXT field detection runs in a Web Worker to keep the interface responsive for large inputs. A 20,000-record JSON regression test was added.
+- Runtime verification still requires installing dependencies and running CI on Windows with the packaged app. Browser detection covers common installation paths; nonstandard portable installations may need an explicit browser path in a future settings control.
+
+## Phase 17: Canvas interaction refresh
+
+- Expanded node and port hit areas, added directional arrowheads, and selectable connector styles.
+- Added Alt-click connector routing toggle, box selection, right-drag panning, and Ctrl+middle-click Start-node focus.
+- Added canvas context actions, duplicate/group keyboard shortcuts, and auto-focus for newly added nodes.
+- Added a compact workspace home dashboard and visible workflow-name focus styling.
+- Validation performed in this environment: TSX syntax transpilation passed. Full dependency-backed typecheck, lint, tests, and Windows packaging remain to be run in CI.

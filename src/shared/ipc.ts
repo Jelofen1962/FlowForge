@@ -13,7 +13,8 @@ export interface FlowForgeApi {
   chooseInputFile: () => Promise<{ path: string; content: string } | null>;
   writeOutput: (filename: string, content: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
   browser: {
-    start: () => Promise<{ ok: boolean; error?: string }>;
+    list: () => Promise<import('../automation/browsers').BrowserInfo[]>;
+    start: (browserId?: string) => Promise<{ ok: boolean; error?: string }>;
     stop: () => Promise<{ ok: boolean; error?: string }>;
     status: () => Promise<boolean>;
     navigate: (url: string) => Promise<{ ok: boolean; url?: string; title?: string; error?: string }>;

@@ -123,9 +123,11 @@ function registerIpc(): void {
     if (stat.size > 50 * 1024 * 1024) throw new Error('Input file exceeds the 50 MB limit');
     return { path: result.filePaths[0], content: await fs.readFile(result.filePaths[0], 'utf8') };
   });
-  ipcMain.handle('browser:start', async (event) => {
+  ipcMain.handle('browser:list', (event) => { assertTrustedSender(event); return chromeSession.listBrowsers(); });
+  ipcMain.handle('browser:start', async (event, browserId: unknown) => {
     assertTrustedSender(event);
-    try { await chromeSession.start(); return { ok: true }; }
+    if (typeof browserId !== 'string' || !/^(chrome|edge|brave|firefox|chromium|vivaldi|opera)$/.test(browserId)) return { ok: false, error: 'Choose a supported detected browser.' };
+    try { await chromeSession.start(browserId); return { ok: true }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
   });
   ipcMain.handle('browser:stop', async (event) => {

@@ -1,5 +1,8 @@
 import { Builder, By, until, type WebDriver } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
+import edge from 'selenium-webdriver/edge';
+import firefox from 'selenium-webdriver/firefox';
+import { detectInstalledBrowsers, type BrowserInfo } from './browsers';
 
 export type RecordedAction =
   | { kind: 'click' | 'typeText' | 'selectOption'; selector: string; strategy: 'css' | 'xpath' | 'id'; value?: string; tagName: string }
@@ -17,15 +20,38 @@ export class ChromeSession {
   private driver: WebDriver | null = null;
   private stopping: Promise<void> | null = null;
 
-  async start(): Promise<void> {
+  async start(browserId = 'chrome'): Promise<void> {
     if (this.stopping) await this.stopping;
     if (this.driver) return;
-    const options = new chrome.Options();
-    options.addArguments('--start-maximized', '--disable-notifications');
-    if (process.env.CI || process.env.FLOWFORGE_HEADLESS === '1') {
-      options.addArguments('--headless=new', '--no-sandbox', '--disable-dev-shm-usage');
+    const browser = detectInstalledBrowsers().find((item) => item.id === browserId);
+    if (!browser) throw new Error(`Browser '${browserId}' was not detected. Install it or choose another detected browser.`);
+    const builder = new Builder();
+    if (browser.id === 'firefox') {
+      const options = new firefox.Options();
+      options.setBinary(browser.path);
+      if (process.env.CI || process.env.FLOWFORGE_HEADLESS === '1') options.addArguments('-headless');
+      builder.forBrowser('firefox').setFirefoxOptions(options);
+    } else if (browser.id === 'edge') {
+      const options = new edge.Options();
+      options.addArguments('--start-maximized', '--disable-notifications');
+      if (process.env.CI || process.env.FLOWFORGE_HEADLESS === '1') options.addArguments('--headless=new', '--disable-gpu');
+      builder.forBrowser('MicrosoftEdge').setEdgeOptions(options);
+    } else {
+      const options = new chrome.Options();
+      options.setChromeBinaryPath(browser.path);
+      options.addArguments('--start-maximized', '--disable-notifications');
+      if (process.env.CI || process.env.FLOWFORGE_HEADLESS === '1') options.addArguments('--headless=new', '--no-sandbox', '--disable-dev-shm-usage');
+      builder.forBrowser('chrome').setChromeOptions(options);
     }
-    const driver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
+    let driver: WebDriver;
+    try { driver = await builder.build(); }
+    catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (/selenium-manager|Unable to obtain.*driver|driver location/i.test(detail)) {
+        throw new Error(`Could not start ${browser.label}. FlowForge could not resolve its browser driver. Update or reinstall FlowForge so Selenium Manager is unpacked correctly, or install a compatible browser version. Details: ${detail}`);
+      }
+      throw error;
+    }
     this.driver = driver;
     try { await driver.manage().setTimeouts({ implicit: 0, pageLoad: 45_000, script: 15_000 }); }
     catch (error) { this.driver = null; await driver.quit(); throw error; }
@@ -351,6 +377,8 @@ export class ChromeSession {
 
   isRunning(): boolean { return this.driver !== null; }
 
+  listBrowsers(): BrowserInfo[] { return detectInstalledBrowsers(); }
+
   private locator(strategy: string, value: string) {
     if (value.length > 2048) throw new Error('Selector exceeds the 2048 character limit');
     if (strategy === 'xpath') return By.xpath(value);
@@ -360,7 +388,7 @@ export class ChromeSession {
   }
 
   private requireDriver(): WebDriver {
-    if (!this.driver) throw new Error('Chrome is not running. Start a browser session first.');
+    if (!this.driver) throw new Error('The managed browser is not running. Start a browser session first.');
     return this.driver;
   }
 

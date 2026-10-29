@@ -12,3 +12,6 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+
+asarUnpack:
+  - node_modules/selenium-webdriver/bin/**

@@ -143,3 +143,7 @@ git push origin v1.1.5
 GitHub Actions first runs quality checks, then builds the Windows NSIS installer. Only if both jobs succeed does it create/update the GitHub Release and attach `FlowForge-1.1.5-Setup.exe`. Re-running the tagged workflow replaces an existing installer asset with the same name. The repository's **Actions** settings must allow workflows to create releases with `GITHUB_TOKEN` (`Settings → Actions → General → Workflow permissions → Read and write permissions`) if organization policy requires that setting.
 
 See [`docs/RELEASE_NOTES_v1.1.5.md`](docs/RELEASE_NOTES_v1.1.5.md) and [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md).
+
+### Browser and editor usability
+
+FlowForge detects common installed Chrome, Edge, Firefox, Brave, Vivaldi, Opera, and Chromium locations and lets you choose a managed browser in Recorder/Web Scraping mode. Use **Ctrl+K** to open the shortcut guide. Variable expressions can be inserted from the variable dropdown in node settings. Large JSON/CSV/TXT field detection runs in a background worker so the editor remains responsive. Packaged builds unpack Selenium Manager binaries to avoid trying to execute them from inside `app.asar`.
