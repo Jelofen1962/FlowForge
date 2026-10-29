@@ -81,11 +81,15 @@ export function createDefaultRegistry(): ActionRegistry {
     if (!Number.isFinite(maxItems)) throw new Error('For each maxItems must be a finite number');
     const items = config.items.slice(0, Math.floor(maxItems));
     const results: unknown[] = [];
+    const itemDefaults = config.itemDefaults && typeof config.itemDefaults === 'object' && !Array.isArray(config.itemDefaults)
+      ? config.itemDefaults as Record<string, unknown>
+      : {};
     for (let index = 0; index < items.length; index++) {
       if (context.signal?.aborted) throw new Error('Loop cancelled');
       const loopState = context.loopState ?? { iterations: 0 };
       if (++loopState.iterations > 10000) throw new Error('Workflow exceeded 10,000 total loop iterations');
       const itemResults: unknown[] = [];
+      const itemVariables = { ...context.variables, ...itemDefaults };
       for (const action of config.actions as { type?: unknown; config?: unknown }[]) {
         if (context.signal?.aborted) throw new Error('Loop cancelled');
         if (!action || typeof action.type !== 'string' || !action.config || typeof action.config !== 'object' || Array.isArray(action.config)) {
@@ -93,12 +97,12 @@ export function createDefaultRegistry(): ActionRegistry {
         }
         const handler = registry.get(action.type);
         if (!handler) throw new Error(`No handler registered for loop action: ${action.type}`);
-        const actionContext = { variables: context.variables, item: items[index], index, signal: context.signal, log: context.log };
+        const actionContext = { variables: itemVariables, item: items[index], index, signal: context.signal, log: context.log };
         const rawConfig = action.config as Record<string, unknown>;
         const resolved = action.type === 'forEach'
           ? { ...rawConfig, items: resolveExpression(rawConfig.items, actionContext), maxItems: resolveExpression(rawConfig.maxItems ?? 1000, actionContext) }
           : resolveExpression(rawConfig, actionContext) as Record<string, unknown>;
-        itemResults.push(await handler(resolved, { ...context, item: items[index], index }));
+        itemResults.push(await handler(resolved, { ...context, variables: itemVariables, item: items[index], index }));
       }
       results.push(itemResults);
     }
@@ -169,7 +173,7 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
       if (!handler) throw new Error(`No handler registered for action: ${node.type}`);
       const expressionContext = { variables, steps: outputs };
       const config = node.type === 'forEach'
-        ? { ...node.config, items: resolveExpression(node.config.items, expressionContext), maxItems: resolveExpression(node.config.maxItems ?? 1000, expressionContext) }
+        ? { ...node.config, items: resolveExpression(node.config.items, expressionContext), maxItems: resolveExpression(node.config.maxItems ?? 1000, expressionContext), itemDefaults: Object.fromEntries(workflow.variables.filter((variable) => variable.scope === 'item').map((variable) => [variable.name, variable.value])) }
         : node.type === 'subworkflow'
           ? { ...node.config, inputs: resolveExpression(node.config.inputs ?? {}, expressionContext) }
           : resolveExpression(node.config, expressionContext);

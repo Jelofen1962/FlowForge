@@ -27,6 +27,21 @@ describe('workflow validation and execution', () => {
     const cyclic = { ...workflow, edges: [...workflow.edges, { id: 'e3', source: 'log', target: 'set' }] };
     expect(validateWorkflow(cyclic).errors.join(' ')).toContain('cycle');
   });
+  it('resets item-scoped variables for each loop iteration', async () => {
+    const scoped: Workflow = {
+      schemaVersion: 1, id: 'item-scope', name: 'Item scope',
+      variables: [{ name: 'current', type: 'string', value: 'default', scope: 'item' }],
+      nodes: [
+        { id: 'start', type: 'start', label: 'Start', position: { x: 0, y: 0 }, config: {}, disabled: false },
+        { id: 'loop', type: 'forEach', label: 'Loop', position: { x: 0, y: 1 }, config: { items: ['first', 'second'], actions: [{ type: 'setVariable', config: { name: 'current', value: '{{item}}' } }, { type: 'log', config: { message: '{{variables.current}}' } }] }, disabled: false },
+      ],
+      edges: [{ id: 'start-loop', source: 'start', target: 'loop' }],
+    };
+    const result = await executeWorkflow(scoped, createDefaultRegistry());
+    expect(result.status).toBe('succeeded');
+    expect(result.logs).toEqual(['first', 'second']);
+    expect(result.variables.current).toBeUndefined();
+  });
   it('executes registered actions in connected order', async () => {
     const result = await executeWorkflow(workflow, createDefaultRegistry());
     expect(result.status).toBe('succeeded');

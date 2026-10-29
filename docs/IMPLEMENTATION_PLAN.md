@@ -131,3 +131,12 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - `README.md` links to the full guide and release checklist.
 
 **Acceptance still pending:** run the complete GitHub Actions quality job and Windows packaging job; review their logs; smoke-test install, launch, and uninstall on Windows; and update release notes with the tested versions and run URL. No unavailable check is reported as passing.
+
+## Phase 5: variables and reusable workflow library completion
+
+- [x] Expose workflow and item variable scopes in the editor.
+- [x] Initialize item-scoped defaults per loop item and prevent item mutations leaking across iterations.
+- [x] Add regression coverage for item variable isolation.
+- [ ] Add explicit environment-variable injection through a validated main-process API.
+- [ ] Design secure credential storage before claiming secret support.
+- [ ] Run full CI and desktop verification. See `docs/PHASE5_VARIABLES_LIBRARY.md`.
