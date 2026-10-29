@@ -89,3 +89,19 @@ Existing tests are present in `tests/workflow.test.ts`, `tests/jsonFields.perfor
 - No wholesale rewrite of the workflow engine or Electron shell.
 - No claim that unavailable tests passed.
 - No change to workflow file format before migration tests exist.
+
+## Verification retry addendum (2026-10-29)
+
+A second dependency-install attempt (`npm install --ignore-scripts --no-audit --no-fund`) timed out after 120 seconds and did not produce `node_modules` or a lockfile. The following checks were then run against the available source:
+
+| Check | Result | Evidence / limitation |
+|---|---|---|
+| TypeScript syntax transpilation | Pass | 19 `.ts` / `.tsx` source and test files; zero transpile diagnostics using the globally available TypeScript compiler |
+| Dependency-free utility smoke tests | Pass | CSV parse/encode, expression resolution and prototype-path rejection, and batch retry behavior |
+| `package.json` parsing | Pass | Valid JSON |
+| `npm run typecheck` | Blocked | Missing `vite/client` and `vitest/globals` type definitions |
+| `npm test` | Blocked | `vitest` executable unavailable |
+| `npm run lint` | Blocked | `eslint` executable unavailable |
+| `npm run build` | Blocked | Stops at the same missing type definitions |
+
+**Decision:** do not start broad Phase 2 UI work yet. The audit and source-level smoke checks are complete, but Phase 1's dependency-backed green baseline remains open. Resolve registry access or run the existing CI workflow in a network-enabled environment; capture actual logs before declaring the gate green. No lockfile was fabricated and no runtime behavior was changed.

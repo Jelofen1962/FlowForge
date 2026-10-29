@@ -242,3 +242,10 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Added `docs/PHASE1_AUDIT.md` with the architecture map, prioritized findings, UX baseline, verification evidence, and recommended next steps.
 - Re-ran `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` in the provided environment. They are blocked because dependencies are not installed: typecheck cannot resolve `vite/client` and `vitest/globals`; Vitest and ESLint executables are missing.
 - No source behavior was changed during the audit. No test/build success is claimed. Phase 1 audit is complete, but the green baseline acceptance gate remains open pending a dependency-backed CI run.
+
+## 2026-10-29 Phase 1 verification retry
+
+- Re-attempted dependency installation with scripts disabled; it timed out after 120 seconds and produced neither `node_modules` nor a lockfile.
+- TypeScript syntax transpilation passed for 19 `.ts` / `.tsx` source and test files with zero diagnostics. Dependency-free smoke checks passed for CSV parse/encode, expression resolution including prototype-path rejection, and bounded batch retry behavior. `package.json` parsed successfully.
+- Re-ran `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build`: still blocked by missing `vite/client` / `vitest/globals`, `vitest`, and `eslint`.
+- **Phase 1 remains incomplete at the green-baseline gate.** Do not begin broad Phase 2 UI refactoring until a dependency-backed run passes or records actionable code failures. No lockfile was fabricated; no runtime behavior was changed.
