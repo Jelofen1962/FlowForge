@@ -8,25 +8,25 @@ export function registerAutomationActions(registry: ActionRegistry, outputDirect
   registry.register('click', async (config) => {
     const selector = config.selector;
     if (typeof selector !== 'string' || !selector) throw new Error('Click element requires a selector');
-    return chromeSession.click(selector, typeof config.strategy === 'string' ? config.strategy : 'css');
+    return chromeSession.click(selector, typeof config.strategy === 'string' ? config.strategy : 'css', typeof config.frameSelector === 'string' ? config.frameSelector : '');
   });
   registry.register('selectOption', async (config) => {
     if (typeof config.selector !== 'string' || !config.selector.trim()) throw new Error('Select option requires a selector');
     if (typeof config.value !== 'string') throw new Error('Select option requires a string value');
-    return chromeSession.selectOption(config.selector, config.value, typeof config.strategy === 'string' ? config.strategy : 'css');
+    return chromeSession.selectOption(config.selector, config.value, typeof config.strategy === 'string' ? config.strategy : 'css', typeof config.frameSelector === 'string' ? config.frameSelector : '');
   });
   registry.register('typeText', async (config) => {
     if (typeof config.selector !== 'string' || !config.selector) throw new Error('Type text requires a selector');
     const text = typeof config.text === 'string' ? config.text : '';
-    return chromeSession.typeText(config.selector, text, typeof config.strategy === 'string' ? config.strategy : 'css', config.clear !== false);
+    return chromeSession.typeText(config.selector, text, typeof config.strategy === 'string' ? config.strategy : 'css', config.clear !== false, typeof config.frameSelector === 'string' ? config.frameSelector : '');
   });
   registry.register('waitForElement', async (config) => {
     if (typeof config.selector !== 'string' || !config.selector) throw new Error('Wait for element requires a selector');
-    return chromeSession.waitForElement(config.selector, typeof config.strategy === 'string' ? config.strategy : 'css', Number(config.timeoutMs ?? 10_000));
+    return chromeSession.waitForElement(config.selector, typeof config.strategy === 'string' ? config.strategy : 'css', Number(config.timeoutMs ?? 10_000), typeof config.frameSelector === 'string' ? config.frameSelector : '');
   });
   registry.register('readAttribute', async (config, context) => {
     if (typeof config.selector !== 'string' || !config.selector) throw new Error('Read attribute requires a selector');
-    const value = await chromeSession.readAttribute(config.selector, typeof config.attribute === 'string' ? config.attribute : 'textContent', typeof config.strategy === 'string' ? config.strategy : 'css');
+    const value = await chromeSession.readAttribute(config.selector, typeof config.attribute === 'string' ? config.attribute : 'textContent', typeof config.strategy === 'string' ? config.strategy : 'css', typeof config.frameSelector === 'string' ? config.frameSelector : '');
     if (typeof config.outputVariable === 'string' && config.outputVariable) context.variables[config.outputVariable] = value;
     return value;
   });

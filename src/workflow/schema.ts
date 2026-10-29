@@ -55,6 +55,8 @@ export function validateWorkflow(input: unknown): { workflow?: Workflow; errors:
     if (node.type === 'typeText') configString(node, 'text');
     if (node.type === 'selectOption' && typeof node.config.value !== 'string') errors.push(`Node ${node.id}: value must be a string`);
     if (['click', 'typeText', 'selectOption', 'waitForElement', 'readAttribute'].includes(node.type) && node.config.strategy !== undefined && !['css', 'xpath', 'id'].includes(String(node.config.strategy))) errors.push(`Node ${node.id}: strategy must be css, xpath, or id`);
+    if (['click', 'typeText', 'selectOption', 'waitForElement', 'readAttribute'].includes(node.type)) configString(node, 'frameSelector');
+    if (typeof node.config.frameSelector === 'string' && node.config.frameSelector.length > 2048) errors.push(`Node ${node.id}: frameSelector exceeds the 2048 character limit`);
     if (['extractText', 'extractLinks'].includes(node.type)) configString(node, 'selector');
     if (node.type === 'extractItems') {
       configString(node, 'itemSelector', true);

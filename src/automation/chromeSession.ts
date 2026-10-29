@@ -95,17 +95,19 @@ export class ChromeSession {
       }), selector);
   }
 
-  async selectOption(selector: string, value: string, strategy = 'css'): Promise<{ selected: string }> {
+  async selectOption(selector: string, value: string, strategy = 'css', frameSelector = ''): Promise<{ selected: string }> {
     if (value.length > 100_000) throw new Error('Option value exceeds the 100,000 character limit');
-    const driver = this.requireDriver();
-    const element = await driver.findElement(this.locator(strategy, selector));
-    const tag = await element.getTagName();
-    if (tag.toLowerCase() !== 'select') throw new Error('Select option requires a <select> element');
-    const options = await element.findElements(By.css('option'));
-    for (const option of options) {
-      if ((await option.getAttribute('value')) === value) { await option.click(); return { selected: value }; }
-    }
-    throw new Error(`No option with value ${value} exists in the select element`);
+    return this.inFrame(frameSelector, async () => {
+      const driver = this.requireDriver();
+      const element = await driver.findElement(this.locator(strategy, selector));
+      const tag = await element.getTagName();
+      if (tag.toLowerCase() !== 'select') throw new Error('Select option requires a <select> element');
+      const options = await element.findElements(By.css('option'));
+      for (const option of options) {
+        if ((await option.getAttribute('value')) === value) { await option.click(); return { selected: value }; }
+      }
+      throw new Error(`No option with value ${value} exists in the select element`);
+    });
   }
 
   async previewItems(itemSelector: string, fields: Record<string, string>): Promise<ScrapedItem[]> {
@@ -156,39 +158,45 @@ export class ChromeSession {
     return rows;
   }
 
-  async click(selector: string, strategy = 'css'): Promise<{ clicked: true }> {
-    const driver = this.requireDriver();
-    const element = await driver.findElement(this.locator(strategy, selector));
-    await element.click();
-    return { clicked: true };
+  async click(selector: string, strategy = 'css', frameSelector = ''): Promise<{ clicked: true }> {
+    return this.inFrame(frameSelector, async () => {
+      const element = await this.requireDriver().findElement(this.locator(strategy, selector));
+      await element.click();
+      return { clicked: true as const };
+    });
   }
 
-  async typeText(selector: string, text: string, strategy = 'css', clear = true): Promise<{ typed: number }> {
+  async typeText(selector: string, text: string, strategy = 'css', clear = true, frameSelector = ''): Promise<{ typed: number }> {
     if (text.length > 100_000) throw new Error('Input text exceeds the 100,000 character limit');
-    const driver = this.requireDriver();
-    const element = await driver.findElement(this.locator(strategy, selector));
-    if (clear) await element.clear();
-    await element.sendKeys(text);
-    return { typed: text.length };
+    return this.inFrame(frameSelector, async () => {
+      const element = await this.requireDriver().findElement(this.locator(strategy, selector));
+      if (clear) await element.clear();
+      await element.sendKeys(text);
+      return { typed: text.length };
+    });
   }
 
-  async waitForElement(selector: string, strategy = 'css', timeoutMs = 10_000): Promise<{ found: true }> {
-    const driver = this.requireDriver();
-    await driver.wait(until.elementLocated(this.locator(strategy, selector)), Math.min(Math.max(timeoutMs, 100), 60_000));
-    return { found: true };
+  async waitForElement(selector: string, strategy = 'css', timeoutMs = 10_000, frameSelector = ''): Promise<{ found: true }> {
+    return this.inFrame(frameSelector, async () => {
+      const driver = this.requireDriver();
+      await driver.wait(until.elementLocated(this.locator(strategy, selector)), Math.min(Math.max(timeoutMs, 100), 60_000));
+      return { found: true as const };
+    });
   }
 
-  async readAttribute(selector: string, attribute = 'textContent', strategy = 'css'): Promise<string> {
-    const element = await this.requireDriver().findElement(this.locator(strategy, selector));
-    if (attribute === 'text' || attribute === 'textContent') return (await element.getText()).trim();
-    const value = await element.getAttribute(attribute);
-    return value ?? '';
+  async readAttribute(selector: string, attribute = 'textContent', strategy = 'css', frameSelector = ''): Promise<string> {
+    return this.inFrame(frameSelector, async () => {
+      const element = await this.requireDriver().findElement(this.locator(strategy, selector));
+      if (attribute === 'text' || attribute === 'textContent') return (await element.getText()).trim();
+      return (await element.getAttribute(attribute)) ?? '';
+    });
   }
 
-  async testLocator(strategy: string, value: string): Promise<{ matches: number; firstText?: string }> {
-    const driver = this.requireDriver();
-    const elements = await driver.findElements(this.locator(strategy, value));
-    return { matches: elements.length, ...(elements[0] ? { firstText: (await elements[0].getText()).slice(0, 500) } : {}) };
+  async testLocator(strategy: string, value: string, frameSelector = ''): Promise<{ matches: number; firstText?: string }> {
+    return this.inFrame(frameSelector, async () => {
+      const elements = await this.requireDriver().findElements(this.locator(strategy, value));
+      return { matches: elements.length, ...(elements[0] ? { firstText: (await elements[0].getText()).slice(0, 500) } : {}) };
+    });
   }
 
   async selectElement(timeoutMs = 60_000): Promise<ElementSnapshot> {
@@ -253,9 +261,28 @@ export class ChromeSession {
           }
           const ariaLabel = element.getAttribute('aria-label');
           const title = element.getAttribute('title');
+          const explicitRole = element.getAttribute('role');
+          const implicitRole: Record<string, string> = {
+            A: 'link', BUTTON: 'button', SELECT: 'combobox', TEXTAREA: 'textbox',
+            H1: 'heading', H2: 'heading', H3: 'heading', H4: 'heading', H5: 'heading', H6: 'heading',
+            IMG: 'img', NAV: 'navigation', MAIN: 'main', FORM: 'form',
+          };
+          const role = explicitRole || implicitRole[element.tagName] || (element instanceof HTMLInputElement
+            ? ({ checkbox: 'checkbox', radio: 'radio', button: 'button', submit: 'button', search: 'searchbox' } as Record<string, string>)[element.type] || 'textbox'
+            : '');
+          const associatedLabel = element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement
+            ? (element.labels?.[0]?.innerText ?? '') : '';
+          const text = (element.textContent ?? '').trim().slice(0, 120);
+          const accessibleName = (ariaLabel || associatedLabel || (element instanceof HTMLImageElement ? element.alt : '') || title || text).trim().slice(0, 120);
           if (ariaLabel) addXpath(`//${element.tagName.toLowerCase()}[@aria-label=${xpathLiteral(ariaLabel)}]`);
           if (title) addXpath(`//${element.tagName.toLowerCase()}[@title=${xpathLiteral(title)}]`);
-          const text = (element.textContent ?? '').trim().slice(0, 120);
+          if (role && accessibleName) {
+            const roleSelector = explicitRole
+              ? `//*[@role=${xpathLiteral(role)} and (@aria-label=${xpathLiteral(accessibleName)} or normalize-space(.)=${xpathLiteral(accessibleName)})]`
+              : `//${element.tagName.toLowerCase()}[(@aria-label=${xpathLiteral(accessibleName)} or normalize-space(.)=${xpathLiteral(accessibleName)})]`;
+            addXpath(roleSelector);
+          }
+          if (associatedLabel && element instanceof HTMLInputElement) addXpath(`//label[normalize-space(.)=${xpathLiteral(associatedLabel)}]`);
           if (text && !['INPUT', 'TEXTAREA', 'SELECT', 'IMG'].includes(element.tagName)) {
             addXpath(`//${element.tagName.toLowerCase()}[normalize-space(.)=${xpathLiteral(text)}]`);
           }
@@ -378,6 +405,21 @@ export class ChromeSession {
   isRunning(): boolean { return this.driver !== null; }
 
   listBrowsers(): BrowserInfo[] { return detectInstalledBrowsers(); }
+
+  private async inFrame<T>(frameSelector: string, action: () => Promise<T>): Promise<T> {
+    const driver = this.requireDriver();
+    if (frameSelector.length > 2048) throw new Error('Frame selector exceeds the 2048 character limit');
+    await driver.switchTo().defaultContent();
+    try {
+      if (frameSelector.trim()) {
+        const frame = await driver.findElement(By.css(frameSelector));
+        await driver.switchTo().frame(frame);
+      }
+      return await action();
+    } finally {
+      await driver.switchTo().defaultContent();
+    }
+  }
 
   private locator(strategy: string, value: string) {
     if (value.length > 2048) throw new Error('Selector exceeds the 2048 character limit');

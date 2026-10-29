@@ -29,6 +29,7 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
         <button id="record-button">Record click</button>
         <input id="record-input" name="record-input" value="">
         <select id="choice"><option value="a">Alpha</option><option value="b">Beta</option></select>
+        <iframe id="inner-frame" title="Embedded form" srcdoc="<!doctype html><html><body><h2 id='frame-heading'>Inside frame</h2><button id='frame-button'>Frame action</button></body></html>"></iframe>
         <img src="/pixel.png" alt="tiny pixel" width="1" height="1">
         <section id="items">${items}</section>${nextLink}
         </main><script>
@@ -39,6 +40,7 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
             heading.dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
           }, 800);
           if (query.get('record') === 'click') setTimeout(() => document.querySelector('#record-button').dispatchEvent(new MouseEvent('click', { bubbles: true })), 800);
+          if (query.get('record') === 'nav') setTimeout(() => document.querySelector('a[title="Next page"]').dispatchEvent(new MouseEvent('click', { bubbles: true })), 800);
           if (query.get('record') === 'type') setTimeout(() => {
             const input = document.querySelector('#record-input'); input.value = 'typed value'; input.dispatchEvent(new Event('change', { bubbles: true }));
           }, 800);
@@ -70,6 +72,11 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
     }
   });
 
+  it('rejects unsafe navigation schemes without ending the browser session', async () => {
+    await expect(session.navigate('file:///etc/passwd')).rejects.toThrow('Only HTTP and HTTPS URLs are supported');
+    expect(session.isRunning()).toBe(true);
+  }, 10_000);
+
   it('navigates and extracts DOM data through the managed browser', async () => {
     const page = await session.navigate(url);
     expect(page.title).toBe('FlowForge smoke');
@@ -87,6 +94,12 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
     expect(selected.text).toBe('Browser is alive');
     expect(selected.selectors.some((item) => item.strategy === 'id' && item.value === 'heading' && item.matches === 1)).toBe(true);
     expect(selected.selectors.some((item) => item.strategy === 'css' && item.value === '[data-testid="page-heading"]' && item.matches === 1)).toBe(true);
+    expect(selected.selectors.some((item) => item.strategy === 'xpath' && item.value.includes("normalize-space(.)='Browser is alive'") && item.matches === 1)).toBe(true);
+  }, 10_000);
+
+  it('records HTTP(S) link navigation as an openUrl action', async () => {
+    await session.navigate(`${url}?record=nav`);
+    await expect(session.recordNextAction(5_000)).resolves.toMatchObject({ kind: 'openUrl', url: `${url}next`, tagName: 'a' });
   }, 10_000);
 
   it.each([
@@ -98,6 +111,16 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
     await expect(session.recordNextAction(5_000)).resolves.toMatchObject(expected);
   }, 10_000);
 
+
+  it('runs locator actions inside a selected iframe and restores the top-level document', async () => {
+    await session.navigate(url);
+    expect(await session.readAttribute('#frame-heading', 'textContent', 'css', '#inner-frame')).toBe('Inside frame');
+    await session.click('#frame-button', 'css', '#inner-frame');
+    expect(await session.readAttribute('#heading')).toBe('Browser is alive');
+    await expect(session.readAttribute('#missing', 'textContent', 'css', '#inner-frame')).rejects.toThrow();
+    expect(await session.readAttribute('#heading')).toBe('Browser is alive');
+  }, 15_000);
+
   it('extracts repeated items across a next-page link', async () => {
     await session.navigate(url);
     const rows = await session.extractItems('article.item', { title: '.title', url: 'a' }, 'a.next', 2);
@@ -107,4 +130,10 @@ describe.skipIf(!enabled)('managed Chrome integration', () => {
       { title: 'Gamma', url: `${url}gamma` },
     ]);
   }, 20_000);
+
+  it('stops idempotently and reports the session as closed', async () => {
+    await session.stop();
+    await session.stop();
+    expect(session.isRunning()).toBe(false);
+  }, 10_000);
 });

@@ -340,7 +340,9 @@ Browser nodes operate on FlowForge's managed Selenium Chrome session. Start the 
 
 Prefer selectors based on stable application-owned attributes such as `data-testid`, `name`, or a stable ID. Avoid brittle selectors that encode long chains of layout elements.
 
-### Browser actions at a glance
+### Browser actions
+
+Browser action nodes (click, type text, select option, wait for element, and read attribute) also accept an optional **Frame selector** CSS field for a frame in the top-level document. Leave it blank for the main page. Nested frames and iframe-aware scraping are not supported yet. See [Phase 3 Browser Notes](PHASE3_BROWSER.md). at a glance
 
 A typical search workflow is:
 

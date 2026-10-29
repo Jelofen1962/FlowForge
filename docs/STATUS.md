@@ -289,3 +289,14 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Added Phase 2 closeout and release-gate checklist to `docs/PHASE2_UI.md`.
 - Dependency-free validation is limited to TypeScript/TSX syntax transpilation, CSS brace balance, package metadata parsing, source assertions, and archive integrity. These checks do not replace strict typecheck, lint, unit tests, production build, visual/accessibility inspection, or Windows packaging.
 - **Phase 2 implementation: complete. Release acceptance: pending** dependency-backed CI and visual/accessibility verification.
+
+
+## Phase 3 implementation increment (2026-10-29)
+
+- Added optional CSS `frameSelector` support to click, type, select-option, wait-for-element, and read-attribute workflow actions. Frame context is always reset to the top-level document, including failure paths.
+- Extended the element picker with role/name-like XPath candidates based on explicit ARIA roles and common implicit HTML roles, while preserving stable CSS/ID/XPath candidates.
+- Added managed-browser integration coverage for unsafe navigation rejection, iframe action/cleanup, semantic selector candidates, and idempotent shutdown; existing capture tests cover click, text, select-option, and HTTP(S) navigation.
+- Added `docs/PHASE3_BROWSER.md` with the frame contract, boundaries, and release checklist.
+- Static syntax checks and dependency-backed verification are recorded separately. Browser integration, full typecheck, lint, tests, build, and real-site recorder checks remain pending until dependencies and a supported browser/driver are available.
+
+**Phase 3 implementation increment: source and test coverage added; release verification pending.** Nested iframe chains and iframe-aware scraping/picking remain outside this increment and are explicitly documented.

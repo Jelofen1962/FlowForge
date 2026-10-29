@@ -158,10 +158,10 @@ function registerIpc(): void {
     try { return { ok: true, rows: await chromeSession.previewItems(itemSelector, fields as Record<string, string>) }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
   });
-  ipcMain.handle('browser:test-locator', async (event, strategy: unknown, value: unknown) => {
+  ipcMain.handle('browser:test-locator', async (event, strategy: unknown, value: unknown, frameSelector: unknown = '') => {
     assertTrustedSender(event);
-    if (!['css', 'xpath', 'id'].includes(String(strategy)) || typeof value !== 'string' || value.length > 2048) return { ok: false, error: 'Invalid locator' };
-    try { return { ok: true, ...(await chromeSession.testLocator(String(strategy), value)) }; }
+    if (!['css', 'xpath', 'id'].includes(String(strategy)) || typeof value !== 'string' || value.length > 2048 || typeof frameSelector !== 'string' || frameSelector.length > 2048) return { ok: false, error: 'Invalid locator' };
+    try { return { ok: true, ...(await chromeSession.testLocator(String(strategy), value, frameSelector)) }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
   });
   ipcMain.handle('file:write-output', async (event, filename: unknown, content: unknown) => {

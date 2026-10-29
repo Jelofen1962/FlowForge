@@ -8,6 +8,7 @@ FlowForge is a Windows-focused desktop application for visual browser automation
 - [Full User Guide](docs/USER_GUIDE.md): node-by-node reference, variables, recorder, scraping, data processing, worked examples, and troubleshooting.
 - [Release Acceptance Checklist](docs/RELEASE_ACCEPTANCE.md): required test, browser, data-safety, and Windows packaging gates.
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md): roadmap and remaining work.
+- [Phase 3 Browser Notes](docs/PHASE3_BROWSER.md): recorder, semantic locator candidates, iframe targeting, and browser acceptance gates.
 - [Status](docs/STATUS.md): phase notes and verification caveats.
 
 The user guide documents the current repository behavior and explicitly labels unfinished features. Documentation is not a substitute for passing CI or Windows installer validation.

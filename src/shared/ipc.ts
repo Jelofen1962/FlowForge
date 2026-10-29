@@ -21,6 +21,6 @@ export interface FlowForgeApi {
     selectElement: () => Promise<{ ok: boolean; element?: ElementSnapshot; error?: string }>;
     recordNextAction: () => Promise<{ ok: boolean; action?: RecordedAction; error?: string }>;
     previewItems: (itemSelector: string, fields: Record<string, string>) => Promise<{ ok: boolean; rows?: Record<string, string>[]; error?: string }>;
-    testLocator: (strategy: string, value: string) => Promise<{ ok: boolean; matches?: number; firstText?: string; error?: string }>;
+    testLocator: (strategy: string, value: string, frameSelector?: string) => Promise<{ ok: boolean; matches?: number; firstText?: string; error?: string }>;
   };
 }
