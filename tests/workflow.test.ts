@@ -285,6 +285,19 @@ describe('batch processing', () => {
     expect(results[0].status).toBe('succeeded');
     expect(results[0].attempts).toBe(2);
   });
+  it('bounds concurrency while preserving input result order', async () => {
+    let active = 0;
+    let maximumActive = 0;
+    const results = await runBatch([30, 10, 20], async (value) => {
+      active++;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise((resolve) => setTimeout(resolve, value === 30 ? 15 : 1));
+      active--;
+      return value;
+    }, { concurrency: 2 });
+    expect(maximumActive).toBe(2);
+    expect(results.map((item) => item.output)).toEqual([30, 10, 20]);
+  });
 });
 
 

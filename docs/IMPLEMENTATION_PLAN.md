@@ -140,3 +140,10 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - [ ] Add explicit environment-variable injection through a validated main-process API.
 - [ ] Design secure credential storage before claiming secret support.
 - [ ] Run full CI and desktop verification. See `docs/PHASE5_VARIABLES_LIBRARY.md`.
+
+## Phase 6: bounded batch execution
+
+- [x] Add optional bounded concurrency to `runBatch` while preserving sequential default behavior.
+- [x] Preserve input-index result order and per-item retry/progress behavior.
+- [x] Add regression coverage for concurrency ceiling and stable output order.
+- [ ] Verify through the dependency-backed CI gate; this workspace does not have installed project dependencies.
