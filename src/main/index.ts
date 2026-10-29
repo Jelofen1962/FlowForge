@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromeSession } from '../automation/chromeSession';
@@ -395,7 +395,14 @@ async function createWindow(): Promise<void> {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(() => { registerIpc(); return createWindow(); });
+app.whenReady().then(() => {
+  if (app.isPackaged && process.platform === 'win32') {
+    const managerPath = path.join(process.resourcesPath, 'selenium', 'selenium-manager.exe');
+    if (existsSync(managerPath)) process.env.SE_MANAGER_PATH = managerPath;
+  }
+  registerIpc();
+  return createWindow();
+});
 let shuttingDown = false;
 app.on('before-quit', (event) => {
   if (shuttingDown) return;

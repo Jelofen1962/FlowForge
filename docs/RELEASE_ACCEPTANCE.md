@@ -88,3 +88,7 @@ Do not mark the release as accepted until all applicable gates above have eviden
 - Updated README links to the full guide and acceptance checklist.
 
 **Status:** documentation and acceptance criteria prepared. Runtime release acceptance remains pending CI and Windows verification.
+
+## Selenium Manager packaging fix
+
+The Windows installer copies Selenium Manager to `resources/selenium/selenium-manager.exe` outside `app.asar`, and the packaged main process sets `SE_MANAGER_PATH` to that executable before browser automation can start. This avoids attempting to spawn an executable through an `app.asar` path. Verify this in a packaged Windows install by checking that the file exists under the installed FlowForge `resources` directory and starting Chrome/Edge.

@@ -15,3 +15,7 @@ nsis:
 
 asarUnpack:
   - node_modules/selenium-webdriver/bin/**
+
+extraResources:
+  - from: node_modules/selenium-webdriver/bin/windows/selenium-manager.exe
+    to: selenium/selenium-manager.exe

@@ -48,7 +48,7 @@ export class ChromeSession {
     catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       if (/selenium-manager|Unable to obtain.*driver|driver location/i.test(detail)) {
-        throw new Error(`Could not start ${browser.label}. FlowForge could not resolve its browser driver. Update or reinstall FlowForge so Selenium Manager is unpacked correctly, or install a compatible browser version. Details: ${detail}`);
+        throw new Error(`Could not start ${browser.label}. FlowForge could not run Selenium Manager to resolve a compatible browser driver. Check that selenium-manager.exe exists in the installed FlowForge resources and that the browser can be accessed. Details: ${detail}`);
       }
       throw error;
     }
