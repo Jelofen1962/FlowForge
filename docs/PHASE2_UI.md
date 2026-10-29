@@ -68,3 +68,10 @@
 - [ ] Escape closes the active drawer.
 - [ ] Adding an action closes the Actions drawer and the new node remains selected.
 - [ ] The backdrop sits behind the drawer and does not intercept clicks inside it.
+
+## Phase 2 interaction refinement: explicit drawer close controls
+
+- Added labeled close buttons inside the Actions and Inspector headers on compact layouts, complementing backdrop and Escape dismissal.
+- Connected the Node name label to its input so assistive technology can identify the field correctly.
+- Kept controls hidden on desktop and reused existing React state/CSS; no dependency or workflow behavior changes.
+- Manual acceptance: [ ] close buttons appear only at compact widths; [ ] each closes its own open drawer; [ ] focus indicators are visible; [ ] Node name label focuses its input.

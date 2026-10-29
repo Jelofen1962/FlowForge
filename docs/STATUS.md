@@ -275,3 +275,10 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Full typecheck, ESLint, Vitest, production build, and running-app visual/accessibility checks remain blocked or pending because project dependencies are not installed.
 
 **Current phase:** Phase 2, responsive UI foundation and interaction refinement (in progress).
+
+## 2026-10-29 Phase 2 drawer accessibility refinement
+
+- Added explicit, accessible close controls to the compact Actions and Inspector drawers, in addition to backdrop and Escape dismissal.
+- Associated the Node name label with its input.
+- Kept the changes scoped to existing JSX and CSS; no dependencies added and no workflow engine behavior changed.
+- Static verification is recorded below; full dependency-backed checks and running-app accessibility inspection remain pending.
