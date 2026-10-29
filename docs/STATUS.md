@@ -232,3 +232,6 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Added canvas context actions, duplicate/group keyboard shortcuts, and auto-focus for newly added nodes.
 - Added a compact workspace home dashboard and visible workflow-name focus styling.
 - Validation performed in this environment: TSX syntax transpilation passed. Full dependency-backed typecheck, lint, tests, and Windows packaging remain to be run in CI.
+## Typecheck cleanup (post-v1.1.7)
+- Removed unused Lucide icons, unused JSON/CSV/text parser imports, and the unused `contextMenu` state reported by TypeScript TS6133.
+- Full `npm run typecheck` remains unverified locally because project dependencies are not installed in this workspace.
