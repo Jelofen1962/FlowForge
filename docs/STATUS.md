@@ -249,3 +249,13 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - TypeScript syntax transpilation passed for 19 `.ts` / `.tsx` source and test files with zero diagnostics. Dependency-free smoke checks passed for CSV parse/encode, expression resolution including prototype-path rejection, and bounded batch retry behavior. `package.json` parsed successfully.
 - Re-ran `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build`: still blocked by missing `vite/client` / `vitest/globals`, `vitest`, and `eslint`.
 - **Phase 1 remains incomplete at the green-baseline gate.** Do not begin broad Phase 2 UI refactoring until a dependency-backed run passes or records actionable code failures. No lockfile was fabricated; no runtime behavior was changed.
+
+## Phase 2 start: responsive workspace and layout foundation (2026-10-29)
+
+- Removed the global `html { zoom: 1.25 }` workaround and removed the document's 1000px minimum width.
+- Added compact-width panel drawers for Actions/Variables/Library/Runs and Node Inspector, exposed from the canvas toolbar below 1100px.
+- Added responsive toolbar/mode navigation behavior for small windows, compact home/data modals, visible focus styling, and reduced-motion-safe transitions.
+- Kept the existing React Flow editor, action catalog, workflow state, and execution behavior intact; this pass changes presentation/layout only.
+- Verification: TypeScript syntax transpilation passed for 19 `.ts`/`.tsx` source/test files with zero diagnostics. Full typecheck, lint, Vitest, and production build remain blocked until project dependencies are installed. No visual browser/Electron verification is claimed.
+
+**Current phase:** Phase 2, responsive UI foundation (in progress). Design-system consolidation, editor visual refinement, and renderer interaction tests remain.
