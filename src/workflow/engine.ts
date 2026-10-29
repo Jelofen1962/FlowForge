@@ -6,9 +6,9 @@ export type RunStatus = 'succeeded' | 'failed' | 'cancelled';
 export interface StepResult { nodeId: string; status: RunStatus; startedAt: string; durationMs: number; output?: unknown; error?: string }
 export interface RunResult { status: RunStatus; steps: StepResult[]; variables: Record<string, unknown>; logs: string[]; error?: string }
 interface LoopState { iterations: number }
-export interface RunOptions { signal?: AbortSignal; onStep?: (result: StepResult) => void; maxSteps?: number; initialVariables?: Record<string, unknown>; depth?: number; loopState?: LoopState }
+export interface RunOptions { signal?: AbortSignal; onStep?: (result: StepResult) => void; shouldPause?: (nodeId: string, breakpoint: boolean) => boolean; onBreakpoint?: (nodeId: string) => Promise<void>; maxSteps?: number; initialVariables?: Record<string, unknown>; environmentVariables?: Record<string, string>; depth?: number; loopState?: LoopState }
 export type ActionHandler = (config: Record<string, unknown>, context: ActionContext) => Promise<unknown>;
-export interface ActionContext { variables: Record<string, unknown>; item?: unknown; index?: number; signal?: AbortSignal; depth?: number; loopState?: LoopState; log: (message: string) => void }
+export interface ActionContext { variables: Record<string, unknown>; item?: unknown; index?: number; signal?: AbortSignal; environmentVariables?: Record<string, string>; depth?: number; loopState?: LoopState; log: (message: string) => void }
 
 export class ActionRegistry {
   private handlers = new Map<string, ActionHandler>();
@@ -50,7 +50,7 @@ export function createDefaultRegistry(): ActionRegistry {
     const inputs = (config.inputs ?? {}) as Record<string, unknown>;
     const outputVariable = config.outputVariable;
     if (outputVariable !== undefined && (typeof outputVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(outputVariable) || ['__proto__', 'prototype', 'constructor'].includes(outputVariable))) throw new Error('Subworkflow output variable name is invalid or reserved');
-    const result = await executeWorkflow(config.workflow, registry, { signal: context.signal, depth: (context.depth ?? 0) + 1, initialVariables: inputs, maxSteps: 1000, loopState: context.loopState });
+    const result = await executeWorkflow(config.workflow, registry, { signal: context.signal, depth: (context.depth ?? 0) + 1, initialVariables: inputs, environmentVariables: context.environmentVariables, maxSteps: 1000, loopState: context.loopState });
     if (result.status !== 'succeeded') throw new Error(result.error ?? `Subworkflow ${result.status}`);
     if (config.outputs !== undefined) {
       if (!config.outputs || typeof config.outputs !== 'object' || Array.isArray(config.outputs)) throw new Error('Subworkflow outputs must be an object');
@@ -148,7 +148,7 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
   }
   if (executionOrder.length !== reachable.size) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow graph contains a cycle' };
   if ((options.depth ?? 0) > 10) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Subworkflow nesting exceeds the 10-level limit' };
-  const variables = { ...Object.fromEntries(workflow.variables.filter((v) => v.scope === 'workflow').map((v) => [v.name, v.value])), ...(options.initialVariables ?? {}) };
+  const variables = { ...Object.fromEntries(workflow.variables.filter((v) => v.scope === 'workflow' || v.scope === 'run').map((v) => [v.name, v.value])), ...(options.initialVariables ?? {}), ...Object.fromEntries(workflow.variables.filter((v) => v.scope === 'environment' && typeof v.value === 'string' && options.environmentVariables && Object.hasOwn(options.environmentVariables, v.value)).map((v) => [v.name, options.environmentVariables![v.value as string]])) };
   const loopState = options.loopState ?? { iterations: 0 };
   const steps: StepResult[] = [];
   const logs: string[] = [];
@@ -161,6 +161,8 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
     if (options.signal?.aborted) return { status: 'cancelled', steps, variables, logs };
     const node = byId.get(id)!;
     if (!activeNodes.has(id)) continue;
+    if (options.shouldPause?.(id, Boolean(node.breakpoint)) || node.breakpoint) await options.onBreakpoint?.(id);
+    if (options.signal?.aborted) return { status: 'cancelled', steps, variables, logs };
     if (steps.length >= maxSteps) return { status: 'failed', steps, variables, logs, error: `Execution exceeded ${maxSteps} steps` };
     if (node.disabled) {
       for (const edge of outgoing.get(id) ?? []) activeNodes.add(edge.target);
@@ -177,7 +179,7 @@ export async function executeWorkflow(input: unknown, registry = createDefaultRe
         : node.type === 'subworkflow'
           ? { ...node.config, inputs: resolveExpression(node.config.inputs ?? {}, expressionContext) }
           : resolveExpression(node.config, expressionContext);
-      const output = await handler(config as Record<string, unknown>, { variables, signal: options.signal, depth: options.depth ?? 0, loopState, log });
+      const output = await handler(config as Record<string, unknown>, { variables, signal: options.signal, environmentVariables: options.environmentVariables, depth: options.depth ?? 0, loopState, log });
       outputs[node.id] = { output };
       result = { nodeId: id, status: 'succeeded', startedAt: new Date(started).toISOString(), durationMs: Date.now() - started, output };
     } catch (error) {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,8 +11,59 @@ import type { RunHistoryEntry } from '../shared/ipc';
 let mainWindow: BrowserWindow | null = null;
 const isDev = !app.isPackaged;
 const activeRuns = new Map<string, AbortController>();
+const pendingDebug = new Map<string, (step: boolean) => void>();
+const debugStepRuns = new Set<string>();
 const workflowsDir = () => path.join(app.getPath('userData'), 'workflows');
 const runHistoryPath = () => path.join(app.getPath('userData'), 'run-history.json');
+const credentialsPath = () => path.join(app.getPath('userData'), 'credentials.json');
+const credentialMarker = (name: string) => `@flowforge-credential:${name}`;
+
+async function readCredentials(): Promise<Record<string, string>> {
+  try { const value: unknown = JSON.parse(await fs.readFile(credentialsPath(), 'utf8')); return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, string> : {}; } catch { return {}; }
+}
+async function writeCredential(workflowId: string, name: string, value: string): Promise<void> {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure credential storage is unavailable on this system');
+  const credentials = await readCredentials();
+  credentials[`${workflowId}:${name}`] = safeStorage.encryptString(value).toString('base64');
+  await writeFileAtomically(credentialsPath(), JSON.stringify(credentials));
+}
+async function readCredential(workflowId: string, name: string): Promise<string> {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure credential storage is unavailable on this system');
+  const encrypted = (await readCredentials())[`${workflowId}:${name}`];
+  if (!encrypted) throw new Error(`Secret variable ${name} has no stored credential`);
+  return safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+}
+async function prepareWorkflowSecrets(workflow: import('../workflow/schema').Workflow, persistInline: boolean): Promise<import('../workflow/schema').Workflow> {
+  const copy = structuredClone(workflow);
+  for (const variable of copy.variables) {
+    if (variable.type !== 'secret' || variable.scope === 'environment') continue;
+    if (typeof variable.value === 'string' && variable.value.startsWith('@flowforge-credential:')) continue;
+    if (typeof variable.value !== 'string' || !variable.value) continue;
+    if (persistInline) await writeCredential(copy.id, variable.name, variable.value);
+    else continue;
+    variable.value = credentialMarker(variable.name);
+  }
+  for (const node of copy.nodes) {
+    if (node.type === 'subworkflow' && node.config.workflow && typeof node.config.workflow === 'object' && !Array.isArray(node.config.workflow)) {
+      const child = validateWorkflow(node.config.workflow);
+      if (child.workflow) node.config.workflow = await prepareWorkflowSecrets(child.workflow, persistInline);
+    }
+  }
+  return copy;
+}
+async function hydrateWorkflowSecrets(workflow: import('../workflow/schema').Workflow): Promise<import('../workflow/schema').Workflow> {
+  const copy = structuredClone(workflow);
+  for (const variable of copy.variables) {
+    if (variable.type === 'secret' && variable.scope !== 'environment' && typeof variable.value === 'string' && variable.value.startsWith('@flowforge-credential:')) variable.value = await readCredential(copy.id, variable.value.slice('@flowforge-credential:'.length));
+  }
+  for (const node of copy.nodes) {
+    if (node.type === 'subworkflow' && node.config.workflow && typeof node.config.workflow === 'object' && !Array.isArray(node.config.workflow)) {
+      const child = validateWorkflow(node.config.workflow);
+      if (child.workflow) node.config.workflow = await hydrateWorkflowSecrets(child.workflow);
+    }
+  }
+  return copy;
+}
 
 async function writeFileAtomically(file: string, content: string): Promise<void> {
   await fs.mkdir(path.dirname(file), { recursive: true });
@@ -56,7 +107,9 @@ function registerIpc(): void {
     const parsed: unknown = JSON.parse(content);
     const validation = validateWorkflow(parsed);
     if (!validation.workflow) throw new Error(`Invalid workflow file: ${validation.errors.join('; ')}`);
-    return validation.workflow;
+    const safeWorkflow = await prepareWorkflowSecrets(validation.workflow, true);
+    if (JSON.stringify(safeWorkflow) !== JSON.stringify(validation.workflow)) await writeFileAtomically(result.filePaths[0], serializeWorkflow(safeWorkflow));
+    return safeWorkflow;
   });
   ipcMain.handle('workflow:history', async (event) => { assertTrustedSender(event); return readRunHistory(); });
   ipcMain.handle('workflow:run', async (event, input: unknown, runId: unknown) => {
@@ -78,8 +131,35 @@ function registerIpc(): void {
     registerAutomationActions(registry, path.join(app.getPath('userData'), 'outputs'));
     try {
       let result: RunResult;
-      try { result = await executeWorkflow(input, registry, { maxSteps: 1000, signal: controller.signal }); }
-      catch (error) { result = { status: controller.signal.aborted ? 'cancelled' as const : 'failed' as const, steps: [], variables: {}, logs: [], ...(!controller.signal.aborted ? { error: error instanceof Error ? error.message : String(error) } : {}) }; }
+      try {
+        const validation = validateWorkflow(input);
+        if (!validation.workflow) throw new Error(`Workflow validation failed: ${validation.errors.join('; ')}`);
+        const environmentValues: Record<string, string> = {};
+        const pendingWorkflows = [validation.workflow];
+        const visitedWorkflows = new Set<object>();
+        while (pendingWorkflows.length) {
+          const currentWorkflow = pendingWorkflows.pop()!;
+          if (visitedWorkflows.has(currentWorkflow)) continue;
+          visitedWorkflows.add(currentWorkflow);
+          for (const variable of currentWorkflow.variables.filter((entry) => entry.scope === 'environment')) {
+            const environmentName = variable.value;
+            if (typeof environmentName !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(environmentName)) {
+              throw new Error(`Environment variable ${variable.name} must contain a valid environment key name`);
+            }
+            const environmentValue = process.env[environmentName];
+            if (environmentValue === undefined) throw new Error(`Required environment variable is not set: ${environmentName}`);
+            environmentValues[environmentName] = environmentValue;
+          }
+          for (const node of currentWorkflow.nodes) {
+            if (node.type === 'subworkflow' && node.config.workflow && typeof node.config.workflow === 'object' && !Array.isArray(node.config.workflow)) {
+              const child = validateWorkflow(node.config.workflow);
+              if (child.workflow) pendingWorkflows.push(child.workflow);
+            }
+          }
+        }
+        const hydratedWorkflow = await hydrateWorkflowSecrets(validation.workflow);
+        result = await executeWorkflow(hydratedWorkflow, registry, { maxSteps: 1000, signal: controller.signal, environmentVariables: environmentValues, shouldPause: (nodeId, breakpoint) => breakpoint || debugStepRuns.has(runId), onBreakpoint: (nodeId) => new Promise<void>((resolve) => { let settled = false; const finish = (step: boolean) => { if (settled) return; settled = true; controller.signal.removeEventListener('abort', abortHandler); if (pendingDebug.get(runId) === finish) pendingDebug.delete(runId); if (step) debugStepRuns.add(runId); else debugStepRuns.delete(runId); resolve(); }; const abortHandler = () => finish(false); pendingDebug.set(runId, finish); mainWindow?.webContents.send('workflow:debug-pause', { runId, nodeId }); controller.signal.addEventListener('abort', abortHandler, { once: true }); if (controller.signal.aborted) finish(false); }) });
+      } catch (error) { result = { status: controller.signal.aborted ? 'cancelled' as const : 'failed' as const, steps: [], variables: {}, logs: [], ...(!controller.signal.aborted ? { error: error instanceof Error ? error.message : String(error) } : {}) }; }
       const parsed = validateWorkflow(input).workflow;
       const entry: RunHistoryEntry = { id: runId, workflowName: parsed?.name ?? 'Invalid workflow', startedAt, durationMs: Date.now() - started, status: result.status, steps: result.steps.length, ...(result.error ? { error: result.error.slice(0, 1000) } : {}) };
       try { await saveRunHistory([entry, ...await readRunHistory()]); } catch (error) { console.error('Could not persist workflow run history:', error); }
@@ -90,8 +170,17 @@ function registerIpc(): void {
       if (controller.signal.aborted) {
         try { await chromeSession.stop(); } catch (error) { console.error('Could not clean up cancelled browser session:', error); }
       }
+      pendingDebug.delete(runId); debugStepRuns.delete(runId);
       activeRuns.delete(runId);
     }
+  });
+  ipcMain.handle('workflow:debug-resume', (event, runId: unknown, step: unknown) => {
+    assertTrustedSender(event);
+    if (typeof runId !== 'string' || typeof step !== 'boolean') return false;
+    const resume = pendingDebug.get(runId);
+    if (!resume) return false;
+    resume(step);
+    return true;
   });
   ipcMain.handle('workflow:cancel', (event, runId: unknown) => {
     assertTrustedSender(event);
@@ -108,12 +197,14 @@ function registerIpc(): void {
     if (Buffer.byteLength(serialized, 'utf8') > 10 * 1024 * 1024) return { ok: false, error: 'Workflow exceeds the 10 MB limit' };
     const validation = validateWorkflow(input);
     if (!validation.workflow) return { ok: false, error: `Workflow validation failed: ${validation.errors.join('; ')}` };
-    const workflow = validation.workflow;
+    let workflow: import('../workflow/schema').Workflow;
+    try { workflow = await prepareWorkflowSecrets(validation.workflow, true); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
     const safeName = workflow.name.replace(/[^a-z0-9-_ ]/gi, '').trim().slice(0, 80) || 'workflow';
     const safeId = workflow.id.replace(/[^a-z0-9-_]/gi, '').slice(0, 12) || 'workflow';
     const filePath = path.join(workflowsDir(), `${safeName}-${safeId}.flow.json`);
     await writeFileAtomically(filePath, serializeWorkflow(workflow));
-    return { ok: true, path: filePath };
+    return { ok: true, path: filePath, workflow };
   });
   ipcMain.handle('file:choose-input', async (event) => {
     assertTrustedSender(event);

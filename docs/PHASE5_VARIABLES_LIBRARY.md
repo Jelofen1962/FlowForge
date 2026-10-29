@@ -10,7 +10,8 @@
 
 ## Scope boundaries
 
-- Environment-variable injection and secure secret storage are not implemented in this phase. They require an explicit main-process/IPC contract and a credential storage design, not access to arbitrary renderer environment data.
+- Environment-scoped variables are now resolved in the Electron main process at run start. Set the variable value to the environment key name (for example, `FLOWFORGE_API_TOKEN`); the actual value is never written into the workflow definition by this feature. Missing or invalid environment keys fail the run before actions execute.
+- Secure credential storage is still not implemented. Secret-typed workflow defaults are only masked in the editor and remain part of saved workflow JSON; use environment scope for credentials.
 - The library remains local to the current app profile. Cross-device synchronization and dependency/version tracking remain out of scope.
 
 ## Acceptance checklist

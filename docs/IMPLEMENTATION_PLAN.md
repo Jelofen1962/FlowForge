@@ -137,7 +137,7 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - [x] Expose workflow and item variable scopes in the editor.
 - [x] Initialize item-scoped defaults per loop item and prevent item mutations leaking across iterations.
 - [x] Add regression coverage for item variable isolation.
-- [ ] Add explicit environment-variable injection through a validated main-process API.
+- [x] Add explicit environment-variable injection through validated environment key names in the main process; missing keys fail before execution.
 - [ ] Design secure credential storage before claiming secret support.
 - [ ] Run full CI and desktop verification. See `docs/PHASE5_VARIABLES_LIBRARY.md`.
 
@@ -146,4 +146,29 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - [x] Add optional bounded concurrency to `runBatch` while preserving sequential default behavior.
 - [x] Preserve input-index result order and per-item retry/progress behavior.
 - [x] Add regression coverage for concurrency ceiling and stable output order.
+- [x] Add resumable successful-item checkpoints with input matching to prevent stale result reuse.
+- [ ] Integrate checkpoint persistence with a user-facing batch job flow; current batch helper accepts caller-owned checkpoint results.
 - [ ] Verify through the dependency-backed CI gate; this workspace does not have installed project dependencies.
+
+
+## Phase 7: unfinished-feature closure pass
+
+- [x] Implement main-process environment-variable injection for variables explicitly scoped to `environment`; workflow files store the environment key name, not its value.
+- [x] Reject malformed and missing environment keys before any workflow action runs.
+- [x] Add safe batch resume support for successful item checkpoints, reusing a result only when its index and input still match.
+- [x] Add regression tests for runtime environment injection and stale checkpoint invalidation.
+- [x] Update variable/batch documentation to distinguish implementation from release verification and secure-secret-storage limitations.
+- [ ] Secure secret storage remains incomplete. Secret-typed defaults are still serialized with workflows; environment scope is the supported path for credentials.
+- [ ] Breakpoints/step-debugger UI, end-to-end desktop verification, and real-site recorder validation remain incomplete and are not represented as finished.
+- [ ] Run dependency-backed typecheck, lint, unit tests, production build, browser integration, and Windows packaging in CI before calling the project release-ready.
+
+
+## Phase 8: Feature completion pass (in progress)
+- [x] Encrypt secret-typed workflow variable defaults with Electron safeStorage and store only credential markers in workflow files.
+- [x] Migrate existing plaintext secret defaults when workflows are opened or saved.
+- [x] Initialize run-scoped variable defaults at execution start and expose scope in the variable editor.
+- [x] Add run-scope regression coverage.
+- [ ] Integrate durable batch checkpoints into a user-facing batch job/resume experience.
+- [x] Implement basic breakpoints and pause/continue/step debugging.
+- [ ] Test debugger pause/cancel/continue paths in Electron.
+- [ ] Run full dependency-backed tests, security checks, and Windows acceptance before release.

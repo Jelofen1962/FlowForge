@@ -12,6 +12,7 @@ export const WorkflowNodeSchema = z.object({
   position: z.object({ x: z.number(), y: z.number() }),
   config: z.record(z.unknown()).default({}),
   disabled: z.boolean().default(false),
+  breakpoint: z.boolean().optional(),
   group: z.string().min(1).optional(),
 });
 export type WorkflowNode = z.infer<typeof WorkflowNodeSchema>;

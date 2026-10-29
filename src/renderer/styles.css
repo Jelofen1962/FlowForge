@@ -211,3 +211,5 @@ button, .home-card, .action-row { transition: background-color .14s ease, border
   .flow-node .node-copy span { max-width: 140px; }
   .modal-backdrop { padding: 8px; }
 }
+
+.breakpoint-indicator{position:absolute;right:9px;top:8px;color:#ff657a;font-size:12px;line-height:1;text-shadow:0 0 8px #ff657a66}.icon-button.active{color:#ff657a;border-color:#ff657a88;background:#ff657a14}

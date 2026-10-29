@@ -6,10 +6,12 @@ export interface RunHistoryEntry { id: string; workflowName: string; startedAt: 
 export interface FlowForgeApi {
   appVersion: () => Promise<string>;
   loadWorkflow: () => Promise<unknown | null>;
-  saveWorkflow: (workflow: unknown) => Promise<{ ok: boolean; path?: string; error?: string }>;
+  saveWorkflow: (workflow: unknown) => Promise<{ ok: boolean; path?: string; error?: string; workflow?: unknown }>;
   runWorkflow: (workflow: unknown, runId: string) => Promise<RunResult>;
   getRunHistory: () => Promise<RunHistoryEntry[]>;
   cancelWorkflow: (runId: string) => Promise<boolean>;
+  resumeWorkflow: (runId: string, step?: boolean) => Promise<boolean>;
+  onDebugPause: (listener: (event: { runId: string; nodeId: string }) => void) => () => void;
   chooseInputFile: () => Promise<{ path: string; content: string } | null>;
   writeOutput: (filename: string, content: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
   browser: {

@@ -326,7 +326,7 @@ Expressions are supported in action configuration values. The runtime resolves n
 3. Store extraction results in an `outputVariable`.
 4. Use those results as the input to loops, conditions, logs, or CSV export.
 
-Do not store passwords or API tokens in ordinary workflow JSON. Secret masking and secure environment-variable injection are not yet complete.
+Use environment scope for credentials and configure the matching environment variable before launching FlowForge. Missing environment keys fail the run before workflow actions execute. Secret-typed defaults are only masked in the editor; they are still serialized into workflow JSON, so do not put real credentials in a secret-typed default.
 
 ## 6. Browser session and actions
 
@@ -614,7 +614,7 @@ Workflow and run-summary persistence use validation and atomic replacement where
 
 ### Secrets
 
-The `secret` variable type exists in the schema, but complete secret masking and environment injection are not implemented. Do not put real credentials into exported workflow files, screenshots, logs, or support bundles. Use test accounts and synthetic data while developing.
+The `secret` variable type only masks the editor field and does not encrypt persisted workflow values. Environment-scoped values are resolved in the main process and the environment values themselves are not saved into the workflow file. Do not put credentials into ordinary defaults, screenshots, logs, or support bundles.
 
 ### Backups
 
@@ -773,7 +773,7 @@ Configure an `if` node with `left` set to a known value, `operator: "equals"`, a
 The following capabilities are not complete and should not be described as release-ready without further implementation and verification:
 
 - Retry/try-catch graph nodes and checkpoint/resume.
-- Full runtime semantics for workflow/run/item/environment variable scopes, secret masking, and environment injection.
+- Distinct `run`-scope semantics and secure credential storage. Environment scope is implemented for root and embedded subworkflows; secret-typed defaults are not encrypted.
 - Multi-step recorder pause/resume/replay and iframe support.
 - Image downloading and OCR.
 - Library dependency/version tracking and cloud/cross-device synchronization.

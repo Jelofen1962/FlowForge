@@ -27,6 +27,45 @@ describe('workflow validation and execution', () => {
     const cyclic = { ...workflow, edges: [...workflow.edges, { id: 'e3', source: 'log', target: 'set' }] };
     expect(validateWorkflow(cyclic).errors.join(' ')).toContain('cycle');
   });
+  it('injects explicitly supplied environment values without persisting them as defaults', async () => {
+    const envWorkflow: Workflow = {
+      ...workflow,
+      variables: [{ name: 'apiToken', type: 'secret', value: 'FLOWFORGE_TEST_TOKEN', scope: 'environment' }],
+      nodes: [workflow.nodes[0], { id: 'log-env', type: 'log', label: 'Log token', position: { x: 0, y: 1 }, config: { message: '{{variables.apiToken}}' }, disabled: false }],
+      edges: [{ id: 'env-edge', source: 'start', target: 'log-env' }],
+    };
+    const result = await executeWorkflow(envWorkflow, createDefaultRegistry(), { environmentVariables: { FLOWFORGE_TEST_TOKEN: 'injected-at-run-time' } });
+    expect(result.status).toBe('succeeded');
+    expect(result.logs).toEqual(['injected-at-run-time']);
+  });
+  it('pauses on configured breakpoints before executing their node', async () => {
+    const debugWorkflow: Workflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node) => node.id === 'set' ? { ...node, breakpoint: true } : node),
+    };
+    const pausedAt: string[] = [];
+    const result = await executeWorkflow(debugWorkflow, createDefaultRegistry(), {
+      shouldPause: (_nodeId, breakpoint) => breakpoint,
+      onBreakpoint: async (nodeId) => { pausedAt.push(nodeId); },
+    });
+    expect(result.status).toBe('succeeded');
+    expect(pausedAt).toEqual(['set']);
+  });
+
+  it('initializes run-scoped variables for each execution', async () => {
+    const runScoped: Workflow = {
+      ...workflow,
+      variables: [{ name: 'temporary', type: 'string', value: 'fresh', scope: 'run' }],
+      nodes: [workflow.nodes[0], { id: 'log-run', type: 'log', label: 'Log run value', position: { x: 0, y: 1 }, config: { message: '{{variables.temporary}}' }, disabled: false }],
+      edges: [{ id: 'run-edge', source: 'start', target: 'log-run' }],
+    };
+    const first = await executeWorkflow(runScoped);
+    const second = await executeWorkflow(runScoped);
+    expect(first.logs).toEqual(['fresh']);
+    expect(second.logs).toEqual(['fresh']);
+    expect(first.variables.temporary).toBe('fresh');
+  });
+
   it('resets item-scoped variables for each loop iteration', async () => {
     const scoped: Workflow = {
       schemaVersion: 1, id: 'item-scope', name: 'Item scope',
@@ -284,6 +323,16 @@ describe('batch processing', () => {
     const results = await runBatch([4], async () => { attempts++; if (attempts < 2) throw new Error('temporary'); return 'ok'; }, { retries: 1 });
     expect(results[0].status).toBe('succeeded');
     expect(results[0].attempts).toBe(2);
+  });
+  it('resumes only successful checkpoint rows whose inputs still match', async () => {
+    let calls = 0;
+    const checkpoint = [
+      { index: 0, input: { id: 1 }, status: 'succeeded' as const, output: 'saved', attempts: 1 },
+      { index: 1, input: { id: 99 }, status: 'succeeded' as const, output: 'stale', attempts: 1 },
+    ];
+    const results = await runBatch([{ id: 1 }, { id: 2 }], async (input) => { calls++; return `fresh-${input.id}`; }, { resumeResults: checkpoint });
+    expect(calls).toBe(1);
+    expect(results.map((result) => result.output)).toEqual(['saved', 'fresh-2']);
   });
   it('bounds concurrency while preserving input result order', async () => {
     let active = 0;

@@ -9,6 +9,7 @@ FlowForge is a Windows-focused desktop application for visual browser automation
 - [Release Acceptance Checklist](docs/RELEASE_ACCEPTANCE.md): required test, browser, data-safety, and Windows packaging gates.
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md): roadmap and remaining work.
 - [Phase 3 Browser Notes](docs/PHASE3_BROWSER.md): recorder, semantic locator candidates, iframe targeting, and browser acceptance gates.
+- [Phase 7 Completion Pass](docs/PHASE7_COMPLETION.md): implemented closures, remaining product gaps, and release gates.
 - [Status](docs/STATUS.md): phase notes and verification caveats.
 
 The user guide documents the current repository behavior and explicitly labels unfinished features. Documentation is not a substitute for passing CI or Windows installer validation.
@@ -51,13 +52,13 @@ npm run package:win
 - Recorder element picker in a separate managed Chrome window with a red 40%-opacity overlay, Alt+click interception, CSS/XPath/ID candidates, selector match counts, locator testing, and conversion of a selected element into an editable Click node. Press Escape to cancel selection.
 - JSON Field Detector for nested object paths, arrays, types and observed presence; JSON parsing errors are surfaced.
 - JSON, CSV and TXT file loading for field inspection; CSV quoting/round-trip helpers, text line parsing and JSON/CSV/TXT field-report export.
-- Sequential batch utility with bounded retries, per-item status and row-level errors.
+- Batch utility with bounded concurrency, retries, ordered per-item results, and caller-supplied successful-item resume checkpoints.
 - Dark/light theme, reduced-motion-aware modal transitions, and a CI workflow that checks quality and attempts a Windows installer build.
 
 ## Explicitly not complete
 
 - Retry/try-catch graph nodes, library dependency/version tracking, and full workflow variable scopes. Conditional routing, bounded loops, and reusable subworkflow calls are implemented but still require complete integration verification.
-- Full workflow/run/item/environment variable scopes, typed expression interpolation, secret masking, and environment injection.
+- Distinct `run`-scope semantics and secure credential storage. Environment-scoped values are injected in the main process from named environment keys; secret-typed workflow defaults are still persisted unencrypted.
 - Recorder still captures one action per request; pause/resume/replay and iframe support are not complete. Locator candidates include CSS/XPath/ID and accessible-name XPath, but broad page compatibility needs more validation.
 - OCR and image downloading are not implemented; scraping preview, repeated-item extraction, pagination, and workflow-level CSV export have initial implementations that still need broader integration coverage.
 - Checkpoint/resume, scheduling, multi-project management, and full accessibility/E2E coverage. Undo/redo, grouping, copy/paste, and capped durable run-summary history are implemented but need full regression verification.

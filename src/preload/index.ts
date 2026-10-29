@@ -4,10 +4,12 @@ import type { FlowForgeApi } from '../shared/ipc';
 const api: FlowForgeApi = {
   appVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
   loadWorkflow: () => ipcRenderer.invoke('workflow:load') as Promise<unknown | null>,
-  saveWorkflow: (workflow) => ipcRenderer.invoke('workflow:save', workflow) as Promise<{ ok: boolean; path?: string; error?: string }>,
+  saveWorkflow: (workflow) => ipcRenderer.invoke('workflow:save', workflow) as Promise<{ ok: boolean; path?: string; error?: string; workflow?: unknown }>,
   runWorkflow: (workflow, runId) => ipcRenderer.invoke('workflow:run', workflow, runId) as Promise<import('../workflow/engine').RunResult>,
   getRunHistory: () => ipcRenderer.invoke('workflow:history') as Promise<import('../shared/ipc').RunHistoryEntry[]>,
   cancelWorkflow: (runId) => ipcRenderer.invoke('workflow:cancel', runId) as Promise<boolean>,
+  resumeWorkflow: (runId, step = false) => ipcRenderer.invoke('workflow:debug-resume', runId, step) as Promise<boolean>,
+  onDebugPause: (listener) => { const handler = (_event: Electron.IpcRendererEvent, payload: { runId: string; nodeId: string }) => listener(payload); ipcRenderer.on('workflow:debug-pause', handler); return () => ipcRenderer.removeListener('workflow:debug-pause', handler); },
   chooseInputFile: () => ipcRenderer.invoke('file:choose-input') as Promise<{ path: string; content: string } | null>,
   writeOutput: (filename, content) => ipcRenderer.invoke('file:write-output', filename, content) as Promise<{ ok: boolean; path?: string; error?: string }>,
   browser: {

@@ -1,6 +1,6 @@
 # FlowForge status snapshot
 
-Date: 2026-10-28
+Date: 2026-10-29
 
 ## Current evidence
 
@@ -312,3 +312,13 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Validation limitation: dependency-backed typecheck, lint, Vitest, production build, and real Chrome integration remain unverified in this workspace because project dependencies are not installed.
 
 **Phase 4 scraping UX implementation: complete; release verification remains pending.**
+
+
+## Phase 7 unfinished-feature closure pass (2026-10-29)
+
+- Implemented environment-scoped variable resolution in the Electron main process. Environment key names are validated; missing keys fail before execution; actual values are passed to the engine only at runtime and are not written into workflow definitions.
+- Environment resolution traverses embedded subworkflows so their explicitly declared environment variables are also checked and injected.
+- Added caller-supplied successful-item checkpoints to the batch utility. Checkpoint rows are reused only when index and input still match; failed/cancelled rows and changed inputs are reprocessed.
+- Added regression tests for environment injection and stale checkpoint invalidation. Batch behavior was exercised with Node against a transpiled module; TypeScript/TSX syntax transpilation passed for 19 source/test files.
+- Full Vitest, strict typecheck, lint, production build, Electron/Chrome integration, and Windows installer validation are still not verified because dependencies and a Windows runner are unavailable here.
+- Remaining unfinished product work is explicitly tracked: secure credential storage, distinct run-scoped variables, persistent/user-facing batch checkpoints, breakpoints/step debugger, real-site recorder acceptance, accessibility review, and dependency-backed release verification.
