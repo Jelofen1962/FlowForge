@@ -259,3 +259,10 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Verification: TypeScript syntax transpilation passed for 19 `.ts`/`.tsx` source/test files with zero diagnostics. Full typecheck, lint, Vitest, and production build remain blocked until project dependencies are installed. No visual browser/Electron verification is claimed.
 
 **Current phase:** Phase 2, responsive UI foundation (in progress). Design-system consolidation, editor visual refinement, and renderer interaction tests remain.
+
+## Phase 2 visual refinement pass (2026-10-29)
+
+- Added shared CSS tokens for radius, text sizing, and focus styling; refined buttons, inputs, panel scrollbars, node cards, selection/run states, and modal surfaces.
+- Removed the app shell's 700px minimum height so short desktop windows can shrink without forcing vertical overflow; added compact-height adjustments and smaller node cards on narrow windows.
+- Kept the implementation CSS-native and dependency-free.
+- Verification: TypeScript/TSX syntax transpilation passed for 19 files with zero diagnostics; CSS brace-balance check and `package.json` parse passed. Full typecheck, lint, Vitest, production build, and Electron visual inspection remain blocked/unavailable until dependencies can be installed.

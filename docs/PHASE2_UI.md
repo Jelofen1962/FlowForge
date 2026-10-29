@@ -31,3 +31,25 @@
 - TypeScript syntax transpilation: pass, 19 source/test files, zero diagnostics.
 - Full TypeScript typecheck, ESLint, Vitest, Vite build, and Electron rendering: not verified because dependencies are not installed in this workspace.
 - Responsive visual inspection: pending a dependency-backed app launch/browser environment.
+
+## Visual refinement pass
+
+- Consolidated radii, type sizes, focus-ring styling, and panel shadow values into shared CSS tokens.
+- Refined node-card hierarchy, selected/hover/run states, action-row sizing, and input focus treatment.
+- Made the app shell's minimum height flexible and added short-window layout adjustments to avoid forcing a 700px-tall renderer into short windows.
+- Added thin, theme-aware scrollbar styling and small-screen node sizing.
+- No component library or new dependency added; existing CSS and React Flow styling remain the implementation.
+
+### Additional manual checks
+- [ ] Window height below 620px: top bars and canvas remain usable without the app shell imposing a 700px minimum.
+- [ ] Selected, running, successful, failed, and skipped node states are distinguishable.
+- [ ] Focus rings remain visible in dark and light themes.
+- [ ] Hover/selected styling does not obscure conditional or loop connection handles.
+
+
+### Refinement-pass static checks
+
+- TypeScript/TSX syntax transpilation: pass, 19 files, zero diagnostics.
+- CSS brace-balance check: pass.
+- `package.json` JSON parse: pass.
+- Full dependency-backed checks and visual inspection: still pending.
