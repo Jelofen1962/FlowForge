@@ -213,3 +213,12 @@ button, .home-card, .action-row { transition: background-color .14s ease, border
 }
 
 .breakpoint-indicator{position:absolute;right:9px;top:8px;color:#ff657a;font-size:12px;line-height:1;text-shadow:0 0 8px #ff657a66}.icon-button.active{color:#ff657a;border-color:#ff657a88;background:#ff657a14}
+
+.batch-modal { max-height: min(88vh, 920px); overflow: auto; }
+.batch-modal > textarea { min-height: 180px; max-height: 36vh; }
+.batch-job-list { display: grid; gap: 10px; margin-top: 18px; }
+.batch-job-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--border, #28303c); border-radius: 10px; }
+.batch-job-row > div { display: grid; gap: 4px; min-width: 0; }
+.batch-job-row strong, .batch-job-row small { overflow-wrap: anywhere; }
+.batch-job-row small { color: var(--text-muted, #929bad); font-size: 11px; }
+@media (max-width: 680px) { .batch-job-row { align-items: flex-start; flex-direction: column; } .batch-modal { width: calc(100vw - 20px); padding: 16px; } }

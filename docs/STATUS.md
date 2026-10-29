@@ -322,3 +322,7 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Added regression tests for environment injection and stale checkpoint invalidation. Batch behavior was exercised with Node against a transpiled module; TypeScript/TSX syntax transpilation passed for 19 source/test files.
 - Full Vitest, strict typecheck, lint, production build, Electron/Chrome integration, and Windows installer validation are still not verified because dependencies and a Windows runner are unavailable here.
 - Remaining unfinished product work is explicitly tracked: secure credential storage, distinct run-scoped variables, persistent/user-facing batch checkpoints, breakpoints/step debugger, real-site recorder acceptance, accessibility review, and dependency-backed release verification.
+
+## Phase 9 update (2026-10-29)
+
+Persistent user-facing batch execution is now wired through the desktop main process and renderer. Batch jobs snapshot the workflow and JSON input, persist per-item status checkpoints atomically, emit progress events, and can resume unfinished items after restart. The UI exposes start, progress, saved-job listing, resume, and cancellation. Items run sequentially due to the single shared browser session. Syntax transpilation and ZIP integrity checks passed; full dependency-backed typecheck/tests/lint/build and Electron restart/cancellation integration remain unverified in this environment.

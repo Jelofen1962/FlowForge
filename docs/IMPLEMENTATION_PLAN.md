@@ -172,3 +172,12 @@ The Chrome smoke test selects `a[title="Next page"]` when asserting the `Continu
 - [x] Implement basic breakpoints and pause/continue/step debugging.
 - [ ] Test debugger pause/cancel/continue paths in Electron.
 - [ ] Run full dependency-backed tests, security checks, and Windows acceptance before release.
+
+## Phase 9: persistent user-facing batch jobs
+
+- [x] Add locally persisted batch job snapshots with per-item checkpoints written atomically after each item.
+- [x] Add start, list, resume, cancel, and progress IPC methods with trusted-sender checks.
+- [x] Run items sequentially because all browser automation shares one managed browser session; reject concurrent batch/workflow execution.
+- [x] Add a Batch Run dialog to provide a JSON array and item variable, view saved jobs, monitor progress, and resume failed/cancelled jobs.
+- [x] Store workflow snapshots with secret references rather than plaintext secret defaults; batch summaries do not persist variable values or execution logs.
+- [ ] Run Electron integration tests for process restart, cancellation, and resume; verify typecheck, lint, production build, and Windows packaging in dependency-enabled CI.

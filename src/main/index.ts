@@ -16,6 +16,8 @@ const debugStepRuns = new Set<string>();
 const workflowsDir = () => path.join(app.getPath('userData'), 'workflows');
 const runHistoryPath = () => path.join(app.getPath('userData'), 'run-history.json');
 const credentialsPath = () => path.join(app.getPath('userData'), 'credentials.json');
+const batchJobsDir = () => path.join(app.getPath('userData'), 'batch-jobs');
+const activeBatchRuns = new Map<string, AbortController>();
 const credentialMarker = (name: string) => `@flowforge-credential:${name}`;
 
 async function readCredentials(): Promise<Record<string, string>> {
@@ -77,6 +79,81 @@ async function writeFileAtomically(file: string, content: string): Promise<void>
   }
 }
 
+type BatchJob = import('../shared/ipc').BatchJobSummary & { workflow: import('../workflow/schema').Workflow; items: unknown[] };
+
+async function readBatchJob(id: string): Promise<BatchJob> {
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) throw new Error('Invalid batch job id');
+  const parsed: unknown = JSON.parse(await fs.readFile(path.join(batchJobsDir(), `${id}.json`), 'utf8'));
+  if (!parsed || typeof parsed !== 'object' || (parsed as BatchJob).id !== id || !Array.isArray((parsed as BatchJob).items) || !Array.isArray((parsed as BatchJob).results)) throw new Error('Batch checkpoint is invalid');
+  return parsed as BatchJob;
+}
+async function saveBatchJob(job: BatchJob): Promise<void> {
+  job.updatedAt = new Date().toISOString();
+  await writeFileAtomically(path.join(batchJobsDir(), `${job.id}.json`), JSON.stringify(job, null, 2));
+}
+function batchSummary(job: BatchJob): import('../shared/ipc').BatchJobSummary {
+  const summary = structuredClone(job) as Partial<BatchJob>;
+  delete summary.workflow; delete summary.items;
+  return summary as import('../shared/ipc').BatchJobSummary;
+}
+function publishBatchProgress(job: BatchJob): void { mainWindow?.webContents.send('batch:progress', batchSummary(job)); }
+async function executeBatchJob(job: BatchJob): Promise<import('../shared/ipc').BatchJobSummary> {
+  if (activeBatchRuns.has(job.id)) throw new Error('This batch is already running');
+  if (activeRuns.size) throw new Error('Stop the active workflow before starting a batch; the browser session is shared');
+  if (activeBatchRuns.size) throw new Error('Only one batch can run at a time because the browser session is shared');
+  const validation = validateWorkflow(job.workflow);
+  if (!validation.workflow) throw new Error(`Stored workflow is invalid: ${validation.errors.join('; ')}`);
+  const controller = new AbortController();
+  activeBatchRuns.set(job.id, controller);
+  job.status = 'running';
+  await saveBatchJob(job); publishBatchProgress(job);
+  try {
+    const safeWorkflow = await hydrateWorkflowSecrets(validation.workflow);
+    const registry = createDefaultRegistry();
+    registerAutomationActions(registry, path.join(app.getPath('userData'), 'outputs'));
+    const environmentVariables: Record<string, string> = {};
+    const pending = [safeWorkflow];
+    const visited = new Set<object>();
+    while (pending.length) {
+      const current = pending.pop()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const variable of current.variables.filter((entry) => entry.scope === 'environment')) {
+        if (typeof variable.value !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(variable.value)) throw new Error(`Environment variable ${variable.name} must contain a valid environment key name`);
+        const value = process.env[variable.value];
+        if (value === undefined) throw new Error(`Required environment variable is not set: ${variable.value}`);
+        environmentVariables[variable.value] = value;
+      }
+      for (const node of current.nodes) if (node.type === 'subworkflow' && node.config.workflow && typeof node.config.workflow === 'object' && !Array.isArray(node.config.workflow)) {
+        const child = validateWorkflow(node.config.workflow); if (child.workflow) pending.push(child.workflow);
+      }
+    }
+    for (let index = 0; index < job.items.length; index++) {
+      if (job.results.some((result) => result.index === index && result.status === 'succeeded')) continue;
+      if (controller.signal.aborted) {
+        job.results = job.results.filter((result) => result.index !== index);
+        job.results.push({ index, status: 'cancelled', steps: 0, updatedAt: new Date().toISOString() });
+        job.status = 'cancelled'; await saveBatchJob(job); publishBatchProgress(job); break;
+      }
+      const result = await executeWorkflow(safeWorkflow, registry, { maxSteps: 1000, signal: controller.signal, environmentVariables, initialVariables: { [job.itemVariable]: job.items[index] } });
+      job.results = job.results.filter((entry) => entry.index !== index);
+      job.results.push({ index, status: result.status, steps: result.steps.length, ...(result.error ? { error: result.error.slice(0, 1000) } : {}), updatedAt: new Date().toISOString() });
+      job.results.sort((a, b) => a.index - b.index);
+      job.status = result.status === 'cancelled' ? 'cancelled' : result.status === 'failed' ? 'failed' : 'running';
+      await saveBatchJob(job); publishBatchProgress(job);
+      if (result.status !== 'succeeded') break;
+    }
+    if (job.status === 'running') job.status = job.results.filter((result) => result.status === 'succeeded').length === job.items.length ? 'succeeded' : 'failed';
+    await saveBatchJob(job); publishBatchProgress(job);
+    return batchSummary(job);
+  } catch (error) {
+    job.status = controller.signal.aborted ? 'cancelled' : 'failed';
+    job.results.push({ index: job.results.length, status: job.status === 'cancelled' ? 'cancelled' : 'failed', steps: 0, error: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000), updatedAt: new Date().toISOString() });
+    await saveBatchJob(job); publishBatchProgress(job);
+    return batchSummary(job);
+  } finally { activeBatchRuns.delete(job.id); }
+}
+
 async function readRunHistory(): Promise<RunHistoryEntry[]> {
   try {
     const parsed: unknown = JSON.parse(await fs.readFile(runHistoryPath(), 'utf8'));
@@ -112,13 +189,42 @@ function registerIpc(): void {
     return safeWorkflow;
   });
   ipcMain.handle('workflow:history', async (event) => { assertTrustedSender(event); return readRunHistory(); });
+  ipcMain.handle('batch:list', async (event) => {
+    assertTrustedSender(event);
+    try { const names = await fs.readdir(batchJobsDir()); const jobs = await Promise.all(names.filter((name) => /^[a-zA-Z0-9_-]{1,80}\.json$/.test(name)).map(async (name) => { try { return batchSummary(await readBatchJob(name.slice(0, -5))); } catch { return null; } })); return jobs.filter((job): job is import('../shared/ipc').BatchJobSummary => job !== null).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 30); } catch { return []; }
+  });
+  ipcMain.handle('batch:start', async (event, input: unknown, items: unknown, itemVariable: unknown) => {
+    assertTrustedSender(event);
+    const validation = validateWorkflow(input);
+    if (!validation.workflow) throw new Error(`Workflow validation failed: ${validation.errors.join('; ')}`);
+    if (!Array.isArray(items) || items.length < 1 || items.length > 10000) throw new Error('Batch input must be an array containing 1 to 10,000 items');
+    if (Buffer.byteLength(JSON.stringify(items), 'utf8') > 50 * 1024 * 1024) throw new Error('Batch input exceeds the 50 MB limit');
+    if (typeof itemVariable !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(itemVariable) || ['__proto__', 'prototype', 'constructor'].includes(itemVariable)) throw new Error('Choose a valid item variable name');
+    const workflow = await prepareWorkflowSecrets(validation.workflow, true);
+    const now = new Date().toISOString();
+    const job: BatchJob = { id: `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, workflowName: validation.workflow.name, itemVariable, total: items.length, status: 'queued', results: [], createdAt: now, updatedAt: now, workflow, items: structuredClone(items) };
+    await saveBatchJob(job);
+    return executeBatchJob(job);
+  });
+  ipcMain.handle('batch:resume', async (event, id: unknown) => {
+    assertTrustedSender(event);
+    if (typeof id !== 'string') throw new Error('Invalid batch job id');
+    const job = await readBatchJob(id);
+    if (job.status === 'succeeded') return batchSummary(job);
+    return executeBatchJob(job);
+  });
+  ipcMain.handle('batch:cancel', (event, id: unknown) => {
+    assertTrustedSender(event);
+    if (typeof id !== 'string') return false;
+    const controller = activeBatchRuns.get(id); if (!controller) return false; controller.abort(); return true;
+  });
   ipcMain.handle('workflow:run', async (event, input: unknown, runId: unknown) => {
     assertTrustedSender(event);
     let serialized: string;
     try { serialized = JSON.stringify(input) ?? ''; } catch { return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow input is not serializable' }; }
     if (Buffer.byteLength(serialized, 'utf8') > 10 * 1024 * 1024) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Workflow exceeds the 10 MB limit' };
     if (typeof runId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(runId) || activeRuns.has(runId)) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Invalid or duplicate run id' };
-    if (activeRuns.size > 0) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Only one workflow can run at a time because the browser session is shared' };
+    if (activeRuns.size > 0 || activeBatchRuns.size > 0) return { status: 'failed', steps: [], variables: {}, logs: [], error: 'Only one workflow or batch can run at a time because the browser session is shared' };
     const controller = new AbortController();
     const stopBrowserOnCancel = () => {
       void chromeSession.stop().catch((error) => console.error('Could not stop browser after cancellation:', error));
