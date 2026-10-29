@@ -266,3 +266,12 @@ Workflow saves, run-history updates, and output-file writes now share an atomic-
 - Removed the app shell's 700px minimum height so short desktop windows can shrink without forcing vertical overflow; added compact-height adjustments and smaller node cards on narrow windows.
 - Kept the implementation CSS-native and dependency-free.
 - Verification: TypeScript/TSX syntax transpilation passed for 19 files with zero diagnostics; CSS brace-balance check and `package.json` parse passed. Full typecheck, lint, Vitest, production build, and Electron visual inspection remain blocked/unavailable until dependencies can be installed.
+
+## 2026-10-29 Phase 2 interaction refinement
+
+- Added a dismissible backdrop behind compact-width side drawers, Escape-key dismissal, and automatic drawer close after adding an action.
+- Kept the implementation within existing React state and CSS; no dependencies added and no workflow engine behavior changed.
+- Verification: TypeScript syntax transpilation passed for 19 `.ts` / `.tsx` files; CSS brace-balance and `package.json` parse passed.
+- Full typecheck, ESLint, Vitest, production build, and running-app visual/accessibility checks remain blocked or pending because project dependencies are not installed.
+
+**Current phase:** Phase 2, responsive UI foundation and interaction refinement (in progress).

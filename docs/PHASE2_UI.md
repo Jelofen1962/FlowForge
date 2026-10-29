@@ -53,3 +53,18 @@
 - CSS brace-balance check: pass.
 - `package.json` JSON parse: pass.
 - Full dependency-backed checks and visual inspection: still pending.
+
+## Phase 2 interaction refinement: mobile drawer dismissal
+
+- Added a dismissible backdrop behind the Actions/Inspector drawers at compact widths, so users can return to the canvas without having to find the original toggle.
+- Escape now closes an open side drawer as well as the shortcut guide.
+- Adding an action from the mobile drawer returns focus to the canvas workflow by closing the drawer after insertion.
+- Implementation uses existing React state and CSS; no new dependency or component framework added.
+- Static verification: TypeScript syntax transpilation passed for 19 `.ts` / `.tsx` files; CSS brace balance and `package.json` parsing passed.
+- Still pending: full typecheck, lint, unit tests, Vite production build, and visual keyboard/screen-reader inspection in a running renderer. Dependencies are not installed in this workspace.
+
+### Manual acceptance additions
+- [ ] At widths below 1100px, tapping the backdrop closes the active side drawer.
+- [ ] Escape closes the active drawer.
+- [ ] Adding an action closes the Actions drawer and the new node remains selected.
+- [ ] The backdrop sits behind the drawer and does not intercept clicks inside it.

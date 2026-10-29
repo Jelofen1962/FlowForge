@@ -74,6 +74,7 @@ button, .home-card, .action-row { transition: background-color .14s ease, border
 .left-panel, .right-panel { min-width: 0; }
 .mobile-panel-toggle { display: none; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-raised); color: var(--text); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .mobile-panel-toggle:hover, .mobile-panel-toggle[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.mobile-drawer-backdrop { display: none; }
 
 @media (max-width: 1100px) {
   .workspace { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); }
@@ -86,6 +87,7 @@ button, .home-card, .action-row { transition: background-color .14s ease, border
   .left-panel.mobile-open, .right-panel.mobile-open { display: flex; position: absolute; z-index: 30; top: 0; bottom: 0; width: min(340px, 88vw); max-width: 88vw; overflow: auto; box-shadow: 0 16px 50px #0005; }
   .left-panel.mobile-open { left: 0; border-right: 1px solid var(--border); }
   .right-panel.mobile-open { right: 0; border-left: 1px solid var(--border); }
+  .mobile-drawer-backdrop { display: block; position: absolute; inset: 0; z-index: 25; width: 100%; height: 100%; border: 0; border-radius: 0; background: rgb(3 6 12 / 52%); cursor: default; }
   .modebar { padding-inline: 10px; gap: 8px; }
   .mode-tabs { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
   .modebar-right { gap: 8px; }
